@@ -1,0 +1,7 @@
+[Unit]
+Description=Hourly lab333 public-visibility tripwire
+[Timer]
+OnCalendar=hourly
+Persistent=true
+[Install]
+WantedBy=timers.target

@@ -31,7 +31,13 @@ NTFY_ENV = HOME / "ntfy.env"
 PEAK_FILE = HOME / "trading-data" / "portfolio_peaks" / "alpaca_live.json"
 
 ALERT_COOLDOWN_S = 6 * 3600
-DD_TRIGGER_USD = 5.0          # user rule: $5 aggregate live DD = review
+# D6 rev 2026-08-04: triggers scale with contributed capital (Σ deposits −
+# withdrawals). Review = max($5, 3%), amber = max($4, 2%). At $500 contributed
+# that's $15 / $10 — an ordinary INTC-driven ±$12 1σ day no longer pages.
+DD_REVIEW_FLOOR_USD = 5.0
+DD_REVIEW_PCT = 0.03
+DD_AMBER_FLOOR_USD = 4.0
+DD_AMBER_PCT = 0.02
 MIN_FREE_GB = 3.0   # raised from 1.0 after the 2026-07-27 zero-free incident
 
 # launchd label -> (freshness file, max staleness seconds, kickstart on stale?)
@@ -76,13 +82,25 @@ def _save_state(s: dict) -> None:
         pass
 
 
-def pushover(title: str, msg: str, key: str, state: dict) -> None:
-    """Send a deduped Pushover alert. `key` identifies the alert class."""
+def pushover(title: str, msg: str, key: str, state: dict,
+             level: str = "P4") -> None:
+    """Send a deduped alert via quarki_notify (raw ntfy only as fallback).
+    `key` identifies the alert class."""
     now = time.time()
     last = state.setdefault("last_alerts", {}).get(key, 0)
     if now - last < ALERT_COOLDOWN_S:
         log(f"alert '{key}' suppressed (cooldown): {msg}")
         return
+    notifier = HOME / "bin" / "quarki_notify.py"
+    if notifier.exists():
+        try:
+            subprocess.run(["python3", str(notifier), level, title, msg],
+                           timeout=20, check=True)
+            state["last_alerts"][key] = now
+            log(f"ALERT sent via quarki_notify [{key}/{level}]: {msg}")
+            return
+        except Exception as e:
+            log(f"quarki_notify failed ({e!r}) — falling back to raw ntfy")
     creds = {}
     try:
         for ln in NTFY_ENV.read_text().splitlines():
@@ -187,12 +205,43 @@ def check_live_drawdown(state: dict) -> None:
     except Exception:
         peak = equity
     dd = peak - equity
-    log(f"live equity ${equity:.2f}, peak ${peak:.2f}, DD ${dd:.2f}")
-    if dd >= DD_TRIGGER_USD:
-        pushover("LIVE $5 DRAWDOWN TRIGGER",
-                 f"Alpaca live ${equity:.2f} vs peak ${peak:.2f} (DD ${dd:.2f}). "
-                 "Review/assess/repair required per rule.",
-                 "live_dd", state)
+
+    # Contributed capital from Alpaca transfer activities; cache the last
+    # good value so an API hiccup degrades to yesterday's thresholds, and a
+    # cold start degrades to the conservative $5/$4 floors.
+    contributed = float(state.get("contributed_usd", 0.0))
+    try:
+        req = urllib.request.Request(
+            "https://api.alpaca.markets/v2/account/activities/TRANS?page_size=100",
+            headers={"APCA-API-KEY-ID": key, "APCA-API-SECRET-KEY": sec})
+        acts = json.loads(urllib.request.urlopen(req, timeout=10).read())
+        contributed = sum(float(a.get("net_amount", 0)) for a in acts)
+        state["contributed_usd"] = contributed
+    except Exception as e:
+        log(f"transfers fetch failed ({e!r}) — using cached contributed "
+            f"${contributed:.2f}")
+    review_at = max(DD_REVIEW_FLOOR_USD, DD_REVIEW_PCT * contributed)
+    amber_at = max(DD_AMBER_FLOOR_USD, DD_AMBER_PCT * contributed)
+
+    log(f"live equity ${equity:.2f}, peak ${peak:.2f}, DD ${dd:.2f} "
+        f"(amber ${amber_at:.2f}, review ${review_at:.2f} "
+        f"@ ${contributed:.2f} contributed)")
+    if dd >= review_at:
+        pushover("Live drawdown — review required",
+                 f"The live Alpaca account is ${dd:.2f} below its peak "
+                 f"(${equity:.2f} vs ${peak:.2f}), past your review trigger "
+                 f"of ${review_at:.2f} (3% of ${contributed:.0f} contributed). "
+                 "Per D6 this needs a review/assess/repair pass now — "
+                 "not hold-and-wait.",
+                 "live_dd", state, level="P5")
+    elif dd >= amber_at:
+        pushover("Live drawdown — amber warning",
+                 f"The live Alpaca account is ${dd:.2f} below its peak "
+                 f"(${equity:.2f} vs ${peak:.2f}), past the amber line of "
+                 f"${amber_at:.2f} (2% of ${contributed:.0f} contributed) but "
+                 f"below the ${review_at:.2f} review trigger. No action "
+                 "required yet; a review fires if it deepens.",
+                 "live_dd_amber", state, level="P4")
 
 
 def main() -> None:

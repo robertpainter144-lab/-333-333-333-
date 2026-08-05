@@ -1,0 +1,9 @@
+[Unit]
+Description=Enrich paper mirror ledgers with realized per-trade P/L (D7 gate feed)
+After=network-online.target
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/home/ubuntu/scanner
+EnvironmentFile=/home/ubuntu/quarki.env
+ExecStart=/usr/bin/python3 /home/ubuntu/scanner/sources/mirror_pnl.py

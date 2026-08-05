@@ -1,0 +1,13 @@
+[Unit]
+Description=SOXL regime paper bot
+After=network-online.target
+[Service]
+User=ubuntu
+WorkingDirectory=/home/ubuntu
+EnvironmentFile=/home/ubuntu/quarki.env
+ExecStart=/home/ubuntu/quarki-venv/bin/python soxl_paper_bot.py
+Restart=always
+RestartSec=30
+MemoryMax=150M
+[Install]
+WantedBy=multi-user.target

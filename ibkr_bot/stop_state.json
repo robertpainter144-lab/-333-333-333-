@@ -1,0 +1,151 @@
+{
+  "brackets": {
+    "F": {
+      "symbol": "F",
+      "qty": 1.0,
+      "entry_price": 14.5541,
+      "trail_pct": 0.08,
+      "hard_stop_price": 13.32,
+      "oca_group": "ibkr_bot_F_341e678c",
+      "trail_order_id": 9,
+      "stop_order_id": 10,
+      "attached_at": "2026-06-22T17:46:59.466270+00:00",
+      "components": {
+        "atr_pct": 0.04241,
+        "vix": 17.24,
+        "vix_mult": 1.0,
+        "spy_trend": "up",
+        "spy_mult": 1.0,
+        "burst_mult": 1.0,
+        "raw_trail": 0.085,
+        "trail": 0.08,
+        "arm": "armA_balanced_50_50",
+        "trail_mult": 1.0
+      },
+      "entry_date": "2026-06-22T17:46:59.466310+00:00",
+      "last_modified": "2026-06-22T17:46:59.466319+00:00"
+    },
+    "AAL": {
+      "symbol": "AAL",
+      "qty": 1.0,
+      "entry_price": 15.9206,
+      "trail_pct": 0.1,
+      "hard_stop_price": 14.6,
+      "oca_group": "ibkr_bot_AAL_fcb40dbf",
+      "trail_order_id": 12,
+      "stop_order_id": 13,
+      "attached_at": "2026-06-22T17:47:02.342022+00:00",
+      "components": {
+        "atr_pct": 0.04151,
+        "vix": 17.24,
+        "vix_mult": 1.0,
+        "spy_trend": "up",
+        "spy_mult": 1.0,
+        "burst_mult": 1.0,
+        "raw_trail": 0.085,
+        "trail": 0.1,
+        "arm": "armB_aggro_75_25",
+        "trail_mult": 1.25
+      },
+      "entry_date": "2026-06-22T17:47:02.342084+00:00",
+      "last_modified": "2026-06-22T17:47:02.342093+00:00"
+    },
+    "SCHX": {
+      "symbol": "SCHX",
+      "qty": 5.0,
+      "entry_price": 29.34858,
+      "trail_pct": 0.03496329824519854,
+      "hard_stop_price": 27.88,
+      "oca_group": "ibkr_bot_SCHX_7b51c64b",
+      "trail_order_id": 24,
+      "stop_order_id": 25,
+      "attached_at": "2026-06-26T19:41:32.701176+00:00",
+      "components": {
+        "atr_pct": 0.01554,
+        "vix": 18.81,
+        "vix_mult": 1.0,
+        "spy_trend": "up",
+        "spy_mult": 1.0,
+        "burst_mult": 1.0,
+        "raw_trail": 0.03496,
+        "trail": 0.03496,
+        "market_at_attach": 28.84
+      },
+      "entry_date": "2026-06-26T19:41:32.701191+00:00",
+      "last_modified": "2026-06-26T19:41:32.701194+00:00"
+    },
+    "AMRX": {
+      "symbol": "AMRX",
+      "qty": 5.0,
+      "entry_price": 17.138794,
+      "trail_pct": 0.07997800908914535,
+      "hard_stop_price": 15.92,
+      "oca_group": "ibkr_bot_AMRX_14a53646",
+      "trail_order_id": 30,
+      "stop_order_id": 31,
+      "attached_at": "2026-06-30T15:03:18.831235+00:00",
+      "components": {
+        "atr_pct": 0.03555,
+        "vix": 17.08,
+        "vix_mult": 1.0,
+        "spy_trend": "up",
+        "spy_mult": 1.0,
+        "burst_mult": 1.0,
+        "raw_trail": 0.07998,
+        "trail": 0.07998,
+        "market_at_attach": 17.32
+      },
+      "entry_date": "2026-06-30T15:03:18.831260+00:00",
+      "last_modified": "2026-06-30T15:03:18.831263+00:00"
+    },
+    "GRAB": {
+      "symbol": "GRAB",
+      "qty": 3.0,
+      "entry_price": 3.807703,
+      "trail_pct": 0.08,
+      "hard_stop_price": 3.48,
+      "oca_group": "ibkr_bot_GRAB_00b760a7",
+      "trail_order_id": 1121,
+      "stop_order_id": 1122,
+      "attached_at": "2026-07-01T04:02:49.572915+00:00",
+      "components": {
+        "atr_pct": 0.04291,
+        "vix": 16.45,
+        "vix_mult": 1.0,
+        "spy_trend": "up",
+        "spy_mult": 1.0,
+        "burst_mult": 1.0,
+        "raw_trail": 0.085,
+        "trail": 0.08,
+        "market_at_attach": 3.77
+      },
+      "entry_date": "2026-07-01T04:02:49.572953+00:00",
+      "last_modified": "2026-07-01T04:02:49.572957+00:00"
+    },
+    "OPEN": {
+      "symbol": "OPEN",
+      "qty": 3.0,
+      "entry_price": 4.614996,
+      "trail_pct": 0.08,
+      "hard_stop_price": 4.15,
+      "oca_group": "ibkr_bot_OPEN_b090e099",
+      "trail_order_id": 1129,
+      "stop_order_id": 1130,
+      "attached_at": "2026-07-01T04:02:56.369228+00:00",
+      "components": {
+        "atr_pct": 0.06555,
+        "vix": 16.45,
+        "vix_mult": 1.0,
+        "spy_trend": "up",
+        "spy_mult": 1.0,
+        "burst_mult": 1.0,
+        "raw_trail": 0.085,
+        "trail": 0.08,
+        "market_at_attach": 4.6
+      },
+      "entry_date": "2026-07-01T04:02:56.369256+00:00",
+      "last_modified": "2026-07-01T04:02:56.369264+00:00"
+    }
+  },
+  "_paused_until": "2026-06-18T08:00:00+00:00"
+}

@@ -1,0 +1,41 @@
+services:
+  ib-gateway:
+    image: ghcr.io/gnzsnz/ib-gateway:stable
+    container_name: ib-gateway
+    restart: unless-stopped
+    ports:
+      # Bind to localhost only — the watcher/equity_logger run on this same VM
+      # and connect via 127.0.0.1. Never expose 4001 to the public internet.
+      - "127.0.0.1:4001:4003"   # live
+      - "127.0.0.1:4002:4004"   # paper
+    environment:
+      # ── Credentials (loaded from .env file beside this compose) ──────
+      TWS_USERID: ${TWS_USERID}
+      TWS_PASSWORD: ${TWS_PASSWORD}
+      # ── Mode ────────────────────────────────────────────────────────
+      TRADING_MODE: ${TRADING_MODE:-live}      # live | paper
+      READ_ONLY_API: "no"                      # we need to place orders
+      # ── 2FA behavior ────────────────────────────────────────────────
+      TWOFA_TIMEOUT_ACTION: restart            # on 2FA timeout, restart gateway
+      TWOFA_DEVICE: ${TWOFA_DEVICE:-}          # leave blank → IB Key default
+      EXISTING_SESSION_DETECTED_ACTION: primary
+      BYPASS_WARNING: "yes"
+      RELOGIN_AFTER_TWOFA_TIMEOUT: "yes"
+      # ── Daily restart window (after US close to avoid disrupting trading) ─
+      AUTO_RESTART_TIME: "23:55"               # ET (set TIME_ZONE below)
+      TIME_ZONE: "America/New_York"
+      TZ: America/New_York
+      SAVE_TWS_SETTINGS: ""
+      # ── VNC (so you can attach a viewer if login hangs) ─────────────
+      VNC_SERVER_PASSWORD: ${VNC_PASSWORD}
+    volumes:
+      - ib-gateway-settings:/home/ibgateway/Jts
+    healthcheck:
+      test: ["CMD-SHELL", "ss -ltn | grep -q ':4003 ' || ss -ltn | grep -q ':4004 '"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 90s
+
+volumes:
+  ib-gateway-settings:

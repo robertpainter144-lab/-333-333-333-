@@ -1,0 +1,9 @@
+[Unit]
+Description=Run catalog leader check on weekday evenings after close
+
+[Timer]
+OnCalendar=Mon..Fri 22:17 UTC
+Persistent=true
+
+[Install]
+WantedBy=timers.target

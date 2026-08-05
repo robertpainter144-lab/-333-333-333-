@@ -1,0 +1,9 @@
+[Unit]
+Description=Daily catalog leader check (auto-rotate paper lane to leading mirror)
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/home/ubuntu/scanner
+ExecStart=/usr/bin/python3 /home/ubuntu/scanner/catalog_leader_check.py

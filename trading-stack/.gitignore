@@ -1,0 +1,4 @@
+# Safety net: secrets never belong in this repo
+*.env
+ntfy.env
+pushover.env

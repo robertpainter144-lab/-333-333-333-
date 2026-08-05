@@ -1,0 +1,16 @@
+{
+  "_readme": "Per-symbol dated catalysts. When the watcher sees a symbol here with catalyst_date within lookahead_days, it multiplies the adaptive trail % and hard-stop drop by catalyst_mult so the position survives normal noise up to the event. After catalyst_date passes, the entry is ignored (falls back to default adaptive stops). Add/remove entries as your book changes.",
+
+  "VERA": {
+    "catalyst_type": "FDA_PDUFA",
+    "catalyst_date": "2026-07-07",
+    "note": "Atacicept BLA priority-review PDUFA. Binary event; expect 40-70% one-day move.",
+    "catalyst_mult": 2.0
+  },
+  "AMRX": {
+    "catalyst_type": "patent_cliff",
+    "catalyst_date": "2026-11-15",
+    "note": "XTANDI (enzalutamide) LOE + potential first-filer 180-day exclusivity naming.",
+    "catalyst_mult": 1.6
+  }
+}

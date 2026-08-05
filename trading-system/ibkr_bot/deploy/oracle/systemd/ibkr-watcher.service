@@ -1,0 +1,19 @@
+[Unit]
+Description=IBKR Bot — watcher (stop attach + profit-step + trail refresh)
+Wants=docker.service
+After=docker.service network-online.target
+Requires=docker.service
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/ibkr_bot
+EnvironmentFile=/home/ubuntu/ibkr_bot/runtime.env
+ExecStart=/home/ubuntu/ibkr_bot/venv/bin/python /home/ubuntu/ibkr_bot/watcher.py --daemon
+Restart=on-failure
+RestartSec=15
+StandardOutput=append:/var/log/ibkr_watcher.log
+StandardError=append:/var/log/ibkr_watcher.err
+
+[Install]
+WantedBy=multi-user.target

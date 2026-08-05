@@ -1,0 +1,8 @@
+# Pinned minimums; pip will resolve transitive deps on ARM Ubuntu.
+nicegui>=2.0
+plotly>=5.20
+pandas>=2.2
+numpy>=1.26
+yfinance>=0.2.40
+requests>=2.32
+python-dateutil>=2.9

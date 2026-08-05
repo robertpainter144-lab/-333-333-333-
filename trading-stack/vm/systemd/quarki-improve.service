@@ -1,0 +1,10 @@
+[Unit]
+Description=Improvement bot cycle (D29, VM edition) — one bounded headless Claude cycle
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/home/ubuntu/improvement_bot
+ExecStart=/bin/bash /home/ubuntu/improvement_bot/run_cycle.sh
+TimeoutStartSec=4000

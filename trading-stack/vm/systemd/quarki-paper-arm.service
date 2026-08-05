@@ -1,0 +1,14 @@
+[Unit]
+Description=Alpaca paper A/B arm (mirror+broad)
+After=network-online.target
+[Service]
+User=ubuntu
+WorkingDirectory=/home/ubuntu
+EnvironmentFile=/home/ubuntu/quarki.env
+Environment=PYTHONPATH=/home/ubuntu/ibkr_bot:/home/ubuntu
+ExecStart=/home/ubuntu/quarki-venv/bin/python alpaca_paper_arm.py --watch
+Restart=always
+RestartSec=30
+MemoryMax=150M
+[Install]
+WantedBy=multi-user.target

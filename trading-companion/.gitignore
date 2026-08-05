@@ -1,0 +1,36 @@
+# macOS
+.DS_Store
+
+# Env / secrets
+.env
+*.local.env
+infra/.env
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Xcode / SwiftPM
+ios/TradingCompanion.xcodeproj/
+ios/TradingCompanion.xcworkspace/
+ios/build/
+ios/DerivedData/
+ios/.swiftpm/
+xcuserdata/
+*.xcuserstate
+*.ipa
+*.dSYM.zip
+
+# Docker / runtime
+infra/data/
+infra/caddy_data/
+infra/caddy_config/
+
+# Per-deployment persisted state (the family member's tracked strategies)
+backend/data/*.json

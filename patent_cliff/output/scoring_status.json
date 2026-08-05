@@ -1,0 +1,7 @@
+{
+  "ts": "2026-07-27T07:00:32",
+  "degenerate_raw_cliff_ranking": true,
+  "first_filer_bonus_all_zero": true,
+  "sec_signal_score_all_zero": true,
+  "warning": "WARNING: first_filer_bonus and sec_signal_score are 0.0 for every ticker \u2014 combined_score is currently just raw cliff exposure (base_score). Check data/sec_signals.csv (run sec_signals.py with ANTHROPIC_API_KEY set) and the first-filer input."
+}

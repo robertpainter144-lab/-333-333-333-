@@ -1,0 +1,17 @@
+# Replace companion.example.com with the family-member-facing domain.
+# Caddy auto-provisions TLS via Let's Encrypt.
+
+companion.example.com {
+    # API requests go to the FastAPI backend.
+    @api path /healthz /auth/* /portfolio/* /signals* /orders*
+    reverse_proxy @api backend:8000
+
+    # Everything else is the SvelteKit static SPA served by nginx.
+    reverse_proxy web:80
+
+    encode zstd gzip
+    log {
+        output stdout
+        format json
+    }
+}

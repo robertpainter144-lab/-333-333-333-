@@ -1,0 +1,7 @@
+[Unit]
+Description=Weekly D22/D22a shadow-ledger review reminder (ntfy)
+
+[Service]
+Type=oneshot
+User=ubuntu
+ExecStart=/usr/bin/python3 /home/ubuntu/scanner/shadow_review.py

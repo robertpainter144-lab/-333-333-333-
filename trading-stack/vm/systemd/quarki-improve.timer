@@ -1,0 +1,10 @@
+[Unit]
+Description=Improvement bot every 4h (D29, VM edition)
+
+[Timer]
+OnBootSec=20min
+OnUnitActiveSec=4h
+Persistent=false
+
+[Install]
+WantedBy=timers.target

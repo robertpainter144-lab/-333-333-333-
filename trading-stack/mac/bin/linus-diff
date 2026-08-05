@@ -1,0 +1,61 @@
+#!/bin/bash
+# linus-diff — compare Linus's work in MVYTraders against a baseline.
+#
+#   linus-diff                  # list branches + commits not yet in main
+#   linus-diff <branch>         # summary: his commits + changed files vs main
+#   linus-diff <branch> --full  # full unified diff vs main
+#   linus-diff <branch> --live  # diff his scanner/ vs YOUR live VM scanner
+#
+# Your own progress lives in your private repos; this only reads MVYTraders.
+set -euo pipefail
+
+REPO=/Users/quarki3/MVYTraders
+VM="ubuntu@129.153.96.201"
+VMKEY=/Users/quarki3/.ssh/oracle_trading
+
+git -C "$REPO" fetch -q --prune origin
+
+if [ $# -eq 0 ]; then
+    echo "== Branches on MVYTraders =="
+    git -C "$REPO" for-each-ref refs/remotes/origin --format='%(refname:short)  (%(committerdate:relative), %(authorname))' | grep -v '^origin  '
+    echo
+    echo "== Commits on branches not yet in main =="
+    found=0
+    for b in $(git -C "$REPO" for-each-ref refs/remotes/origin --format='%(refname:short)' | grep -v -e '^origin$' -e '^origin/main$'); do
+        n=$(git -C "$REPO" rev-list --count origin/main.."$b")
+        [ "$n" -gt 0 ] || continue
+        found=1
+        echo "--- $b (+$n) ---"
+        git -C "$REPO" log --format='  %h %an: %s' origin/main.."$b"
+    done
+    [ "$found" -eq 0 ] && echo "(none — everything is merged into main)"
+    exit 0
+fi
+
+BRANCH="origin/${1#origin/}"
+MODE="${2:-}"
+
+if [ "$MODE" = "--live" ]; then
+    TMP=$(mktemp -d)
+    trap 'rm -rf "$TMP"' EXIT
+    mkdir -p "$TMP/theirs"
+    git -C "$REPO" archive "$BRANCH" scanner | tar -x -C "$TMP/theirs"
+    rsync -aq --exclude 'state/' --exclude '__pycache__/' --exclude '*.log' \
+        -e "ssh -i $VMKEY" "$VM:/home/ubuntu/scanner/" "$TMP/live/"
+    echo "== $BRANCH scanner/ vs LIVE VM scanner =="
+    diff -ru -x '*.pyc' "$TMP/live" "$TMP/theirs/scanner" | \
+        sed -e "s|$TMP/live|live|g" -e "s|$TMP/theirs/scanner|linus|g" || true
+    exit 0
+fi
+
+echo "== $BRANCH: commits not in main =="
+git -C "$REPO" log --format='  %h %an (%ar): %s' origin/main.."$BRANCH"
+echo
+if [ "$MODE" = "--full" ]; then
+    git -C "$REPO" diff origin/main..."$BRANCH"
+else
+    echo "== Changed files vs main =="
+    git -C "$REPO" diff --stat origin/main..."$BRANCH"
+    echo
+    echo "(linus-diff $1 --full for the whole diff, --live to compare against the VM's live scanner)"
+fi

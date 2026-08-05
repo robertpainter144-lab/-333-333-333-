@@ -1,0 +1,7 @@
+[Unit]
+Description=Directive auditor (full: invariants + weekly-request LLM review)
+[Service]
+Type=oneshot
+User=ubuntu
+EnvironmentFile=/home/ubuntu/anthropic.env
+ExecStart=/usr/bin/python3 /home/ubuntu/directive_auditor/auditor.py

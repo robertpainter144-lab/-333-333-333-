@@ -1,0 +1,7 @@
+[Unit]
+Description=Daily full directive audit
+[Timer]
+OnCalendar=*-*-* 13:03:00
+Persistent=true
+[Install]
+WantedBy=timers.target

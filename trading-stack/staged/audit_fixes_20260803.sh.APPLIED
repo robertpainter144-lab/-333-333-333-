@@ -1,0 +1,123 @@
+#!/bin/bash
+# Ultra-audit fixes 2026-08-03 (run from the Mac: bash ~/trading-stack/staged/audit_fixes_20260803.sh)
+# Applies 3 verified-finding fixes on the VM, each with backup + syntax check:
+#   1. Restore missing ~/track_record_logger.py (QC EOD logging broken since Jul 31)
+#   2. auditor.py: remove raw-ntfy fallback (D28 / "never raw ntfy" rule) -> log failures locally
+#   3. catalog_leader_check.py: stamp last_run even on the too-young early return (D24 CHECK)
+set -e
+ssh -i "$HOME/.ssh/oracle_trading" ubuntu@129.153.96.201 'bash -s' <<'REMOTE'
+set -e
+TS=$(date -u +%Y%m%dT%H%M%SZ)
+
+# ── Fix 1: restore track_record_logger.py ──────────────────────────────────
+cat > ~/track_record_logger.py <<'PYEOF'
+#!/usr/bin/env python3
+"""Shared daily track-record logger (restored 2026-08-03).
+
+qc_portfolio/main.py imports append_daily_record for EOD logging; the module
+was missing, so the import failed at every market close since at least
+Jul 31. Appends one JSON line per strategy-day to ~/track_record.jsonl (the
+same file soxl_paper_bot writes its daily_summary rows to)."""
+import json, time
+from pathlib import Path
+
+RECORD = Path.home() / "track_record.jsonl"
+
+
+def append_daily_record(strategy, equity=None, day_pnl=None, num_trades=None,
+                        date_str=None, fills=None, **extra):
+    rec = {
+        "type": "daily_record",
+        "strategy": strategy,
+        "date": date_str,
+        "equity": equity,
+        "day_pnl": day_pnl,
+        "num_trades": num_trades,
+        "ts": time.time(),
+    }
+    if fills:
+        rec["fills"] = fills
+    if extra:
+        rec.update(extra)
+    with RECORD.open("a") as f:
+        f.write(json.dumps(rec) + "\n")
+    return rec
+PYEOF
+ln -sf ~/track_record_logger.py ~/trading/track_record_logger.py
+python3 -c 'import sys; sys.path.insert(0, "/home/ubuntu"); from track_record_logger import append_daily_record; print("fix1: track_record_logger import ok")'
+
+# ── Fix 2: auditor.py — never raw ntfy ─────────────────────────────────────
+cp ~/directive_auditor/auditor.py ~/directive_auditor/auditor.py.bak-$TS
+python3 - <<'PYEOF'
+from pathlib import Path
+p = Path.home() / "directive_auditor/auditor.py"
+s = p.read_text()
+
+old_fn = r'''def ntfy(msg, title="Directive auditor", priority="3"):
+    env = HOME / "ntfy.env"
+    topic = None
+    if env.exists():
+        m = re.search(r"NTFY_TOPIC=([^\s]+)", env.read_text())
+        topic = m.group(1) if m else None
+    if not topic:
+        return
+    try:
+        req = urllib.request.Request(
+            f"https://ntfy.sh/{topic}", data=msg.encode()[:3800],
+            headers={"Title": title, "Priority": priority})
+        urllib.request.urlopen(req, timeout=15).read()
+    except Exception:
+        pass'''
+new_fn = '''# ntfy() removed 2026-08-03 (D28 follow-up): all notifications go through
+# ~/bin/quarki_notify.py; delivery failures are logged to notify_failures.log
+# instead of falling back to raw ntfy.sh posts.'''
+assert old_fn in s, "ntfy() body drifted - aborting, nothing changed"
+
+old_fb = '''    except Exception:
+        ntfy(msg, title=title, priority="4" if level in ("action", "critical")
+             else "2")  # fallback: old raw path rather than silence'''
+new_fb = r'''    except Exception as exc:
+        # Never raw ntfy (global rule): log the delivery failure locally so
+        # the daily audit surfaces it, rather than bypassing quarki_notify.
+        try:
+            import time as _t
+            with (NOTIFY_STATE.parent / "notify_failures.log").open("a") as f:
+                f.write(_t.strftime("%Y-%m-%dT%H:%M:%SZ", _t.gmtime())
+                        + f" {level} {title}: {exc}\n")
+        except Exception:
+            pass'''
+assert old_fb in s, "notify_tiered fallback drifted - aborting, nothing changed"
+
+s = s.replace(old_fn, new_fn, 1).replace(old_fb, new_fb, 1)
+import ast; ast.parse(s)
+p.write_text(s)
+print("fix2: auditor.py raw-ntfy leg removed, syntax ok")
+PYEOF
+
+# ── Fix 3: leader_check — stamp last_run on early return ───────────────────
+cp ~/scanner/catalog_leader_check.py ~/scanner/catalog_leader_check.py.bak-$TS
+python3 - <<'PYEOF'
+from pathlib import Path
+p = Path.home() / "scanner/catalog_leader_check.py"
+s = p.read_text()
+old = '''    if not all(curve_ok(p) for p in promoted):
+        print("promoted lane curve(s) too young (<5 marks); skipping")
+        return'''
+new = '''    if not all(curve_ok(p) for p in promoted):
+        print("promoted lane curve(s) too young (<5 marks); skipping")
+        # Still stamp last_run so the D24 CHECK (freshness of this file)
+        # can distinguish "ran but waiting on curves" from "never ran".
+        state = load(STATE, {})
+        state["last_run"] = today.isoformat()
+        state["note"] = "curves too young; streaks not started"
+        STATE.write_text(json.dumps(state, indent=2))
+        return'''
+assert old in s, "leader_check early-return drifted - aborting, nothing changed"
+s = s.replace(old, new, 1)
+import ast; ast.parse(s)
+p.write_text(s)
+print("fix3: leader_check last_run stamp added, syntax ok")
+PYEOF
+
+echo "ALL 3 FIXES APPLIED (backups: auditor.py.bak-$TS, catalog_leader_check.py.bak-$TS)"
+REMOTE

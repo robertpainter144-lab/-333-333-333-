@@ -1,0 +1,52 @@
+{
+  "permissions": {
+    "defaultMode": "auto",
+    "allow": [
+      "Bash(*)",
+      "Read(*)",
+      "Write(*)",
+      "Edit(*)"
+    ]
+  },
+  "autoMode": {
+    "allow": [
+      "$defaults",
+      "SSH and scp commands to the user's own trading VM as ubuntu@129.153.96.201 (identity file ~/.ssh/oracle_trading), including reading, writing, editing, and restarting the user's own trading-stack code, services, timers, and state files on that VM. This is Robert's own infrastructure; he has granted standing approval for trading-project actions (see ~/trading-stack/DIRECTIVES.md). His own stack enforces the money-risk rails (e.g. $20 IBKR ceiling, $5 drawdown review)."
+    ]
+  },
+  "model": "claude-fable-5[1m]",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "{ echo '=== STANDING ORDERS (trading-stack/DIRECTIVES.md) ==='; cat /Users/quarki3/trading-stack/DIRECTIVES.md 2>/dev/null; echo; echo '=== LATEST COMPLIANCE REPORT (VM) ==='; ssh -i ~/.ssh/oracle_trading -o ConnectTimeout=5 ubuntu@129.153.96.201 'cat ~/trading-data/compliance/latest.md' 2>/dev/null || echo '(VM unreachable — check invariants manually)'; } | head -c 12000",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "printf '{\"hookSpecificOutput\":{\"hookEventName\":\"UserPromptSubmit\",\"additionalContext\":\"Current local time: %s\"}}\\n' \"$(date '+%Y-%m-%d %H:%M:%S %Z (%A)')\""
+          }
+        ]
+      }
+    ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "bash ~/.claude/statusline-command.sh"
+  },
+  "enabledPlugins": {
+    "swift-lsp@claude-plugins-official": true
+  },
+  "tui": "fullscreen",
+  "theme": "dark",
+  "agentPushNotifEnabled": true,
+  "skipWorkflowUsageWarning": true
+}

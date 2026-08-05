@@ -1,0 +1,7 @@
+[Unit]
+Description=Notify on Linus commits to MVYTraders
+After=network-online.target
+[Service]
+Type=oneshot
+User=ubuntu
+ExecStart=/home/ubuntu/bin/mvy_watch.sh

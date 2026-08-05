@@ -1,0 +1,69 @@
+# Barbell capital compounding system — survival-first, smooth equity
+
+system:
+  name: barbell_compounder
+  target_annual_vol: 0.10          # core target vol (e.g. 10%)
+  max_core_leverage: 2.0
+  min_core_leverage: 0.0
+
+# Capital allocation: core vs aggression
+barbell:
+  core_pct_min: 0.80
+  core_pct_max: 0.95
+  aggression_pct_min: 0.05
+  aggression_pct_max: 0.20
+  # Aggression can go to zero when regime is unfavorable
+  aggression_can_zero: true
+
+# Core: volatility-adjusted trend following
+core:
+  trend:
+    fast_ema: 20
+    slow_ema: 50
+    vol_lookback: 20              # ATR / vol lookback
+    vol_floor_pct: 0.005          # min vol for sizing
+    vol_target: 0.16              # higher = more return when trending
+    equity_bias: 0.55             # when trend flat, stay this long (beat SPY)
+  drawdown:
+    max_drawdown_pct: 0.18
+    dd_reduction_factor: 0.6
+    recovery_required: 0.015
+
+# Aggression sleeve: breakout + regime scaling
+aggression:
+  breakout:
+    lookback: 20
+    atr_mult: 2.0
+    min_vol_regime: expansion     # only size up in expansion
+  regime_scaling:
+    low_vol_scale: 0.0
+    normal_vol_scale: 0.5
+    expansion_scale: 1.0
+
+# Volatility regime classification
+regime:
+  lookback: 20
+  percentiles:
+    low: 0.25
+    high: 0.75
+  # low < 25th, normal 25–75th, expansion > 75th
+
+# Perps / funding
+funding:
+  enabled: true
+  lookback: 8
+  extreme_negative_threshold: -0.01  # avoid longing when funding very negative
+  trim_long_exposure_pct: 0.5       # trim long by 50% when extreme neg
+
+# Tail risk / flash crash
+tail_risk:
+  enabled: true
+  move_threshold_pct: 0.05         # 5% move in 1 bar = potential flash
+  pause_bars: 3                    # pause new entries
+  reduce_size_pct: 0.25            # reduce size to 25% after event
+
+# Walk-forward optimization
+walk_forward:
+  train_bars: 252                  # ~1 year
+  test_bars: 63                    # ~3 months
+  step_bars: 63                    # re-optimize every 3 months

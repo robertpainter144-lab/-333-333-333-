@@ -1,0 +1,6 @@
+[Unit]
+Description=Directive auditor (fast invariant checks)
+[Service]
+Type=oneshot
+User=ubuntu
+ExecStart=/usr/bin/python3 /home/ubuntu/directive_auditor/auditor.py --fast

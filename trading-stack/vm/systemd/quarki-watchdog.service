@@ -1,0 +1,7 @@
+[Unit]
+Description=Quarki stack watchdog (one-shot)
+[Service]
+Type=oneshot
+User=ubuntu
+EnvironmentFile=/home/ubuntu/quarki.env
+ExecStart=/home/ubuntu/quarki-venv/bin/python /home/ubuntu/bin/vm_watchdog.py

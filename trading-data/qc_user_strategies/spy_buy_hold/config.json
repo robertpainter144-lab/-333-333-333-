@@ -1,0 +1,9 @@
+{
+  "name": "spy_buy_hold",
+  "broker": "alpaca_paper",
+  "allocation_pct": 5.0,
+  "enabled": true,
+  "source": "manual",
+  "qc_project_id": null,
+  "created_at": "2026-06-20T15:59:27-04:00"
+}

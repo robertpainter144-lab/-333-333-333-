@@ -1,0 +1,7 @@
+[Unit]
+Description=Daily OSINT sweep for Linus code reuse
+After=network-online.target
+[Service]
+Type=oneshot
+User=ubuntu
+ExecStart=/usr/bin/python3 /home/ubuntu/bin/linus_osint.py

@@ -1,0 +1,29 @@
+# Build artefacts
+__pycache__/
+*.pyc
+*.pyo
+build/
+.gradle/
+.idea/
+.DS_Store
+dist/
+*.apk
+*.jks
+
+# Logs and runtime state
+logs/
+*.log
+nohup.out
+/tmp/
+
+# Secrets
+*.env
+secrets.env
+local.properties
+.envrc
+keystore/
+
+# Misc
+node_modules/
+.venv/
+venv/

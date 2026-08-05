@@ -1,0 +1,143 @@
+{
+  "initial_cash": 20000.0,
+  "cash": 0.0,
+  "positions": {
+    "AUPH": {
+      "qty": 81.0045,
+      "entry_price": 16.46,
+      "last_price": 16.459999084472656,
+      "entry_date": "2026-06-20",
+      "signal_date": "2026-05-29",
+      "quality": "A",
+      "last_pnl_pct": -0.0
+    },
+    "NSP": {
+      "qty": 35.8038,
+      "entry_price": 37.24,
+      "last_price": 37.2400016784668,
+      "entry_date": "2026-06-20",
+      "signal_date": "2026-06-03",
+      "quality": "A",
+      "last_pnl_pct": 0.0
+    },
+    "RDN": {
+      "qty": 38.2263,
+      "entry_price": 34.88,
+      "last_price": 34.880001068115234,
+      "entry_date": "2026-06-20",
+      "signal_date": "2026-06-01",
+      "quality": "A",
+      "last_pnl_pct": 0.0
+    },
+    "COE": {
+      "qty": 86.4678,
+      "entry_price": 15.42,
+      "last_price": 15.420000076293945,
+      "entry_date": "2026-06-20",
+      "signal_date": "2026-06-08",
+      "quality": "A",
+      "last_pnl_pct": 0.0
+    },
+    "QNT": {
+      "qty": 19.1022,
+      "entry_price": 69.8,
+      "last_price": 69.80000305175781,
+      "entry_date": "2026-06-20",
+      "signal_date": "2026-06-05",
+      "quality": "B",
+      "last_pnl_pct": 0.0
+    },
+    "HLNE": {
+      "qty": 16.38,
+      "entry_price": 81.4,
+      "last_price": 81.4000015258789,
+      "entry_date": "2026-06-20",
+      "signal_date": "2026-06-11",
+      "quality": "B",
+      "last_pnl_pct": 0.0
+    },
+    "EQPT": {
+      "qty": 50.6586,
+      "entry_price": 26.32,
+      "last_price": 26.31999969482422,
+      "entry_date": "2026-06-20",
+      "signal_date": "2026-06-15",
+      "quality": "B",
+      "last_pnl_pct": -0.0
+    },
+    "FISV": {
+      "qty": 27.859,
+      "entry_price": 47.86,
+      "last_price": 47.86000061035156,
+      "entry_date": "2026-06-20",
+      "signal_date": "2026-06-17",
+      "quality": "B",
+      "last_pnl_pct": 0.0
+    },
+    "NVRI": {
+      "qty": 62.9822,
+      "entry_price": 21.17,
+      "last_price": 21.170000076293945,
+      "entry_date": "2026-06-20",
+      "signal_date": "2026-06-05",
+      "quality": "B",
+      "last_pnl_pct": 0.0
+    },
+    "AMRZ": {
+      "qty": 24.5821,
+      "entry_price": 54.24,
+      "last_price": 54.2400016784668,
+      "entry_date": "2026-06-20",
+      "signal_date": "2026-05-22",
+      "quality": "B",
+      "last_pnl_pct": 0.0
+    },
+    "AADX": {
+      "qty": 70.8466,
+      "entry_price": 18.82,
+      "last_price": 18.81999969482422,
+      "entry_date": "2026-06-20",
+      "signal_date": "2026-06-04",
+      "quality": "B",
+      "last_pnl_pct": -0.0
+    },
+    "CXT": {
+      "qty": 29.401,
+      "entry_price": 45.35,
+      "last_price": 45.349998474121094,
+      "entry_date": "2026-06-20",
+      "signal_date": "2026-06-12",
+      "quality": "B",
+      "last_pnl_pct": -0.0
+    },
+    "ADSK": {
+      "qty": 6.906,
+      "entry_price": 193.07,
+      "last_price": 193.07000732421875,
+      "entry_date": "2026-06-20",
+      "signal_date": "2026-06-16",
+      "quality": "B",
+      "last_pnl_pct": 0.0
+    },
+    "ROCK": {
+      "qty": 32.9056,
+      "entry_price": 40.52,
+      "last_price": 40.52000045776367,
+      "entry_date": "2026-06-20",
+      "signal_date": "2026-05-26",
+      "quality": "B",
+      "last_pnl_pct": 0.0
+    },
+    "RLI": {
+      "qty": 25.2765,
+      "entry_price": 52.75,
+      "last_price": 52.75,
+      "entry_date": "2026-06-20",
+      "signal_date": "2026-06-01",
+      "quality": "B",
+      "last_pnl_pct": 0.0
+    }
+  },
+  "closed": [],
+  "last_run": "2026-06-20T20:30:21"
+}

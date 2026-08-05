@@ -1,0 +1,18 @@
+[Unit]
+Description=NiceGUI Trading Dashboard (with shadow A/B engine tick loop)
+After=network-online.target tailscaled.service qc-portfolio.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/trading/ng_dashboard
+EnvironmentFile=/home/ubuntu/trading/secrets.env
+ExecStart=/usr/bin/python3 main.py
+Restart=on-failure
+RestartSec=10
+StandardOutput=append:/var/log/ng-dashboard.log
+StandardError=append:/var/log/ng-dashboard.log
+
+[Install]
+WantedBy=multi-user.target

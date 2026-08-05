@@ -1,0 +1,52 @@
+{
+  "generated_at": "2026-08-05T05:39:49+00:00",
+  "generated_epoch": 1785908387,
+  "tier": "GREEN",
+  "auto_tier": "GREEN",
+  "auto_tier_429_override": false,
+  "five_hour": {
+    "units": 14358410,
+    "budget": 117000000,
+    "pct": 12.3
+  },
+  "weekly": {
+    "units": 137293988,
+    "budget": 536954608,
+    "pct": 25.6,
+    "window_start": "2026-08-02T23:59:00+00:00",
+    "resets_at": "2026-08-09T23:59:00+00:00"
+  },
+  "auto_caps": {
+    "five_hour": 87750000,
+    "weekly": 456411417
+  },
+  "lanes": {
+    "interactive_5h": 14358410,
+    "automated_5h": 0,
+    "interactive_wk": 129491736,
+    "automated_wk": 7802252
+  },
+  "burn_rate_per_hour": 28716821,
+  "headroom_hours_5h": 3.6,
+  "burst_429s_24h": 0,
+  "forecast": {
+    "net_burn_per_hour_24h": 3397125,
+    "interactive_burn_per_hour": 3366204,
+    "hours_to_week_reset": 114.3,
+    "hours_to_auto_stop": 93.9,
+    "hours_to_interactive_lockout": null
+  },
+  "heavy_sessions_30m": [
+    "a6dfcd91-f510-4bd8-a7cb-4529f924a411",
+    "9e5724f4-ca08-45f0-bab9-54d4190bc0c0",
+    "9b60d91d-5bba-4324-99e2-2a82b8dc902d",
+    "3fa19f14-58e2-4d87-b875-e768d41b1ddf",
+    "42d60416-3067-4ebc-9456-b9eeb7cb284c",
+    "70f09dd0-7d59-4701-8a1e-057ba9499cc2",
+    "ea468dab-1028-4879-a584-021c8ba43308",
+    "1d989034-66e0-497c-9f80-b5f07d9fbf62"
+  ],
+  "max_concurrent_heavy": 5,
+  "unknown_models": [],
+  "last_forecast_alert_epoch": 1785707225
+}

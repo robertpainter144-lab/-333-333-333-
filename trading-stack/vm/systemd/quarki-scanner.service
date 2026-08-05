@@ -1,0 +1,13 @@
+[Unit]
+Description=Quarki scanner (mirrors incl. LIVE $50, feeds, governor)
+After=network-online.target
+[Service]
+User=ubuntu
+WorkingDirectory=/home/ubuntu/scanner
+EnvironmentFile=/home/ubuntu/quarki.env
+ExecStart=/home/ubuntu/quarki-venv/bin/python main.py
+Restart=always
+RestartSec=10
+MemoryMax=250M
+[Install]
+WantedBy=multi-user.target

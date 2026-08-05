@@ -1,0 +1,8 @@
+[Unit]
+Description=Lab data-center curve logger + catalog backfill refresh
+[Service]
+Type=oneshot
+User=ubuntu
+ExecStart=/usr/bin/python3 /home/ubuntu/bin/labbook_logger.py
+ExecStart=/home/ubuntu/quarki-venv/bin/python /home/ubuntu/bin/backfill_catalog_curves.py
+TimeoutStartSec=300

@@ -1,0 +1,13 @@
+[Unit]
+Description=Quarki QC portfolio engine daemon
+After=network-online.target
+[Service]
+User=ubuntu
+WorkingDirectory=/home/ubuntu/qc_portfolio
+EnvironmentFile=/home/ubuntu/quarki.env
+ExecStart=/home/ubuntu/quarki-venv/bin/python main.py --daemon
+Restart=always
+RestartSec=30
+MemoryMax=250M
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,12 @@
+node_modules/
+.svelte-kit/
+build/
+.env
+.env.local
+.DS_Store
+package-lock.json
+
+# Vite dev-server temp transpile of the config file — flaps in/out and
+# was polluting the 60s auto-sync commits.
+vite.config.ts.timestamp-*.mjs
+vite.config.js.timestamp-*.mjs

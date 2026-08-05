@@ -1,0 +1,22 @@
+{
+  "five_hour_budget_units": 117000000,
+  "weekly_budget_units": 536954608,
+  "amber_pct": 0.7,
+  "red_pct": 0.9,
+  "model_weights": {
+    "opus": 5.0,
+    "fable": 5.0,
+    "mythos": 5.0,
+    "sonnet": 1.0,
+    "haiku": 0.2,
+    "default": 1.0
+  },
+  "vm_sync": {
+    "enabled": true,
+    "host": "ubuntu@129.153.96.201",
+    "key": "/Users/quarki3/.ssh/oracle_trading",
+    "dest": "trading-data/consumption/state.json"
+  },
+  "ntfy_env": "/Users/quarki3/ntfy.env",
+  "weekly_reset_anchor": "2026-08-02T23:59:00+00:00"
+}

@@ -1,0 +1,18 @@
+[Unit]
+Description=QC Portfolio bot (Alpaca paper, adaptive+lev stops)
+After=network-online.target tailscaled.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/trading/qc_portfolio
+EnvironmentFile=/home/ubuntu/trading/secrets.env
+ExecStart=/usr/bin/python3 main.py --daemon
+Restart=on-failure
+RestartSec=10
+StandardOutput=append:/var/log/qc-portfolio.log
+StandardError=append:/var/log/qc-portfolio.log
+
+[Install]
+WantedBy=multi-user.target

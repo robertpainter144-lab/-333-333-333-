@@ -1,0 +1,9 @@
+[Unit]
+Description=Overnight drift buy leg 15:58 ET weekdays
+
+[Timer]
+OnCalendar=Mon..Fri 15:58 America/New_York
+Persistent=false
+
+[Install]
+WantedBy=timers.target

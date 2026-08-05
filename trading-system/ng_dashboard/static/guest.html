@@ -1,0 +1,652 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#0d1117" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="MVYTRADER" />
+<link rel="manifest" href="/static/guest-manifest.json" />
+<link rel="apple-touch-icon" href="/static/mvy-icon-192.png" />
+<title>MVYTRADER</title>
+<style>
+  :root {
+    --bg:    #0D1117;
+    --bg2:   #161B22;
+    --bg3:   #21262D;
+    --bdr:   #30363D;
+    --fg:    #C9D1D9;
+    --fg2:   #8B949E;
+    --accent:#58A6FF;
+    --good:  #3FB950;
+    --bad:   #F85149;
+    --warn:  #D29922;
+    --purple:#BC8CFF;
+    --letter-lg: 1.2px;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none; }
+  html, body {
+    margin: 0; padding: 0; background: var(--bg); color: var(--fg);
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, monospace;
+    font-size: 13px; line-height: 1.35;
+    padding-top: env(safe-area-inset-top);
+  }
+  .app { min-height: 100vh; padding-bottom: calc(24px + env(safe-area-inset-bottom)); }
+
+  .t-titleLarge  { font-size: 20px; font-weight: 700; }
+  .t-titleSmall  { font-size: 13px; font-weight: 700; }
+  .t-labelMedium { font-size: 11px; font-weight: 500; }
+  .t-labelSmall  { font-size: 10px; font-weight: 500; }
+  .bold { font-weight: 700; }
+  .up   { text-transform: uppercase; }
+  .num  { font-variant-numeric: tabular-nums; }
+
+  .fg { color: var(--fg); } .fg2 { color: var(--fg2); }
+  .good { color: var(--good); } .bad { color: var(--bad); }
+  .warn { color: var(--warn); } .accent { color: var(--accent); }
+  .purple { color: var(--purple); }
+
+  .header {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--bg2);
+    padding: 10px 12px;
+  }
+  .header .app-title { font-size: 16px; font-weight: 700; color: var(--fg); letter-spacing: 1px; }
+  .header .subtitle  { font-size: 10px; color: var(--fg2); margin-left: 6px; }
+  .header .ts        { font-size: 10px; color: var(--fg2); margin-left: auto; }
+
+  .seg-wrap { overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; padding: 8px 8px 6px; }
+  .seg-wrap::-webkit-scrollbar { display: none; }
+  .seg-row  { display: inline-flex; gap: 6px; }
+  .seg-pill {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    padding: 8px 14px; border-radius: 50px;
+    background: var(--bg3); border: 1px solid var(--bdr); color: var(--fg2);
+    font-size: 11px; font-weight: 700; letter-spacing: 0.3px; white-space: nowrap;
+    cursor: pointer; transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
+  }
+  .seg-pill.active {
+    background: color-mix(in srgb, var(--acc, var(--accent)) 18%, transparent);
+    border-color: var(--acc, var(--accent));
+    color: var(--acc, var(--accent));
+  }
+
+  .pill {
+    display: inline-flex; align-items: center;
+    padding: 2px 8px; border-radius: 50px;
+    font-size: 10px; font-weight: 700; letter-spacing: 0.3px;
+    text-transform: uppercase;
+    background: color-mix(in srgb, var(--pc, var(--accent)) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--pc, var(--accent)) 50%, transparent);
+    color: var(--pc, var(--accent));
+  }
+
+  .card {
+    background: var(--bg2); border: 1px solid var(--bdr);
+    border-radius: 10px; padding: 12px;
+  }
+  .card-lg { background: var(--bg2); border-radius: 14px; padding: 16px; }
+  .stack { display: flex; flex-direction: column; }
+  .row { display: flex; align-items: center; }
+  .gap4 { gap: 4px; }  .gap6 { gap: 6px; }  .gap8 { gap: 8px; }
+  .mt4 { margin-top: 4px; }  .mt8 { margin-top: 8px; }  .mt10 { margin-top: 10px; }
+  .mla { margin-left: auto; }
+  .content { padding: 0 12px; }
+
+  .stat-chip { flex: 1; background: var(--bg2); border-radius: 10px; padding: 8px 10px; }
+  .stat-chip .lbl { font-size: 10px; color: var(--fg2); font-weight: 500; letter-spacing: 0.3px; text-transform: uppercase; }
+  .stat-chip .val { font-size: 13px; font-weight: 700; margin-top: 2px; }
+
+  .section-title {
+    color: var(--fg2); font-size: 11px; font-weight: 500;
+    text-transform: uppercase; letter-spacing: var(--letter-lg);
+    padding: 12px 4px 6px 16px;
+  }
+
+  .collapse-hdr {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--bg2); border-radius: 8px;
+    padding: 10px 12px; cursor: pointer;
+    margin-top: 10px;
+  }
+  .collapse-hdr .caret { color: var(--accent); font-weight: 700; font-size: 16px; }
+  .collapse-hdr .title { color: var(--fg); font-size: 11px; font-weight: 700; }
+
+  .pos {
+    display: flex; align-items: stretch; gap: 0;
+    background: var(--bg2); border-radius: 10px;
+    overflow: hidden; cursor: pointer;
+    margin: 0 4px;
+  }
+  .pos + .pos { margin-top: 6px; }
+  .pos .stripe { width: 4px; align-self: stretch; }
+  .pos .body { flex: 1; padding: 10px 12px; }
+  .pos .r1, .pos .r2 { display: flex; align-items: center; gap: 8px; }
+  .pos .r2 { margin-top: 4px; }
+  .pos .sym { font-size: 16px; font-weight: 700; color: var(--fg); }
+  .pos .qty { font-size: 11px; color: var(--fg2); font-weight: 500; }
+  .pos .wgt { font-size: 10px; color: var(--fg2); font-weight: 500; }
+  .pos .mv  { font-size: 13px; font-weight: 700; color: var(--fg); margin-left: auto; }
+  .pos .avg { font-size: 11px; color: var(--fg2); font-weight: 500; }
+  .pos .pnl { margin-left: auto; font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .pos .chart-wrap { max-height: 0; overflow: hidden; transition: max-height 220ms ease-out; padding: 0 12px; }
+  .pos.expanded .chart-wrap { max-height: 180px; padding: 8px 12px 10px; }
+  .pos svg.mini { width: 100%; height: 90px; display: block; }
+  .pos .mini-meta { display: flex; align-items: center; gap: 8px; margin-top: 4px; font-size: 10px; color: var(--fg2); }
+
+  .eq-card { background: var(--bg3); border-radius: 14px; padding: 12px; margin-top: 4px; }
+  .eq-hdr    { display: flex; align-items: center; gap: 8px; }
+  .eq-title  { color: var(--fg); font-size: 13px; font-weight: 700; }
+  .eq-vals   { display: flex; align-items: baseline; gap: 8px; margin-top: 6px; }
+  .eq-big    { font-size: 22px; font-weight: 700; color: var(--fg); font-variant-numeric: tabular-nums; }
+  .eq-delta  { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .eq-pct    { font-size: 13px; font-variant-numeric: tabular-nums; }
+  .eq-meta   { color: var(--fg2); font-size: 10px; margin-top: 2px; }
+  .eq-plot   { margin-top: 8px; height: 220px; border-radius: 8px; background: var(--bg); overflow: hidden; padding: 8px; position: relative; }
+  .eq-chart  { width: 100%; height: 100%; display: block; }
+  .chart-periods { display: flex; gap: 6px; margin-top: 6px; padding-left: 2px; }
+  .chart-periods .btn {
+    background: transparent; color: var(--fg2); border: 1px solid var(--bdr);
+    padding: 3px 10px; border-radius: 50px; font-size: 10px; font-weight: 700;
+    cursor: pointer; font-family: inherit;
+  }
+  .chart-periods .btn.active { color: var(--accent); border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+
+  .subblock { padding: 0 4px; margin-top: 18px; }
+  .subblock .hdr { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+  .subblock .hdr .emoji { font-size: 16px; }
+  .subblock .hdr .name { font-size: 11px; font-weight: 700; color: var(--fg); }
+  .subblock .hdr .desc { font-size: 10px; color: var(--fg2); font-weight: 500; margin-left: 4px; }
+
+  .fill-row {
+    display: flex; align-items: center; gap: 6px;
+    background: var(--bg2); border: 1px solid var(--bdr); border-radius: 10px;
+    padding: 8px 10px; margin-top: 4px;
+  }
+  .fill-row .side { font-size: 10px; font-weight: 700; padding-right: 2px; }
+  .fill-row .sym  { font-size: 13px; font-weight: 700; color: var(--fg); }
+  .fill-row .meta { font-size: 10px; color: var(--fg2); }
+  .fill-row .ts   { margin-left: auto; font-size: 10px; color: var(--fg2); }
+
+  @keyframes soft-blink {
+    0%   { opacity: 0.35; }
+    50%  { opacity: 1;    }
+    100% { opacity: 0.35; }
+  }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; }
+  .dot.blink { animation: soft-blink 1.8s infinite ease-in-out; }
+
+  #err {
+    display: none;
+    background: rgba(248,81,73,0.1); color: var(--bad);
+    border: 1px solid rgba(248,81,73,0.3); border-radius: 8px;
+    padding: 10px 12px; margin: 10px 12px 0; font-size: 11px;
+  }
+  .footer { text-align: center; color: var(--fg2); font-size: 10px; padding: 24px 12px 8px; letter-spacing: 0.5px; }
+
+  /* ── Access-code gate ── */
+  #keygate {
+    display: none; position: fixed; inset: 0; z-index: 100;
+    background: var(--bg);
+    align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  .kg-card {
+    width: 100%; max-width: 320px; text-align: center;
+    background: var(--bg2); border: 1px solid var(--bdr); border-radius: 14px;
+    padding: 28px 20px;
+  }
+  .kg-logo { font-size: 20px; font-weight: 700; letter-spacing: 2px; color: var(--fg); }
+  .kg-sub  { font-size: 11px; color: var(--fg2); margin-top: 6px; }
+  #kg-input {
+    width: 100%; margin-top: 18px;
+    background: var(--bg); color: var(--fg);
+    border: 1px solid var(--bdr); border-radius: 8px;
+    padding: 10px 12px; font-family: inherit; font-size: 14px;
+    text-align: center; letter-spacing: 1px;
+    -webkit-user-select: text; user-select: text;
+  }
+  #kg-input:focus { outline: none; border-color: var(--accent); }
+  #kg-btn {
+    width: 100%; margin-top: 10px;
+    background: color-mix(in srgb, var(--accent) 18%, transparent);
+    border: 1px solid var(--accent); color: var(--accent);
+    border-radius: 8px; padding: 10px 12px;
+    font-family: inherit; font-size: 12px; font-weight: 700; letter-spacing: 1px;
+    cursor: pointer;
+  }
+  #kg-err { color: var(--bad); font-size: 11px; margin-top: 10px; min-height: 14px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div id="err"></div>
+
+  <section id="pane-lab">
+    <div class="header">
+      <span class="dot blink" style="background: var(--purple)"></span>
+      <span class="app-title">MVYTRADER</span>
+      <span class="subtitle">strategy lab · simulated capital</span>
+      <span id="book-ts" class="ts"></span>
+    </div>
+
+    <div class="seg-wrap"><div class="seg-row" id="book-tabs">
+      <div class="seg-pill active" data-book="paper"  style="--acc: var(--purple);">🧪 LAB A</div>
+      <div class="seg-pill"        data-book="broker" style="--acc: var(--accent);">🧪 LAB B</div>
+      <div class="seg-pill"        data-book="shadow" style="--acc: var(--warn);">🧪 LAB C</div>
+    </div></div>
+
+    <div class="content" id="book-body"></div>
+  </section>
+
+  <div class="footer">MVYTRADER · research lab · simulated — no real capital shown</div>
+</div>
+
+<div id="keygate">
+  <div class="kg-card">
+    <div class="kg-logo">MVYTRADER</div>
+    <div class="kg-sub">enter your access code</div>
+    <input id="kg-input" type="text" autocapitalize="none" autocorrect="off" autocomplete="off" spellcheck="false" placeholder="access code" />
+    <button id="kg-btn">UNLOCK</button>
+    <div id="kg-err"></div>
+  </div>
+</div>
+
+<script>
+// ── Access key: ?key=… once → localStorage → X-API-Key header.
+// If missing/invalid (e.g. freshly installed PWA with its own storage),
+// the access-code screen takes over.
+let KEY = (() => {
+  const u = new URL(location.href);
+  const k = u.searchParams.get("key");
+  if (k) {
+    localStorage.setItem("mvy_key", k);
+    u.searchParams.delete("key");
+    history.replaceState(null, "", u.pathname + u.search + u.hash);
+  }
+  return localStorage.getItem("mvy_key") || "";
+})();
+
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("/guest-sw.js", { scope: "/guest" }).catch(() => {});
+}
+
+const REFRESH_MS = 5000;
+const LABS = {
+  paper:  { label: "Lab A", seed_hint: null },
+  broker: { label: "Lab B", seed_hint: null },
+  shadow: { label: "Lab C", seed_hint: null },
+};
+let currentBook   = "paper";
+let equityPeriod  = "1D";
+let expandedPositions = {};
+let chartCollapsed    = {};
+
+const $  = (sel, r = document) => r.querySelector(sel);
+const $$ = (sel, r = document) => r.querySelectorAll(sel);
+function h(tag, attrs = {}, ...kids) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === "class") el.className = v;
+    else if (k === "style") el.style.cssText = v;
+    else if (k.startsWith("on") && typeof v === "function") el.addEventListener(k.slice(2), v);
+    else if (v != null) el.setAttribute(k, v);
+  }
+  for (const kid of kids.flat()) {
+    if (kid == null) continue;
+    if (typeof kid === "string" || typeof kid === "number") el.appendChild(document.createTextNode(kid));
+    else el.appendChild(kid);
+  }
+  return el;
+}
+const money = (v, withSign = false) => {
+  if (v == null || isNaN(v)) return "—";
+  const sign = withSign && v >= 0 ? "+" : (v < 0 ? "-" : "");
+  const abs = Math.abs(v).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  return `${sign}$${abs}`;
+};
+const pct = (v, withSign = true) => {
+  if (v == null || isNaN(v)) return "—";
+  const s = withSign && v >= 0 ? "+" : "";
+  return `${s}${Number(v).toFixed(2)}%`;
+};
+const signClass = (v) => v > 0 ? "good" : (v < 0 ? "bad" : "fg");
+const signCssVar = (v) => v > 0 ? "var(--good)" : v < 0 ? "var(--bad)" : "var(--fg2)";
+function ageLabel(ts) {
+  if (!ts) return "";
+  const t = typeof ts === "number" ? ts : (Date.parse(ts) / 1000 || 0);
+  const s = Math.floor(Date.now()/1000 - t);
+  if (s < 0) return "";
+  if (s < 60) return `${s}s ago`;
+  if (s < 3600) return `${Math.floor(s/60)}m ago`;
+  return `${Math.floor(s/3600)}h ago`;
+}
+class AuthError extends Error {}
+async function j(path) {
+  const r = await fetch(path, { cache: "no-store", headers: KEY ? {"X-API-Key": KEY} : {} });
+  if (r.status === 403) throw new AuthError("access code required");
+  if (!r.ok) throw new Error(`${path} → ${r.status}`);
+  return r.json();
+}
+function showErr(m) { const e = $("#err"); if (!m) { e.style.display = "none"; return; } e.textContent = m; e.style.display = "block"; }
+
+// ── Access-code gate wiring ──
+function showKeyGate() { $("#keygate").style.display = "flex"; }
+function hideKeyGate() { $("#keygate").style.display = "none"; $("#kg-err").textContent = ""; }
+async function tryUnlock() {
+  const k = $("#kg-input").value.trim();
+  if (!k) return;
+  const r = await fetch("/api/portfolio/paper", { cache: "no-store", headers: {"X-API-Key": k} });
+  if (r.ok) {
+    localStorage.setItem("mvy_key", k);
+    KEY = k;
+    hideKeyGate();
+    renderBook();
+  } else {
+    $("#kg-err").textContent = "invalid access code";
+  }
+}
+$("#kg-btn").addEventListener("click", tryUnlock);
+$("#kg-input").addEventListener("keydown", (e) => { if (e.key === "Enter") tryUnlock(); });
+
+async function renderBook() {
+  const body = $("#book-body");
+  try {
+    const p = await j(`/api/portfolio/${currentBook}`);
+    body.innerHTML = "";
+
+    const label = (LABS[currentBook] || {}).label || currentBook;
+    const totalReturn = p.starting_capital > 0
+      ? (p.equity - p.starting_capital) / p.starting_capital * 100 : 0;
+    body.appendChild(h("div", {class: "card-lg mt10"},
+      h("div", {class: "row gap6"},
+        h("span", {class: "pill", style: "--pc: var(--purple);"}, "SIMULATED"),
+        h("span", {class: "t-titleSmall fg", style: "margin-left:6px"}, label),
+      ),
+      h("div", {class: "t-labelSmall fg2 mt10 up", style: "letter-spacing:0.4px"}, "EQUITY"),
+      h("div", {class: "t-titleLarge fg num"}, money(p.equity)),
+      h("div", {class: "row gap4 mt4"},
+        h("span", {class: "t-labelMedium fg2"}, "vs start: "),
+        h("span", {class: `t-labelMedium bold num ${signClass(totalReturn)}`}, money(p.equity - p.starting_capital, true)),
+        h("span", {class: "t-labelMedium fg2"}, " • "),
+        h("span", {class: `t-labelMedium bold num ${signClass(totalReturn)}`}, pct(totalReturn)),
+      ),
+    ));
+
+    body.appendChild(h("div", {class: "row gap8 mt10"},
+      statChip("CASH",   money(p.cash), "fg"),
+      statChip("UNREAL", money(p.unrealized_pl, true), signClass(p.unrealized_pl)),
+      statChip("DD",     pct(-Math.abs(p.drawdown_pct || 0), false),
+               (p.drawdown_pct || 0) > 0.0001 ? "bad" : "fg"),
+    ));
+
+    const isOpen = !chartCollapsed[currentBook];
+    body.appendChild(h("div", {class: "collapse-hdr", onclick: () => {
+      chartCollapsed[currentBook] = !chartCollapsed[currentBook];
+      renderBook();
+    }},
+      h("span", {class: "caret"}, isOpen ? "▼" : "▶"),
+      h("span", {class: "title"}, `PORTFOLIO VALUE  (tap to ${isOpen ? "collapse" : "expand"})`),
+    ));
+    if (isOpen) {
+      body.appendChild(h("div", {class: "eq-card"},
+        h("div", {class: "eq-hdr"},
+          h("span", {class: "pill", style: "--pc: var(--purple);"}, "SIM"),
+          h("span", {class: "eq-title"}, "Portfolio value"),
+        ),
+        h("div", {class: "eq-vals"},
+          h("span", {class: "eq-big",   id: "eq-big"},   "—"),
+          h("span", {class: "eq-delta", id: "eq-delta"}, ""),
+          h("span", {class: "eq-pct",   id: "eq-pct"},   ""),
+        ),
+        h("div", {class: "eq-meta", id: "eq-meta-line"}, ""),
+        h("div", {class: "eq-plot"},
+          h("svg", {class: "eq-chart", id: "eq-svg", viewBox: "0 0 400 220", preserveAspectRatio: "none"}),
+        ),
+        h("div", {class: "chart-periods"},
+          ...["1D","5D","1M","3M"].map(pd =>
+            h("button", {
+              class: "btn" + (pd === equityPeriod ? " active" : ""),
+              onclick: () => { equityPeriod = pd; renderEquityChart(); },
+            }, pd)
+          ),
+        ),
+      ));
+      renderEquityChart(p.starting_capital);
+    }
+
+    body.appendChild(h("div", {class: "section-title"}, `POSITIONS  (${(p.positions || []).length})`));
+    if (!p.positions || p.positions.length === 0) {
+      body.appendChild(h("div", {class: "card"},
+        h("div", {class: "t-titleSmall fg2"}, "○  No open positions"),
+        h("div", {class: "t-labelSmall fg2 mt4"}, "Filled orders will show up here as they post."),
+      ));
+    } else {
+      const list = h("div", {style: "margin: 0 -4px;"});
+      for (const pos of p.positions) list.appendChild(renderPositionRow(pos, p.equity));
+      body.appendChild(list);
+    }
+
+    try {
+      const acts = await j(`/api/activity/${currentBook}?limit=15`);
+      body.appendChild(renderRecentActivity(acts));
+    } catch (_) {}
+
+    $("#book-ts").textContent = ageLabel(p.ts);
+    showErr("");
+  } catch (e) {
+    if (e instanceof AuthError) { showKeyGate(); return; }
+    showErr(e.message);
+  }
+}
+
+function statChip(label, value, cls) {
+  return h("div", {class: "stat-chip"},
+    h("div", {class: "lbl"}, label),
+    h("div", {class: `val num ${cls}`}, value),
+  );
+}
+
+function renderPositionRow(pos, portEquity) {
+  const cls    = signClass(pos.unrealized_pl);
+  const stripe = signCssVar(pos.unrealized_pl);
+  const weight = portEquity > 0 ? (pos.market_value / portEquity * 100) : 0;
+  expandedPositions[currentBook] ||= {};
+  const expanded = !!expandedPositions[currentBook][pos.symbol];
+
+  const row = h("div", {class: "pos" + (expanded ? " expanded" : "")},
+    h("div", {class: "stripe", style: `background:${stripe}`}),
+    h("div", {class: "body"},
+      h("div", {class: "r1"},
+        h("span", {class: "sym"}, pos.symbol),
+        h("span", {class: "qty"}, `× ${(+pos.qty).toFixed(4).replace(/0+$/,"").replace(/\.$/,"")}`),
+        h("span", {class: "wgt"}, `${weight.toFixed(1)}% port`),
+        h("span", {class: "mv num"}, money(pos.market_value)),
+      ),
+      h("div", {class: "r2"},
+        h("span", {class: "avg"}, `avg ${money(pos.avg_cost)}  •  px ${money(pos.market_price)}`),
+        h("span", {class: `pnl ${cls}`},
+          `${money(pos.unrealized_pl, true)}  ${pct(pos.unrealized_pl_pct)}`),
+      ),
+      h("div", {class: "chart-wrap"},
+        h("svg", {class: "mini", viewBox: "0 0 400 90", preserveAspectRatio: "none"}),
+        h("div", {class: "mini-meta"},
+          h("span", {}, "1M daily"),
+          h("span", {class: "chart-pct"}, ""),
+        ),
+      ),
+    ),
+  );
+  row.addEventListener("click", () => {
+    expandedPositions[currentBook][pos.symbol] = !expanded;
+    row.classList.toggle("expanded", !expanded);
+    if (!expanded) fetchAndDrawMini(pos.symbol, row);
+  });
+  if (expanded) fetchAndDrawMini(pos.symbol, row);
+  return row;
+}
+
+async function fetchAndDrawMini(symbol, rowEl) {
+  const svg = $(".mini", rowEl);
+  const pct_ = $(".chart-pct", rowEl);
+  try {
+    const bars = await j(`/api/ticker/${symbol}?period=1M`);
+    if (!Array.isArray(bars) || bars.length < 2) {
+      pct_.textContent = "· no chart data"; svg.innerHTML = ""; return;
+    }
+    const prices = bars.map(b => +b.price).filter(x => !isNaN(x));
+    drawLine(svg, prices);
+    const chg = (prices[prices.length-1] - prices[0]) / prices[0] * 100;
+    pct_.className = `chart-pct bold num ${signClass(chg)}`;
+    pct_.textContent = `${chg >= 0 ? "+" : ""}${chg.toFixed(2)}% (1M)`;
+  } catch (_) {
+    pct_.textContent = "· fetch err";
+  }
+}
+
+function drawLine(svg, values) {
+  if (!values || values.length < 2) { svg.innerHTML = ""; return; }
+  const vb = (svg.getAttribute("viewBox") || "0 0 400 100").split(/\s+/).map(Number);
+  const w = vb[2], h = vb[3];
+  const min = Math.min(...values), max = Math.max(...values);
+  const range = (max - min) || 1;
+  const pts = values.map((v, i) => {
+    const x = i / (values.length - 1) * w;
+    const y = h - ((v - min) / range) * h;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(" ");
+  const gain = values[values.length-1] >= values[0];
+  const color = gain ? "var(--good)" : "var(--bad)";
+  svg.innerHTML =
+    `<polyline fill="none" stroke="${color}" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round" points="${pts}" />`;
+}
+
+async function renderEquityChart(breakeven = 0) {
+  const svg   = $("#eq-svg");
+  const big   = $("#eq-big");
+  const delta = $("#eq-delta");
+  const pct_  = $("#eq-pct");
+  const meta  = $("#eq-meta-line");
+  if (!svg) return;
+  try {
+    const pts = await j(`/api/equity/${currentBook}?period=${equityPeriod}`);
+    if (!Array.isArray(pts) || pts.length < 2) {
+      svg.innerHTML = "";
+      if (big) big.textContent = "—";
+      if (meta) meta.textContent = "no equity history yet";
+      return;
+    }
+    const values = pts.map(p => +p.equity).filter(v => !isNaN(v));
+    const last  = values[values.length - 1];
+    const first = values[0];
+    const ref = breakeven > 0 ? breakeven : first;
+    const d   = last - ref;
+    const dp  = ref > 0 ? (d / ref * 100) : 0;
+    const cls = signClass(d);
+
+    if (big)   big.textContent   = money(last);
+    if (delta) { delta.textContent = money(d, true); delta.className = `eq-delta ${cls}`; }
+    if (pct_)  { pct_.textContent  = pct(dp);        pct_.className  = `eq-pct   ${cls}`; }
+    if (meta)  meta.textContent   = `${pts.length} points  ·  ${equityPeriod}`;
+
+    drawEquityWithAxes(svg, values, ref);
+    $$(".chart-periods .btn").forEach(b => b.classList.toggle("active", b.textContent === equityPeriod));
+  } catch (e) {
+    if (meta) meta.textContent = "err: " + e.message;
+  }
+}
+
+function drawEquityWithAxes(svg, values, ref) {
+  if (!values || values.length < 2) { svg.innerHTML = ""; return; }
+  const vb = (svg.getAttribute("viewBox") || "0 0 400 220").split(/\s+/).map(Number);
+  const W = vb[2], H = vb[3];
+  const leftPad = 44, bottomPad = 4;
+  const w = W - leftPad, h = H - bottomPad;
+  const min = Math.min(...values), max = Math.max(...values);
+  const range = (max - min) || 1;
+  const last = values[values.length - 1];
+  const gain = last >= (ref > 0 ? ref : values[0]);
+  const color = gain ? "var(--good)" : "var(--bad)";
+  const gainHex = gain ? "#3FB950" : "#F85149";
+
+  const xStep = w / (values.length - 1);
+  let stroke = "", fill = `M ${leftPad},${h} `;
+  values.forEach((v, i) => {
+    const x = leftPad + i * xStep;
+    const y = h - ((v - min) / range) * h;
+    stroke += (i === 0 ? "M " : "L ") + `${x.toFixed(1)},${y.toFixed(1)} `;
+    fill   += `L ${x.toFixed(1)},${y.toFixed(1)} `;
+  });
+  fill += `L ${(leftPad + (values.length - 1) * xStep).toFixed(1)},${h} Z`;
+
+  let grid = "";
+  const gid = `g-${Math.floor(Math.random() * 1e6)}`;
+  for (let g = 0; g <= 4; g++) {
+    const frac = g / 4;
+    const y = h * frac;
+    const value = max - (max - min) * frac;
+    const label = "$" + value.toFixed(0);
+    grid += `<line x1="${leftPad}" y1="${y.toFixed(1)}" x2="${W}" y2="${y.toFixed(1)}" stroke="#21262d" stroke-width="1"/>`;
+    grid += `<text x="${leftPad - 4}" y="${(y + 3).toFixed(1)}" fill="#7d8590" font-size="10" text-anchor="end" font-family="monospace">${label}</text>`;
+  }
+  const lastY = h - ((last - min) / range) * h;
+  const lastX = leftPad + (values.length - 1) * xStep;
+  svg.innerHTML =
+    `<defs>
+       <linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">
+         <stop offset="0%"   stop-color="${gainHex}" stop-opacity="0.35"/>
+         <stop offset="100%" stop-color="${gainHex}" stop-opacity="0"/>
+       </linearGradient>
+     </defs>
+     ${grid}
+     <path d="${fill}"   fill="url(#${gid})" stroke="none"/>
+     <path d="${stroke}" fill="none" stroke="${color}" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+     <circle cx="${lastX.toFixed(1)}" cy="${lastY.toFixed(1)}" r="4" fill="${color}"/>`;
+}
+
+function renderRecentActivity(acts) {
+  const rows = Array.isArray(acts) ? acts.slice(0, 15) : [];
+  const block = h("div", {class: "subblock"},
+    h("div", {class: "hdr"},
+      h("span", {class: "emoji"}, "🧪"),
+      h("span", {class: "name"}, "RECENT ACTIVITY"),
+      h("span", {class: "desc"}, "simulated fills"),
+    ),
+  );
+  if (rows.length === 0) {
+    block.appendChild(h("div", {class: "card"},
+      h("div", {class: "t-titleSmall fg2"}, "○  No activity yet"),
+    ));
+    return block;
+  }
+  for (const a of rows) {
+    const side = (a.side || "").toUpperCase();
+    const sideCol = side.startsWith("SELL") ? "warn" : side.startsWith("BUY") ? "good" : "fg2";
+    const statCol = (a.status || "").toLowerCase() === "filled" ? "good" : "fg2";
+    block.appendChild(h("div", {class: "fill-row"},
+      h("span", {class: `side ${sideCol}`}, side.slice(0, 4)),
+      h("span", {class: "sym"}, a.symbol || "?"),
+      h("span", {class: "meta"}, `${(+a.qty || 0).toFixed(2)} @ ${money(a.price)}`),
+      h("span", {class: `meta ${statCol}`}, a.status || ""),
+      h("span", {class: "ts"}, (a.ts || "").slice(0, 19).replace("T", " ")),
+    ));
+  }
+  return block;
+}
+
+$$("#book-tabs .seg-pill").forEach(it => {
+  it.addEventListener("click", () => {
+    $$("#book-tabs .seg-pill").forEach(x => x.classList.remove("active"));
+    it.classList.add("active");
+    currentBook = it.dataset.book;
+    renderBook();
+  });
+});
+
+renderBook();
+setInterval(renderBook, REFRESH_MS);
+</script>
+</body>
+</html>

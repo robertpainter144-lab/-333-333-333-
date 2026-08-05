@@ -1,0 +1,30 @@
+{
+  "regime": "BULL",
+  "last_run": "2026-06-23T13:45:06.590982+00:00",
+  "history": [
+    {
+      "ts": "2026-06-23T11:50:13.988984+00:00",
+      "regime": "BULL",
+      "prior": null,
+      "trades": [
+        {
+          "symbol": "SCHX",
+          "side": "BUY",
+          "qty": 2,
+          "reason": "buy_to_target (3\u21925, regime=BULL)",
+          "order_id": 6,
+          "limit": 29.14,
+          "status": "Filled",
+          "filled": 2.0,
+          "avg_fill": 29.07
+        }
+      ]
+    },
+    {
+      "ts": "2026-06-23T13:45:06.590989+00:00",
+      "regime": "BULL",
+      "prior": "BULL",
+      "trades": []
+    }
+  ]
+}

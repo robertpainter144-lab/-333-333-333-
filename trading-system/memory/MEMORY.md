@@ -1,0 +1,64 @@
+# Memory Index
+
+- [ES Backtest Project](project_es_backtest.md) — Full state of ES Mini mean-rev/regime-adaptive backtest: files, best configs, results, next steps
+- [User Profile](user_profile.md) — Robert Painter, algo trading in Python, direct and iterative style
+- [Full permissions](feedback_permissions.md) — Standing yes to all trading project actions; never ask for confirmation
+- [Assume yes / minimal interruptions](feedback_autonomy.md) — Proceed without confirmation on any decision; assume yes
+- [Alpaca Integration](project_alpaca.md) — Paper keys + LIVE combined_mirror book: $500 since 2026-08-04 deposit; deposit-aware P/L baseline; D6 scaled thresholds live everywhere (closed 2026-08-04)
+- [Trading Dashboard & Bot](project_trading_dashboard.md) — Full state: files, architecture, bugs fixed, pending work, current positions
+- [Trading Android App](project_trading_android.md) — Kotlin/Compose client for the dashboard backend; needs JDK 21 (not 26); APKs in dist/
+- [QC Portfolio Manager](project_qc_portfolio.md) — Top-5 QC leaderboard strategies, 2x winner weighting, daily rebalance GUI at /Users/quarki3/qc_portfolio/
+- [SOXL Regime Strategy](project_soxl_regime.md) — Risk-first short-hold SOXL with 5-condition regime gate; Sharpe 1.211, CAGR 13.3%, MaxDD -7.8%, 160 trades over 5yr backtest
+- [PoC10 Bot](project_poc10.md) — $10 paper trading reliability test; IBIT/ETHA/SPY/GLD; running 60s loop; Alpaca $10 crypto min discovered
+- [Lahti Remix](project_lahti_remix.md) — Remix Lahti_composed.wav toward XXYYXX/Of the Trees/Ott/Tipper aesthetic; Phase A pedalboard mix done
+- [Tailscale CLI socket](reference_tailscale_socket.md) — brew install needs explicit --socket flag; Mac/Android tailnet IPs
+- [Oracle Cloud trading deployment](project_oracle_deploy.md) — AMD micro VM hosts qc_portfolio bot 24/7; cutover from Mac done 2026-06-17
+- [IBKR live trading bot](project_ibkr_bot.md) — $500 live IBKR Pro (U24971994); DARK since 2026-07-20, flat, dashboard booted out, see STATUS.md for reactivation checklist
+- [IBKR day-trade restriction (28-day window)](project_ibkr_day_trade_constraint.md) — Account below PDT threshold, Net Worth locked til ~2026-07-15; never sell same-day
+- [$20 total IBKR auto-fire ceiling](feedback_trade_threshold.md) — Aggregate (not per-trade): bot may use up to $20 total IBKR exposure; over that needs push approval (ntfy)
+- [Paper for testing, IBKR for deployment](feedback_paper_vs_real.md) — Real money is never for experimenting; only deployed after paper proves a strategy. Tests live on Alpaca paper or virtual ledgers.
+- [IBKR three-arm $60 experiment](project_three_arm_experiment.md) — Live A/B/C comparison: F (50/50) vs AAL (75/25 aggro) vs PINS (QC substitute); deployed 2026-06-17
+- [Trading Companion (PWA)](project_trading_companion.md) — Private SvelteKit PWA + FastAPI/ibeam for one family member; isolated from personal stack; local at /Users/quarki3/trading-companion, not yet pushed
+- [SPY Overlay (live IBKR)](project_spy_overlay.md) — SMA200 tactical on IBKR: 5 SCHX BULL / SHY on bear. launchd daily. Combined strategy waits on TQQQ permission.
+- [Patent Cliff Scanner](project_patent_cliff.md) — Read-only FDA Orange Book ranker (~/patent_cliff/); v0 2026-06-26; not wired to broker
+- [IBKR headless Oracle deploy (in progress)](project_ibkr_oracle_deploy.md) — Scaffolded 2026-06-26 at ~/ibkr_bot/deploy/oracle/; awaiting VM provision + IB Key 2FA setup
+- [IB Gateway must be running on :4001](reference_ib_gateway.md) — Watcher + equity logger die on ConnectionRefused if Gateway is offline; restart via app in ~/Applications/IB Gateway 10.46/
+- [Alpaca Paper A/B Arm](project_alpaca_paper_arm.md) — mirror+broad Alpaca-paper test; died silently 17d, revived under launchd 2026-07-20 w/ closed_trades.csv promotion ledger
+- [Drawdown review trigger: 3% of contributed](feedback_5_drawdown_review.md) — Live DD ≥ 3% of contributed capital ($5 floor; $15 at $500 book) = review/assess/repair, never "hold"; amber 2%. Revised 2026-08-04; single-name cap 0.35.
+- [Whale Tracker (DuneSQL)](project_whale_tracker.md) — Coordinated-accumulation crypto whale signal at ~/whale_tracker/; two Dune queries, not yet live
+- [Multi-source Crypto Scanner](project_scanner.md) — ~/scanner/ scans Hyperliquid, Solana, EVM×6, CEX flows, CoinGecko breadth. Feeds /api/whales in ng_dashboard.
+- [Prop-Desk-Lite Multi-Strategy](project_prop_desk.md) — ~/scanner/strategies/ momentum+mean-rev+breakout, vol-normalized, cluster-capped. Signal-only until profitable.
+- [Prop-Desk Autonomous Mode](project_prop_desk_autonomous.md) — 6-strategy roster, strict promotion gate (n≥30, mean≥0.05%, Sharpe≥1, late-mean≥0.02%), self-healing watchdog, silent-until-promoted hourly loop.
+- [Never kill -9 the ng_dashboard](feedback_dashboard_restart.md) — SIGKILL causes Python SIGABRT + macOS crash-report popup. Use `launchctl kickstart -k gui/501/com.quarki3.ng-dashboard`.
+- [Public Web App URL](project_public_webapp.md) — Permanent HTTPS `https://129-153-96-201.sslip.io/app`; Caddy on Oracle proxies to Mac via Tailscale
+- [Update CONTEXT.md whenever we ship](feedback_context_md_discipline.md) — Every meaningful change gets a dated changelog entry in trading-stack/CONTEXT.md; autopush warns on drift
+- [2026-07-20 Overhaul](project_overhaul_2026_07_20.md) — Disk-full root cause fixed; scanner+watchdog launchd; IBKR dark; patent promoted 92%; swarm+workflow overhaul in flight
+- [Post-Linus work = strictly private](feedback_post_linus_private.md) — Everything built after the 7/28 iPhone-app share stays owner-side only (owner-gated API endpoint + Android app); NEVER the shared trading-gui/Terminal/MVYTraders (revert+rebuild+scrub-history if it leaks). Ref: Autopilot catalog → /api/catalog
+- [GitHub sharing & Linus intern collab](project_github_sharing.md) — MVYTraders WIPED to bare README 2026-07-28 eve (Robert suspects intern Linus `lmunn1` of private code reuse; no public evidence; history bundles on Mac+VM); Linus still a collaborator, quarki-mvy-watch active, autopush MVYTraders leg removed; collab v2 = frontend-only (trading-gui/ in MVYTraders, backend/strategies stay private, guest key 7a0d… for his iPhone); all other repos sole-access; MVYTRADER (no "s") = empty decoy; never invite anyone without explicit instruction; 2026-08-01 dad `edhopa` added as MVYTraders collab by Robert, shares Linus's guest key (rotation cuts both)
+- [Lab-vs-live divergence fixes](project_lab_vs_live_fixes.md) — 2026-07-27: 4 root causes of live $50 losses fixed (governor staleness, settled BP, weekend order queue, cap leak)
+- [Autopilot AM mirror + catalog benchmark](project_autopilot_mirror.md) — InTheMoney paper mirror (hand-pasted holdings); PLUS 2026-07-29 ToS-compliant strategy-CATALOG benchmark: hand-entered pilots in state/autopilot_catalog.json → public-price virtual index curves (autopilot_catalog.py) → autopilot_cat:* rows on edge-ledger scoreboard next to QC; no Autopilot API scraping (their ToS bans it); can never get real money
+- [Autopilot portfolios pre-proven](feedback_autopilot_proven.md) — User overruled paper-first gate for Autopilot portfolios w/ public records; Alpaca-stack gate unchanged
+- [Congress/Pelosi tracker](project_congress_tracker.md) — Free Pelosi-Tracker+ replica from House Clerk PTRs; congress_feed + congress_mirror paper; governor-scored, 0 live weight until earned
+- [Allocation style](user_allocation_style.md) — Robert prefers rule-governed deployment; flag recency-driven reversals with data; avoid willpower-hold recommendations
+- [Stack hosted on Oracle VM](project_vm_migration.md) — 2026-07-27 FULL migration; Mac hosts NOTHING; ssh -i ~/.ssh/oracle_trading ubuntu@129.153.96.201 (user is ubuntu, NOT oracle_trading), systemd quarki-* units, /Users symlink shim
+- [ntfy alerts](reference_ntfy_alerts.md) — ntfy.sh replaced Pushover 2026-07-28; topic in ~/ntfy.env on Mac+VM; phone must subscribe in ntfy app
+- [Private GUI = owner-mode Quarki333 Terminal](feedback_private_gui_meaning.md) — "my private gui" means the Lovable Terminal over tailnet, not the Kotlin app; inject private UI from ng_dashboard
+- [Directive Auditor](project_directive_auditor.md) — DIRECTIVES.md ledger + Mac prompt harvester + VM hourly/daily compliance audits; add every new standing order to DIRECTIVES.md; awaiting claude setup-token for the LLM pass
+- [Mirror Sweep 2026-08-02](project_mirror_sweep.md) — 24-agent sweep → 6 catalog rows; DBMF+KMLM promoted to paper lane; D24: daily leader-check auto-swaps paper lane (VM timer) + weekly cloud sweep → Quarki33/mirror-sweeps; Crenshaw wired, Mullin needs Senate eFD
+- [Profit-Taking Audit 2026-08-02](project_profit_taking_audit.md) — No TP/stop rule survived verification (AMD n=1 mirage; hard stops = whipsaw tax, rejected); live: re-entry premium + min-dwell guards; shadow: PT engine + eligibility gate (D22/D22a)
+- [Bug Sweep 2026-08-02](project_bug_sweep_2026_08_02.md) — Ultracode stack sweep: 26 high confirmed; fixes deployed to VM in 4 batches + VERIFIED 08-03 audit (D5 gate, prop-desk block, D1 /static leak, fail-open equity, phantom-close, governor freeze); paper-arm stopped for real; remaining highs listed in file
+- [Live-eligible sweep winners (D23)](feedback_live_eligible_winners.md) — 2026-08-02: adversarially-verified winners may enter live Alpaca rotation directly; paper-first narrowed, risk rails unchanged
+- [Phone & reminder preference](user_phone_reminders.md) — Robert: 914-841-8804, wants reminders "texted"; no SMS in stack yet, ntfy push is the channel (offer Twilio for true SMS)
+- [Notification tiers](feedback_notification_tiers.md) — Self-healed = silent P2; page only when human needed (P5 crit/P4 action); all alerts via ~/bin/quarki_notify.py, never raw ntfy
+- [Plain-English notifications (D28)](feedback_plain_english_notifications.md) — every push states what/why/what-to-do in plain sentences, repeat-suppressed (new=P4 once, persisting=24h reminder, cleared=silent P2); pattern in directive_auditor
+- [Consumption Manager (D25/D26)](project_consumption_manager.md) — Claude usage meter+gate on Mac (launchd, 15min) synced to VM; tiers GREEN/AMBER/RED; AMBER=cap swarms 4-6, RED=critical only; check tier before big workflows. D26 session_governor (2min launchd) pauses only HEADLESS sessions by tier; interactive+daemon procs never stopped, force-resumed if frozen
+- [DD-cap shadow ($20 stop + rebuy)](project_dd_cap_shadow.md) — zero-order VM shadow of Robert's stop/rebuy idea; review after 8wk or first stop-out
+- [Unproven-lane cap 35% (D34)](feedback_unproven_lane_cap.md) — no lane >35% live weight until D7 gate passed; congress was 99% on 6-day record; OPEN: mirror ledgers lack per-trade P/L so gate can't score lanes
+- [Overnight Drift paper lane](project_overnight_drift.md) — sole verified survivor of 2026-08-02 ideas sweep; paper-only D7 lane on VM (IWM+QQQ, 15:58/09:31 ET, slippage-isolation ledger); timers INSTALLED 2026-08-03, first buy Tue 08-04 15:58 ET
+- [Value Screen v2 (CLOSED)](project_value_screen_v2.md) — round 1 + round 2 (QMP, lane-feed) all shelved; universe_hold beat the ranked lane, SPY beat both; no round 3; keeper = PIT harness on unpushed branch value-screen-v2
+- [Index Dip-Buy (SHELVED) + Sub-$5 lane](project_dip_buy.md) — dad's "buy QQQ/SPY on sale" backtested 2026-08-03: regime-only beat every dip variant OOS, SPY Overlay is the surviving live form; sub-$5 leg = hand-curated owner-private paper lane (sub5_watch.py, edit state/sub5_watchlist.json)
+- [Workflow model tiers (D27)](feedback_workflow_model_tiers.md) — pin haiku/sonnet on workflow+Agent stages, session model only for hard judge/verify; canonical rule in ~/.claude/CLAUDE.md
+- [Improvement Bot (D29)](project_improvement_bot.md) — 4h headless sonnet cycles, tier-gated, hard-railed off live money; VM systemd quarki-improve.timer since 2026-08-03 (Mac launchd disabled)
+- [Mobile setup (Android→VM Claude)](reference_mobile_setup.md) — Phone setup COMPLETE 2026-08-04, login verified; Termux+tmux+ssh recipe in trading-stack/MOBILE.md; Mac stays memory-canonical
+- [Guest surfaces: sim data only (D31)](feedback_guest_no_real_money_data.md) — Never serve real-money balances/positions to guest keys, even relabeled; guest key rotated 2026-08-04, new key undistributed
+- [Cross-session board (D33)](project_session_board.md) — parallel Claude windows share hook-maintained board; every prompt injects other windows' tasks + coordination rules; shipped 2026-08-04

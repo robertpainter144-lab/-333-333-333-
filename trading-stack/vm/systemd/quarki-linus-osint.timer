@@ -1,0 +1,7 @@
+[Unit]
+Description=Daily Linus OSINT sweep
+[Timer]
+OnCalendar=*-*-* 12,22:00:00 UTC
+Persistent=true
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,24 @@
+{
+  "as_of": "2026-06-20T00:00:00Z",
+  "regimes": [
+    {
+      "id": "soxl_short_hold",
+      "name": "SOXL Regime (short hold)",
+      "status": "active",
+      "rationale": "5-condition regime gate currently green",
+      "action": {
+        "symbol": "SOXL",
+        "side": "BUY",
+        "size_pct_of_buying_power": 5,
+        "hold_days": 2
+      }
+    },
+    {
+      "id": "qc_top5_rotation",
+      "name": "QC Top-5 rotation",
+      "status": "rebalance",
+      "rationale": "daily rebalance window (2x winner weighting)",
+      "action": null
+    }
+  ]
+}

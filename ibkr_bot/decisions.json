@@ -1,0 +1,123 @@
+{
+  "schema_version": "1.0",
+  "_note": "Per-position and per-trade rationale. Loaded by ibkr_dashboard and merged into transactions.csv export.",
+  "positions": {
+    "SNAP": {
+      "symbol": "SNAP",
+      "qty": 1,
+      "entry_price": 5.2627,
+      "entry_ts": "2026-06-17T08:00:00Z",
+      "decision_label": "starter_$10_test",
+      "explanation": "First live IBKR trade ever, sized intentionally tiny ($5.21) as a system reliability test rather than for return. Original $10-budget plan was to buy 1 share of F, but during the session the user explicitly capped exposure for the night and SNAP was the only screened candidate ≤ $10 single share ($5.71 → filled at $5.21 in 4 AM pre-market). Selected via momentum screener: passed 30-day positive momentum (+7%) and >$50M daily $ volume; not a high-conviction pick but the cheapest passable name. Filled at pre-market open exactly when the limit was reached.",
+      "market_context": {
+        "vix_at_entry": 16.4,
+        "spy_above_200sma": true,
+        "regime": "calm / risk-on",
+        "atr_pct_at_entry": null
+      },
+      "protective_stops": "NONE attached (day-1 of holding; IBKR day-trade rule restricts same-day sell). OCA bracket will auto-attach on day-2 by watcher daemon.",
+      "exit_plan": "Watcher will compute adaptive trail = BASE_K × ATR × VIX_mult × SPY_trend × burst_mult, clipped [2%, 8%]. Hard stop = entry × (1 − min(10%, 2×ATR)). OCA group binds the two server-side at IBKR so either fill cancels the other. Time-stop at 7 days idle."
+    },
+    "F": {
+      "symbol": "F",
+      "qty": 1,
+      "entry_price": 14.4141,
+      "entry_ts": "2026-06-17T~04:00:00Z",
+      "decision_label": "armA_balanced_50_50",
+      "explanation": "Arm A of the three-arm $60 experiment. F (Ford) selected as the balanced-philosophy representative: moderate ATR (4.9%), steady 30d momentum (+8%), strong 90d (+25%). Sized to 1 share (~$14.41) — single-share is the only option without IBKR fractional permission (account-locked for 28 days). The 'balanced' regime ($A) treats profit/risk equally: BASE_K=2.25 trail, 10% hard stop. Goal: provide a baseline against which arms B (aggressive) and C (QC-substitute) can be measured.",
+      "market_context": {
+        "vix_at_entry": 16.4,
+        "spy_above_200sma": true,
+        "atr_pct_at_entry": 0.049,
+        "momentum_30d": 0.08,
+        "momentum_90d": 0.25,
+        "regime": "calm / risk-on"
+      },
+      "protective_stops": "NONE attached (day-1, same as SNAP). Day-2 watcher will attach OCA bracket.",
+      "exit_plan": "Adaptive trail ~8% (capped), hard stop 10%, profit-step at +2×ATR (sell half, ratchet trail to BE — requires qty≥2, won't trigger on 1-share), time stop 7d idle."
+    },
+    "AAL": {
+      "symbol": "AAL",
+      "qty": 1,
+      "entry_price": 15.7864,
+      "entry_ts": "2026-06-17T~04:00:00Z",
+      "decision_label": "armB_aggressive_75_25",
+      "explanation": "Arm B of the three-arm $60 experiment — the 'higher risk, higher return' philosophy (75% profit-seeking / 25% risk-mitigation tilt). AAL chosen as the strongest momentum pick from the screener: +28% 30d, +52% 90d, ATR 4.2%. Travel/airline sector rotation tailwind. Sized 1 share (~$15.79). The aggressive regime gets a wider trail (let winners run) and no profit-step (don't take chips off the table early). Tradeoff: more giveback in drawdowns but more capture in trending moves.",
+      "market_context": {
+        "vix_at_entry": 16.4,
+        "spy_above_200sma": true,
+        "atr_pct_at_entry": 0.042,
+        "momentum_30d": 0.28,
+        "momentum_90d": 0.52,
+        "regime": "calm / risk-on"
+      },
+      "protective_stops": "NONE attached (day-1).",
+      "exit_plan": "Wider adaptive trail: BASE_K × 1.25 (scaled looser for arm B), hard stop 12% (vs 10% balanced), no profit-step. Time stop 7d idle."
+    },
+    "PINS": {
+      "symbol": "PINS",
+      "qty": 1,
+      "entry_price": 21.2255,
+      "entry_ts": "2026-06-17T~04:00:00Z",
+      "decision_label": "armC_qc_substitute",
+      "explanation": "Arm C of the three-arm experiment — substitute for the QC top-5 momentum rotation. Original intent was to use the same picks as the Alpaca QC bot (AMD, NVDA, AAPL, GOOGL, JPM), but those all trade $170-$540/share — impossible to buy 1 share within a $20-per-arm budget on IBKR (no fractional permission). PINS chosen as a close substitute: also a momentum-driven cheap name (rank #4 in the screener at +12% 30d, +18% 90d), social/ad sector for diversification within the experiment. The QC-style profile gets the disciplined adaptive trail (default BASE_K=2.25), tightest hard stop in the experiment (8%), and active profit-step.",
+      "market_context": {
+        "vix_at_entry": 16.4,
+        "spy_above_200sma": true,
+        "atr_pct_at_entry": 0.055,
+        "momentum_30d": 0.12,
+        "momentum_90d": 0.18,
+        "regime": "calm / risk-on"
+      },
+      "protective_stops": "NONE attached (day-1).",
+      "exit_plan": "Adaptive trail BASE_K=2.25, hard stop 8% (tightest of the three arms), profit-step at +2×ATR active, time stop 7d idle."
+    }
+  },
+  "transaction_history": [
+    {
+      "ts": "2026-06-17T~02:55:00Z",
+      "action": "BUY",
+      "symbol": "F",
+      "qty": 1,
+      "price": 14.4141,
+      "reason": "armA_balanced_50_50",
+      "explanation": "Initial order placed at $14.44 limit, GTC, outsideRth=True. Pre-market filled at $14.41 at 4 AM EDT. Part of the user-authorized $60 three-arm experiment, $20 per arm (this arm: F at $14.41 + the 50/50 balanced philosophy)."
+    },
+    {
+      "ts": "2026-06-17T~02:55:00Z",
+      "action": "BUY",
+      "symbol": "AAL",
+      "qty": 1,
+      "price": 15.7864,
+      "reason": "armB_aggressive_75_25",
+      "explanation": "Placed at $15.79 limit, GTC, outsideRth=True. Filled at $15.79 pre-market. Arm B of the experiment — highest-conviction momentum pick (strongest signal in the screen)."
+    },
+    {
+      "ts": "2026-06-17T~02:55:00Z",
+      "action": "BUY",
+      "symbol": "PINS",
+      "qty": 1,
+      "price": 21.2255,
+      "reason": "armC_qc_substitute",
+      "explanation": "Placed at $21.22 limit, GTC, outsideRth=True. Filled at $21.22 pre-market. Substitute for QC top-5 rotation since native QC picks are too expensive for single-share $20 budget."
+    },
+    {
+      "ts": "2026-06-17T~03:08:00Z",
+      "action": "BUY",
+      "symbol": "SNAP",
+      "qty": 1,
+      "price": 5.2627,
+      "reason": "starter_$10_test",
+      "explanation": "First live IBKR trade. $10 starter limit bumped to $10 cap (user choice for fast fill). Filled at $5.21 in 4 AM pre-market. Original $14 F order was cancelled when user requested $10 max; SNAP was the only screener pick that fit under $10 as a single share."
+    },
+    {
+      "ts": "2026-06-17T~02:30:00Z",
+      "action": "BUY (cancelled)",
+      "symbol": "F",
+      "qty": 1,
+      "price": 14.44,
+      "reason": "starter_cancelled",
+      "explanation": "Initial $10-starter order for F at $14.44 limit. Cancelled when user revised the budget to $10 total exposure (F was $14.44, over budget). SNAP replaced this order. Note: a SECOND F order at $14.41 was later placed as Arm A of the $60 experiment after the user authorized that expansion — that second order filled."
+    }
+  ]
+}

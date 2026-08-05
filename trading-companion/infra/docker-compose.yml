@@ -1,0 +1,55 @@
+services:
+  ibeam:
+    image: voyz/ibeam:latest
+    container_name: ibeam
+    env_file: ./ibeam.env
+    restart: unless-stopped
+    expose:
+      - "5000"
+    networks: [companion]
+
+  backend:
+    build:
+      context: ../backend
+      dockerfile: ../infra/backend.Dockerfile
+    container_name: companion-backend
+    env_file: ./backend.env
+    depends_on: [ibeam]
+    expose:
+      - "8000"
+    volumes:
+      - ../backend/signals:/app/signals:ro
+      - ./data:/app/data
+    networks: [companion]
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ../web
+    container_name: companion-web
+    expose:
+      - "80"
+    networks: [companion]
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: companion-caddy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [backend, web]
+    networks: [companion]
+    restart: unless-stopped
+
+networks:
+  companion:
+    driver: bridge
+
+volumes:
+  caddy_data:
+  caddy_config:

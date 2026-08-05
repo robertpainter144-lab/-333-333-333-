@@ -1,0 +1,8 @@
+[Unit]
+Description=Patent cliff daily rescan
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/home/ubuntu/patent_cliff
+EnvironmentFile=/home/ubuntu/quarki.env
+ExecStart=/home/ubuntu/quarki-venv/bin/python run.py --refresh

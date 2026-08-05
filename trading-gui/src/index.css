@@ -1,0 +1,84 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Semantic surfaces — dark default (GitHub-dark family per spec), light as toggle. */
+:root {
+  --bg: #f6f8fa;
+  --panel: #ffffff;
+  --panel2: #eef1f4;
+  --bd: #d0d7de;
+  --fg: #1f2328;
+  --muted: #59636e;
+  --faint: #818b98;
+}
+.dark {
+  --bg: #0d1117;
+  --panel: #161b22;
+  --panel2: #1c2129;
+  --bd: #30363d;
+  --fg: #e6edf3;
+  --muted: #8b949e;
+  --faint: #6e7681;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+/* The page must NEVER scroll horizontally — wide content (tables, charts)
+   scrolls inside its own overflow-x container instead. */
+html,
+body {
+  overflow-x: hidden;
+  max-width: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* All financial figures: tabular numerals in mono. */
+.num {
+  font-family: ui-monospace, SFMono-Regular, Menlo, "Roboto Mono", monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* Skeleton loading shimmer */
+.skeleton {
+  background: var(--panel2);
+  border-radius: 4px;
+  animation: qt-pulse 1.4s ease-in-out infinite;
+}
+@keyframes qt-pulse {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Recharts theming */
+.recharts-cartesian-grid line {
+  stroke: var(--bd);
+  stroke-opacity: 0.45;
+}
+.recharts-text {
+  fill: var(--muted);
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 10px;
+}
+
+/* Thin scrollbars for dense tables */
+.scroll-x {
+  overflow-x: auto;
+  scrollbar-width: thin;
+}

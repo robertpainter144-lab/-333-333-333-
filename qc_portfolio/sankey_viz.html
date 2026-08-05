@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QC Portfolio — Trade Flow</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #0a0a0a;
+    font-family: 'Share Tech Mono', monospace;
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  /* Winamp chrome top bar */
+  #titlebar {
+    width: 100%;
+    height: 28px;
+    background: linear-gradient(180deg,
+      #3a3a3a 0%, #1e1e1e 40%, #141414 60%, #2a2a2a 100%);
+    border-bottom: 1px solid #555;
+    display: flex;
+    align-items: center;
+    padding: 0 8px;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+  .tb-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    box-shadow: 0 0 4px currentColor;
+  }
+  .tb-dot.r { background: #ff5f56; color: #ff5f56; }
+  .tb-dot.y { background: #ffbd2e; color: #ffbd2e; }
+  .tb-dot.g { background: #27c93f; color: #27c93f; }
+  #titlebar span {
+    flex: 1; text-align: center; color: #00ff41; font-size: 11px;
+    letter-spacing: 3px; text-transform: uppercase;
+    text-shadow: 0 0 8px #00ff41;
+  }
+
+  /* LCD metrics strip */
+  #metrics {
+    width: 100%;
+    background: linear-gradient(180deg, #111 0%, #0c0c0c 100%);
+    border-bottom: 1px solid #222;
+    display: flex;
+    justify-content: center;
+    gap: 32px;
+    padding: 6px 16px;
+    flex-shrink: 0;
+  }
+  .metric {
+    display: flex; flex-direction: column; align-items: center; gap: 1px;
+  }
+  .metric .lbl {
+    font-size: 8px; color: #3a7a3a; letter-spacing: 2px; text-transform: uppercase;
+  }
+  .metric .val {
+    font-size: 14px; color: #00ff41;
+    text-shadow: 0 0 6px #00ff41, 0 0 12px #00cc33;
+  }
+  .metric .val.pos { color: #00ff41; text-shadow: 0 0 6px #00ff41; }
+  .metric .val.neg { color: #ff4444; text-shadow: 0 0 6px #ff4444; }
+
+  /* Canvas fills remaining space */
+  #canvas {
+    flex: 1;
+    width: 100%;
+    display: block;
+    cursor: crosshair;
+  }
+
+  /* Tooltip */
+  #tooltip {
+    position: fixed;
+    background: rgba(0,0,0,0.92);
+    border: 1px solid #00ff41;
+    color: #00ff41;
+    font-size: 11px;
+    padding: 8px 12px;
+    border-radius: 3px;
+    pointer-events: none;
+    display: none;
+    box-shadow: 0 0 12px rgba(0,255,65,0.3);
+    line-height: 1.6;
+    z-index: 100;
+  }
+
+  /* Ridged side panels */
+  #ridgel, #ridger {
+    position: fixed;
+    top: 0; bottom: 0;
+    width: 8px;
+    background: repeating-linear-gradient(
+      180deg,
+      #2a2a2a 0px, #1a1a1a 2px, #2a2a2a 4px
+    );
+    z-index: 10;
+  }
+  #ridgel { left: 0; border-right: 1px solid #333; }
+  #ridger { right: 0; border-left: 1px solid #333; }
+
+  /* EQ bars at bottom */
+  #eq {
+    width: 100%;
+    height: 22px;
+    background: #080808;
+    border-top: 1px solid #1a1a1a;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 2px;
+    padding: 2px 20px;
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+  .eq-bar {
+    width: 4px;
+    background: linear-gradient(180deg, #00ff41 0%, #00cc33 50%, #006618 100%);
+    border-radius: 1px 1px 0 0;
+    box-shadow: 0 0 3px #00ff41;
+    transition: height 0.1s;
+  }
+</style>
+</head>
+<body>
+
+<div id="ridgel"></div>
+<div id="ridger"></div>
+
+<div id="titlebar">
+  <div class="tb-dot r"></div>
+  <div class="tb-dot y"></div>
+  <div class="tb-dot g"></div>
+  <span>QC PORTFOLIO &bull; TRADE FLOW VISUALIZER &bull; v1.0</span>
+</div>
+
+<div id="metrics">
+  <div class="metric">
+    <div class="lbl">Starting</div>
+    <div class="val">$50,000.00</div>
+  </div>
+  <div class="metric">
+    <div class="lbl">Deployed</div>
+    <div class="val" id="m-deployed">—</div>
+  </div>
+  <div class="metric">
+    <div class="lbl">Returned</div>
+    <div class="val pos" id="m-returned">—</div>
+  </div>
+  <div class="metric">
+    <div class="lbl">Net P&L</div>
+    <div class="val" id="m-pnl">—</div>
+  </div>
+  <div class="metric">
+    <div class="lbl">Trades</div>
+    <div class="val" id="m-trades">—</div>
+  </div>
+  <div class="metric">
+    <div class="lbl">Return</div>
+    <div class="val" id="m-ret">—</div>
+  </div>
+</div>
+
+<canvas id="canvas"></canvas>
+<div id="tooltip"></div>
+
+<div id="eq"></div>
+
+<script>
+// ─── Trade Data (from transactions.csv) ──────────────────────────────────────
+const TRADES = [
+  { ts:"2026-06-12 07:33:03", symbol:"SOXL", side:"buy",  qty:36.8472, price:223.99, value:8253.40,  reason:"rebalance" },
+  { ts:"2026-06-12 08:07:21", symbol:"SOXL", side:"buy",  qty:36.8472, price:223.99, value:8253.40,  reason:"rebalance" },
+  { ts:"2026-06-12 13:31:04", symbol:"SOXL", side:"sell", qty:72.915,  price:220.185,value:16054.79, reason:"rebalance" },
+  { ts:"2026-06-12 13:31:04", symbol:"AMD",  side:"buy",  qty:83.84,   price:498.5939,value:41802.11,reason:"rebalance" },
+  { ts:"2026-06-12 16:06:40", symbol:"AMD",  side:"sell", qty:41.92,   price:508.97, value:21336.02, reason:"profit_ratchet" },
+  { ts:"2026-06-12 16:06:40", symbol:"SOXL", side:"sell", qty:18.8133, price:232.17, value:4367.88,  reason:"profit_ratchet" },
+  { ts:"2026-06-12 16:36:41", symbol:"AMD",  side:"sell", qty:10.48,   price:512.32, value:5369.11,  reason:"ladder_10pct" },
+  { ts:"2026-06-12 16:36:41", symbol:"SOXL", side:"sell", qty:4.7033,  price:237.84, value:1118.63,  reason:"ladder_10pct" },
+];
+
+const STARTING = 50000;
+
+// ─── Compute matched loops (buy→sell pairs) ───────────────────────────────────
+// Each "loop" = one buy event + associated sells for same symbol
+const LOOPS = [
+  {
+    id: 0,
+    symbol: "SOXL",
+    label: "SOXL #1",
+    buyValue: 8253.40,
+    buyPrice: 223.99,
+    sellValue: 16054.79,   // consolidated sells
+    sellPrice: 220.185,
+    pnl: 16054.79 - 8253.40 - 8253.40, // two buys
+    reason: "rebalance → rebalance sell",
+    buyTime: "07:33",
+    sellTime: "13:31",
+    color: "#00aaff",
+  },
+  {
+    id: 1,
+    symbol: "AMD",
+    label: "AMD Momentum",
+    buyValue: 41802.11,
+    buyPrice: 498.5939,
+    sellValue: 21336.02 + 5369.11,
+    sellPrice: 510.0,
+    pnl: (21336.02 + 5369.11) - 41802.11,
+    reason: "rebalance → profit_ratchet + ladder",
+    buyTime: "13:31",
+    sellTime: "16:36",
+    color: "#ff6600",
+  },
+  {
+    id: 2,
+    symbol: "SOXL",
+    label: "SOXL #2",
+    buyValue: 8253.40,
+    buyPrice: 223.99,
+    sellValue: 4367.88 + 1118.63,
+    sellPrice: 233.0,
+    pnl: (4367.88 + 1118.63) - 8253.40,
+    reason: "rebalance → profit_ratchet + ladder",
+    buyTime: "08:07",
+    sellTime: "16:36",
+    color: "#00aaff",
+  },
+];
+
+// Totals
+const totalDeployed = TRADES.filter(t=>t.side==="buy").reduce((s,t)=>s+t.value,0);
+const totalReturned = TRADES.filter(t=>t.side==="sell").reduce((s,t)=>s+t.value,0);
+const netPnl = LOOPS.reduce((s,l)=>s+l.pnl,0);
+const retPct = (netPnl/STARTING*100).toFixed(2);
+
+document.getElementById("m-deployed").textContent = "$"+totalDeployed.toLocaleString("en-US",{maximumFractionDigits:0});
+document.getElementById("m-returned").textContent = "$"+totalReturned.toLocaleString("en-US",{maximumFractionDigits:0});
+const pnlEl = document.getElementById("m-pnl");
+pnlEl.textContent = (netPnl>=0?"+$":"−$")+Math.abs(netPnl).toFixed(0);
+pnlEl.className = "val "+(netPnl>=0?"pos":"neg");
+document.getElementById("m-trades").textContent = TRADES.length;
+const retEl = document.getElementById("m-ret");
+retEl.textContent = (retPct>=0?"+":"")+retPct+"%";
+retEl.className = "val "+(retPct>=0?"pos":"neg");
+
+// ─── Canvas Setup ─────────────────────────────────────────────────────────────
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+let W, H, cx, cy;
+let particles = [];
+let hovered = null;
+let animFrame = 0;
+
+function resize() {
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width;
+  canvas.height = rect.height;
+  W = canvas.width;
+  H = canvas.height;
+  cx = W / 2;
+  cy = H / 2;
+  buildPaths();
+}
+
+// ─── Path geometry ────────────────────────────────────────────────────────────
+let paths = [];
+const POOL_R = Math.min(60, 50);
+
+function buildPaths() {
+  paths = [];
+  const n = LOOPS.length;
+
+  LOOPS.forEach((loop, i) => {
+    // Angle spread for symbol nodes
+    const angleBase = (i / n) * Math.PI * 2 - Math.PI / 2;
+    const spread = 0.45;
+    const nodeAngle = angleBase;
+
+    // Orbit radius for position node
+    const orbitR = Math.min(W, H) * 0.28;
+    const nx = cx + Math.cos(nodeAngle) * orbitR;
+    const ny = cy + Math.sin(nodeAngle) * orbitR;
+
+    // Outer loop apex — further out, rotated slightly
+    const apexR = orbitR * 1.55;
+    const apexAngle = nodeAngle + 0.18 * (i % 2 === 0 ? 1 : -1);
+    const ax = cx + Math.cos(apexAngle) * apexR;
+    const ay = cy + Math.sin(apexAngle) * apexR;
+
+    // Pool attachment points — tangent to circle
+    const p1a = nodeAngle - 0.25;
+    const p1x = cx + Math.cos(p1a) * (POOL_R + 2);
+    const p1y = cy + Math.sin(p1a) * (POOL_R + 2);
+
+    const p2a = nodeAngle + 0.25;
+    const p2x = cx + Math.cos(p2a) * (POOL_R + 2);
+    const p2y = cy + Math.sin(p2a) * (POOL_R + 2);
+
+    // Control points for buy leg (pool → apex → node)
+    const cp1x = cx + Math.cos(p1a) * orbitR * 0.7;
+    const cp1y = cy + Math.sin(p1a) * orbitR * 0.7;
+
+    // Control points for sell leg (node → apex → pool)
+    const cp2x = cx + Math.cos(p2a) * orbitR * 0.7;
+    const cp2y = cy + Math.sin(p2a) * orbitR * 0.7;
+
+    // Width proportional to trade value
+    const maxVal = Math.max(...LOOPS.map(l=>l.buyValue));
+    const buyW = 2 + (loop.buyValue / maxVal) * 16;
+    const sellW = 2 + (loop.sellValue / maxVal) * 14;
+
+    const profitable = loop.pnl >= 0;
+
+    paths.push({
+      loop,
+      nx, ny,
+      ax, ay,
+      // BUY path: pool → node (cubic bezier)
+      buyPath: { p1x, p1y, cp1x, cp1y, cpax: ax, cpay: ay, nx, ny },
+      // SELL path: node → pool (cubic bezier)
+      sellPath: { nx, ny, cpbx: ax, cpby: ay, cp2x, cp2y, p2x, p2y },
+      buyW,
+      sellW,
+      profitable,
+      nodeR: 18 + (loop.buyValue / maxVal) * 14,
+      hit: false,
+    });
+  });
+
+  spawnParticles();
+}
+
+// ─── Particle system ──────────────────────────────────────────────────────────
+function cubicPoint(t, x0,y0,x1,y1,x2,y2,x3,y3) {
+  const mt = 1-t;
+  return {
+    x: mt**3*x0 + 3*mt**2*t*x1 + 3*mt*t**2*x2 + t**3*x3,
+    y: mt**3*y0 + 3*mt**2*t*y1 + 3*mt*t**2*y2 + t**3*y3,
+  };
+}
+
+function spawnParticles() {
+  particles = [];
+  paths.forEach((p, pi) => {
+    // Buy particles: pool→node
+    for (let i=0; i<12; i++) {
+      particles.push({
+        pathIdx: pi,
+        leg: "buy",
+        t: Math.random(),
+        speed: 0.003 + Math.random()*0.004,
+        size: 2 + Math.random()*2,
+        alpha: 0.6 + Math.random()*0.4,
+      });
+    }
+    // Sell particles: node→pool
+    for (let i=0; i<10; i++) {
+      particles.push({
+        pathIdx: pi,
+        leg: "sell",
+        t: Math.random(),
+        speed: 0.004 + Math.random()*0.005,
+        size: 2 + Math.random()*2,
+        alpha: 0.5 + Math.random()*0.4,
+      });
+    }
+  });
+}
+
+function updateParticles() {
+  particles.forEach(p => {
+    p.t += p.speed;
+    if (p.t > 1) p.t -= 1;
+  });
+}
+
+function getParticlePos(p) {
+  const path = paths[p.pathIdx];
+  if (p.leg === "buy") {
+    const bp = path.buyPath;
+    return cubicPoint(p.t, bp.p1x,bp.p1y, bp.cp1x,bp.cp1y, bp.cpax,bp.cpay, bp.nx,bp.ny);
+  } else {
+    const sp = path.sellPath;
+    return cubicPoint(p.t, sp.nx,sp.ny, sp.cpbx,sp.cpby, sp.cp2x,sp.cp2y, sp.p2x,sp.p2y);
+  }
+}
+
+// ─── Draw helpers ─────────────────────────────────────────────────────────────
+function glowStroke(color, blur, width) {
+  ctx.shadowColor = color;
+  ctx.shadowBlur = blur;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+}
+
+function drawCubicPath(x0,y0,x1,y1,x2,y2,x3,y3) {
+  ctx.beginPath();
+  ctx.moveTo(x0,y0);
+  ctx.bezierCurveTo(x1,y1,x2,y2,x3,y3);
+  ctx.stroke();
+}
+
+function drawPool() {
+  const pulse = 0.04 * Math.sin(animFrame * 0.04);
+  const r = POOL_R * (1 + pulse);
+
+  // Outer glow ring
+  const grad = ctx.createRadialGradient(cx,cy,r*0.3,cx,cy,r*1.6);
+  grad.addColorStop(0, "rgba(0,255,65,0.18)");
+  grad.addColorStop(1, "rgba(0,255,65,0)");
+  ctx.beginPath();
+  ctx.arc(cx,cy,r*1.6,0,Math.PI*2);
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // Main pool circle — shiny radial gradient
+  const bodyGrad = ctx.createRadialGradient(cx-r*0.3,cy-r*0.3,2,cx,cy,r);
+  bodyGrad.addColorStop(0, "#1aff66");
+  bodyGrad.addColorStop(0.4, "#00cc33");
+  bodyGrad.addColorStop(0.8, "#004d14");
+  bodyGrad.addColorStop(1, "#001f08");
+  ctx.beginPath();
+  ctx.arc(cx,cy,r,0,Math.PI*2);
+  ctx.fillStyle = bodyGrad;
+  ctx.fill();
+
+  // Ridge rings
+  for (let i=0; i<4; i++) {
+    const rr = r*(0.3+i*0.18);
+    ctx.beginPath();
+    ctx.arc(cx,cy,rr,0,Math.PI*2);
+    ctx.strokeStyle = `rgba(0,255,65,${0.08-i*0.015})`;
+    ctx.lineWidth = 1;
+    ctx.shadowBlur = 0;
+    ctx.stroke();
+  }
+
+  // Inner highlight arc
+  ctx.beginPath();
+  ctx.arc(cx-r*0.25, cy-r*0.25, r*0.35, 0, Math.PI*0.9);
+  ctx.strokeStyle = "rgba(200,255,220,0.45)";
+  ctx.lineWidth = 2;
+  ctx.shadowBlur = 4;
+  ctx.shadowColor = "#aaffcc";
+  ctx.stroke();
+
+  // Label
+  ctx.shadowBlur = 8;
+  ctx.shadowColor = "#00ff41";
+  ctx.fillStyle = "#00ff41";
+  ctx.font = "bold 10px 'Share Tech Mono', monospace";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("CAPITAL", cx, cy-8);
+  ctx.fillText("$50,000", cx, cy+6);
+  ctx.shadowBlur = 0;
+}
+
+function drawNodeBubble(path, hover) {
+  const { nx, ny, nodeR, loop, profitable } = path;
+
+  const glow = hover ? 20 : 8;
+  const baseColor = loop.color;
+
+  // Outer glow
+  ctx.beginPath();
+  ctx.arc(nx,ny,nodeR*1.4,0,Math.PI*2);
+  const og = ctx.createRadialGradient(nx,ny,0,nx,ny,nodeR*1.4);
+  og.addColorStop(0, baseColor+"44");
+  og.addColorStop(1, "transparent");
+  ctx.fillStyle = og;
+  ctx.fill();
+
+  // Body
+  const bg = ctx.createRadialGradient(nx-nodeR*0.3,ny-nodeR*0.3,2,nx,ny,nodeR);
+  const c1 = loop.color;
+  bg.addColorStop(0, c1+"ff");
+  bg.addColorStop(0.5, c1+"99");
+  bg.addColorStop(1, "#000");
+  ctx.beginPath();
+  ctx.arc(nx,ny,nodeR,0,Math.PI*2);
+  ctx.fillStyle = bg;
+  ctx.fill();
+  ctx.shadowColor = baseColor;
+  ctx.shadowBlur = glow;
+  ctx.strokeStyle = baseColor;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Highlight
+  ctx.beginPath();
+  ctx.arc(nx-nodeR*0.25, ny-nodeR*0.25, nodeR*0.3, 0, Math.PI*0.9);
+  ctx.strokeStyle = "rgba(255,255,255,0.4)";
+  ctx.lineWidth = 1.5;
+  ctx.shadowBlur = 0;
+  ctx.stroke();
+
+  // Label
+  ctx.shadowBlur = 6;
+  ctx.shadowColor = baseColor;
+  ctx.fillStyle = "#fff";
+  ctx.font = `bold ${Math.max(9, nodeR*0.45)}px 'Share Tech Mono', monospace`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(loop.symbol, nx, ny-5);
+  const pnlStr = (loop.pnl>=0?"+$":"−$")+Math.abs(loop.pnl).toFixed(0);
+  ctx.font = `${Math.max(8, nodeR*0.35)}px 'Share Tech Mono', monospace`;
+  ctx.fillStyle = loop.pnl>=0?"#00ff41":"#ff4444";
+  ctx.fillText(pnlStr, nx, ny+9);
+  ctx.shadowBlur = 0;
+}
+
+function drawLoop(path, hover) {
+  const { buyPath: bp, sellPath: sp, buyW, sellW, loop, profitable } = path;
+  const alpha = hover ? 1.0 : 0.65;
+
+  // BUY leg — pool color → symbol color
+  const buyGrad = ctx.createLinearGradient(bp.p1x,bp.p1y,bp.nx,bp.ny);
+  buyGrad.addColorStop(0, `rgba(0,255,65,${alpha})`);
+  buyGrad.addColorStop(1, loop.color+Math.round(alpha*255).toString(16).padStart(2,"0"));
+
+  ctx.shadowColor = "#00ff41";
+  ctx.shadowBlur = hover ? 14 : 6;
+  ctx.strokeStyle = buyGrad;
+  ctx.lineWidth = hover ? buyW+2 : buyW;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(bp.p1x,bp.p1y);
+  ctx.bezierCurveTo(bp.cp1x,bp.cp1y, bp.cpax,bp.cpay, bp.nx,bp.ny);
+  ctx.stroke();
+
+  // SELL leg — symbol color → pool color, P&L tinted
+  const sellColor = profitable ? "#00ff41" : "#ff4444";
+  const sellGrad = ctx.createLinearGradient(sp.nx,sp.ny,sp.p2x,sp.p2y);
+  sellGrad.addColorStop(0, loop.color+Math.round(alpha*255).toString(16).padStart(2,"0"));
+  sellGrad.addColorStop(1, sellColor+Math.round(alpha*255).toString(16).padStart(2,"0"));
+
+  ctx.shadowColor = sellColor;
+  ctx.shadowBlur = hover ? 16 : 7;
+  ctx.strokeStyle = sellGrad;
+  ctx.lineWidth = hover ? sellW+2 : sellW;
+  ctx.beginPath();
+  ctx.moveTo(sp.nx,sp.ny);
+  ctx.bezierCurveTo(sp.cpbx,sp.cpby, sp.cp2x,sp.cp2y, sp.p2x,sp.p2y);
+  ctx.stroke();
+
+  ctx.shadowBlur = 0;
+}
+
+function drawParticles() {
+  particles.forEach(p => {
+    const path = paths[p.pathIdx];
+    const bp = path.buyPath;
+    const sp = path.sellPath;
+
+    let pos;
+    if (p.leg === "buy") {
+      pos = cubicPoint(p.t, bp.p1x,bp.p1y, bp.cp1x,bp.cp1y, bp.cpax,bp.cpay, bp.nx,bp.ny);
+    } else {
+      pos = cubicPoint(p.t, sp.nx,sp.ny, sp.cpbx,sp.cpby, sp.cp2x,sp.cp2y, sp.p2x,sp.p2y);
+    }
+
+    const color = p.leg==="buy" ? "#00ff41" : (path.profitable?"#aaff88":"#ff8888");
+    ctx.globalAlpha = p.alpha * (0.6 + 0.4*Math.sin(animFrame*0.08 + p.t*6));
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 6;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, p.size, 0, Math.PI*2);
+    ctx.fill();
+    ctx.globalAlpha = 1.0;
+    ctx.shadowBlur = 0;
+  });
+}
+
+// ─── Scanline overlay ─────────────────────────────────────────────────────────
+function drawScanlines() {
+  ctx.save();
+  for (let y=0; y<H; y+=4) {
+    ctx.fillStyle = "rgba(0,0,0,0.08)";
+    ctx.fillRect(0, y, W, 1);
+  }
+  ctx.restore();
+}
+
+// ─── Paisle fractal swirls (background decoration) ────────────────────────────
+function drawFractalBg() {
+  ctx.save();
+  ctx.globalAlpha = 0.04;
+  for (let i=0; i<6; i++) {
+    const a = (animFrame*0.003 + i * Math.PI/3);
+    const r = Math.min(W,H)*0.38;
+    const sx = cx + Math.cos(a)*r*0.3;
+    const sy = cy + Math.sin(a)*r*0.3;
+    ctx.beginPath();
+    ctx.arc(sx, sy, r*(0.3+i*0.07), 0, Math.PI*2);
+    ctx.strokeStyle = "#00ff41";
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+
+// ─── Hit test ────────────────────────────────────────────────────────────────
+canvas.addEventListener("mousemove", e => {
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  const tip = document.getElementById("tooltip");
+
+  hovered = null;
+  paths.forEach(p => {
+    const dx = mx-p.nx, dy = my-p.ny;
+    if (Math.sqrt(dx*dx+dy*dy) < p.nodeR+6) {
+      hovered = p;
+    }
+  });
+
+  if (hovered) {
+    const l = hovered.loop;
+    tip.style.display = "block";
+    tip.style.left = (e.clientX+14)+"px";
+    tip.style.top  = (e.clientY-10)+"px";
+    tip.innerHTML = [
+      `<b style="color:${l.color}">${l.label}</b>`,
+      `Buy:  $${l.buyValue.toLocaleString()} @ $${l.buyPrice.toFixed(2)}`,
+      `Sell: $${l.sellValue.toLocaleString()} @ $${l.sellPrice.toFixed(2)}`,
+      `P&amp;L: <span style="color:${l.pnl>=0?"#00ff41":"#ff4444"}">${l.pnl>=0?"+$":"−$"}${Math.abs(l.pnl).toFixed(2)}</span>`,
+      `Reason: ${l.reason}`,
+      `${l.buyTime} → ${l.sellTime}`,
+    ].join("<br>");
+  } else {
+    tip.style.display = "none";
+  }
+});
+canvas.addEventListener("mouseleave", () => {
+  document.getElementById("tooltip").style.display = "none";
+  hovered = null;
+});
+
+// ─── EQ bars ─────────────────────────────────────────────────────────────────
+const eqEl = document.getElementById("eq");
+const NUM_BARS = 48;
+for (let i=0;i<NUM_BARS;i++) {
+  const b = document.createElement("div");
+  b.className = "eq-bar";
+  b.style.height = "4px";
+  eqEl.appendChild(b);
+}
+const eqBars = eqEl.querySelectorAll(".eq-bar");
+function animateEQ() {
+  eqBars.forEach((b,i) => {
+    const h = 2 + Math.abs(Math.sin(animFrame*0.06 + i*0.4 + Math.random()*0.5))*18;
+    b.style.height = h+"px";
+  });
+}
+
+// ─── Main render loop ─────────────────────────────────────────────────────────
+function render() {
+  ctx.clearRect(0,0,W,H);
+
+  // Dark bg with subtle gradient
+  const bgGrad = ctx.createRadialGradient(cx,cy,0,cx,cy,Math.max(W,H));
+  bgGrad.addColorStop(0,   "#0d120d");
+  bgGrad.addColorStop(0.6, "#080a08");
+  bgGrad.addColorStop(1,   "#040604");
+  ctx.fillStyle = bgGrad;
+  ctx.fillRect(0,0,W,H);
+
+  drawFractalBg();
+
+  // Draw all loops first (behind nodes)
+  paths.forEach(p => drawLoop(p, hovered===p));
+
+  // Pool
+  drawPool();
+
+  // Nodes
+  paths.forEach(p => drawNodeBubble(p, hovered===p));
+
+  // Particles
+  updateParticles();
+  drawParticles();
+
+  // Scanlines
+  drawScanlines();
+
+  animateEQ();
+  animFrame++;
+  requestAnimationFrame(render);
+}
+
+// ─── Boot ─────────────────────────────────────────────────────────────────────
+window.addEventListener("resize", resize);
+resize();
+render();
+</script>
+</body>
+</html>

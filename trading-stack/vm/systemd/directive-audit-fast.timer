@@ -1,0 +1,7 @@
+[Unit]
+Description=Hourly fast directive audit
+[Timer]
+OnCalendar=*-*-* *:17:00
+Persistent=true
+[Install]
+WantedBy=timers.target

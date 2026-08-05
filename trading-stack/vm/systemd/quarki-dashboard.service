@@ -1,0 +1,13 @@
+[Unit]
+Description=Quarki ng_dashboard (API + /app + /terminal GUIs)
+After=network-online.target
+[Service]
+User=ubuntu
+WorkingDirectory=/home/ubuntu/ng_dashboard
+EnvironmentFile=/home/ubuntu/quarki.env
+ExecStart=/home/ubuntu/quarki-venv/bin/python main.py
+Restart=always
+RestartSec=10
+MemoryMax=350M
+[Install]
+WantedBy=multi-user.target

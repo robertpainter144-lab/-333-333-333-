@@ -1,0 +1,6 @@
+[Unit]
+Description=Quarki git autopush (one-shot)
+[Service]
+Type=oneshot
+User=ubuntu
+ExecStart=/bin/bash /home/ubuntu/bin/vm-autopush.sh

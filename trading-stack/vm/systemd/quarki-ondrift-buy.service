@@ -1,0 +1,9 @@
+[Unit]
+Description=Overnight drift paper lane — buy leg (D7 candidate, paper-only)
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/home/ubuntu/scanner
+EnvironmentFile=/home/ubuntu/quarki.env
+ExecStart=/home/ubuntu/quarki-venv/bin/python sources/overnight_drift.py --leg buy

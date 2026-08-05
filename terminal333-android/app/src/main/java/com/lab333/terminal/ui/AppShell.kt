@@ -11,11 +11,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.AccountBalanceWallet
-import androidx.compose.material.icons.outlined.Leaderboard
-import androidx.compose.material.icons.outlined.Science
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -28,8 +23,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.lab333.terminal.TradingViewModel
 import com.lab333.terminal.ui.screens.CatalogScreen
 import com.lab333.terminal.ui.theme.Accent
@@ -37,10 +32,11 @@ import com.lab333.terminal.ui.theme.BG
 import com.lab333.terminal.ui.theme.BG2
 import com.lab333.terminal.ui.theme.FG2
 
-enum class Realm(val label: String, val icon: ImageVector) {
-    Book("Book", Icons.Outlined.AccountBalanceWallet), // Live money — default home
-    Lab ("Lab",  Icons.Outlined.Science),              // Paper research
-    Catalog("Catalog", Icons.Outlined.Leaderboard),    // Private strategy-catalog benchmarks
+// Emoji icons match the Quarki333 Terminal web nav (💵 Book / 🧪 Lab / 🗂 Catalog)
+enum class Realm(val label: String, val emoji: String) {
+    Book("Book", "💵"),       // Live money — default home
+    Lab ("Lab",  "🧪"),       // Paper research
+    Catalog("Catalog", "🗂"), // Private strategy-catalog benchmarks
 }
 
 @Composable
@@ -61,7 +57,7 @@ fun AppShell(vm: TradingViewModel) {
                     NavigationBarItem(
                         selected = selected,
                         onClick = { current = realm },
-                        icon = { Icon(realm.icon, contentDescription = realm.label) },
+                        icon = { Text(realm.emoji, fontSize = 18.sp) },
                         label = {
                             Text(
                                 realm.label,

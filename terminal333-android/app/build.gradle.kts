@@ -15,8 +15,8 @@ android {
         applicationId = "com.lab333.terminal"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "2.0"
         // Default backend URL. Uses Tailscale MagicDNS short hostname so this
         // doesn't break when the Mac's tailnet IP changes. Requires the phone's
         // Tailscale app to have MagicDNS enabled (default in current versions).

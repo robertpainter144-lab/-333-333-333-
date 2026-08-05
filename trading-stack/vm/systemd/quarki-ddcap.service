@@ -1,0 +1,6 @@
+[Unit]
+Description=Drawdown-cap shadow experiment (zero orders)
+[Service]
+Type=oneshot
+User=ubuntu
+ExecStart=/home/ubuntu/quarki-venv/bin/python /home/ubuntu/scanner/dd_cap_shadow.py

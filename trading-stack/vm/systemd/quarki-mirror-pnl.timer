@@ -1,0 +1,7 @@
+[Unit]
+Description=Daily mirror ledger P/L enrichment (after mirrors trade at 13:35 UTC)
+[Timer]
+OnCalendar=Mon..Fri 14:10:00 UTC
+Persistent=true
+[Install]
+WantedBy=timers.target

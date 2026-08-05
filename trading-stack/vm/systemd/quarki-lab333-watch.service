@@ -1,0 +1,7 @@
+[Unit]
+Description=Tripwire: lab333 account must have zero public repos (D1)
+After=network-online.target
+[Service]
+Type=oneshot
+User=ubuntu
+ExecStart=/usr/bin/python3 /home/ubuntu/bin/lab333_public_watch.py

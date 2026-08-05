@@ -52,7 +52,9 @@ import kotlinx.coroutines.delay
 import kotlinx.serialization.json.JsonPrimitive
 import java.time.Instant
 import java.time.LocalDateTime
+import java.time.OffsetDateTime
 import java.time.ZoneId
+import java.time.ZoneOffset
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 
@@ -126,19 +128,29 @@ fun RealtimeEquityChart(source: String, vm: TradingViewModel, breakeven: Double 
     }
 }
 
-/** Parse an EquityPoint's ts as epoch millis (handles ISO string or epoch int).
- *  Returns 0 if unparseable. */
+/** Parse an EquityPoint's ts as epoch millis. Handles epoch seconds/millis,
+ *  ISO instants ("…Z"), offset datetimes ("…+00:00" — what equity_logger.py
+ *  and alpaca_paper_arm.py write; Android's Instant.parse rejects that form),
+ *  and naive datetimes (assumed UTC). Returns 0 if unparseable. */
 private fun tsMillis(p: EquityPoint): Long {
+    val s = ((p.ts as? JsonPrimitive)?.content ?: "").trim()
+    if (s.isEmpty()) return 0L
+    if (s.all { it.isDigit() }) {
+        val v = s.toLongOrNull() ?: return 0L
+        return if (v > 100_000_000_000L) v else v * 1000L
+    }
     return try {
-        val prim = p.ts as? JsonPrimitive
-        val s = prim?.content ?: ""
-        when {
-            s.isBlank() -> 0L
-            s.all { it.isDigit() || it == '-' } -> s.toLong() * 1000L
-            else -> Instant.parse(s).toEpochMilli()
-        }
+        Instant.parse(s).toEpochMilli()
     } catch (_: Throwable) {
-        0L
+        try {
+            OffsetDateTime.parse(s).toInstant().toEpochMilli()
+        } catch (_: Throwable) {
+            try {
+                LocalDateTime.parse(s).atOffset(ZoneOffset.UTC).toInstant().toEpochMilli()
+            } catch (_: Throwable) {
+                0L
+            }
+        }
     }
 }
 
@@ -231,11 +243,6 @@ private fun LiveLineChart(rawPoints: List<EquityPoint>, breakeven: Double = 0.0)
             Canvas(Modifier.fillMaxSize().padding(8.dp)) {
                 val totalW = size.width
                 val totalH = size.height
-                // Gutters for floating axis labels
-                val leftPad = 44f
-                val bottomPad = 20f
-                val w = (totalW - leftPad).coerceAtLeast(1f)
-                val h = (totalH - bottomPad).coerceAtLeast(1f)
 
                 // Determine visible window based on zoom + pan
                 val visCount = (n / zoom).toInt().coerceAtLeast(2)
@@ -250,6 +257,22 @@ private fun LiveLineChart(rawPoints: List<EquityPoint>, breakeven: Double = 0.0)
                 val maxV = slice.max()
                 val rangeV = (maxV - minV).coerceAtLeast(1e-6)
 
+                // Dollar labels: thousands grouping; show cents when the
+                // visible range is so tight that whole dollars would repeat.
+                val yLayouts = (0..4).map { g ->
+                    val value = maxV - (maxV - minV) * (g / 4f)
+                    val label = if (maxV - minV < 5.0) "$" + "%,.2f".format(value)
+                                else "$" + "%,.0f".format(value)
+                    measurer.measure(label, axisStyle)
+                }
+
+                // Gutters sized to the rendered labels (density-aware) so
+                // nothing clips on high-DPI screens.
+                val leftPad = yLayouts.maxOf { it.size.width } + 8.dp.toPx()
+                val bottomPad = yLayouts[0].size.height + 6.dp.toPx()
+                val w = (totalW - leftPad).coerceAtLeast(1f)
+                val h = (totalH - bottomPad).coerceAtLeast(1f)
+
                 // Y gridlines + dollar labels
                 val gridColor = Color(0xFF21262d)
                 for (g in 0..4) {
@@ -259,13 +282,11 @@ private fun LiveLineChart(rawPoints: List<EquityPoint>, breakeven: Double = 0.0)
                         start = androidx.compose.ui.geometry.Offset(leftPad, y),
                         end = androidx.compose.ui.geometry.Offset(totalW, y),
                         strokeWidth = 1f)
-                    val value = maxV - (maxV - minV) * frac
-                    val label = "$" + "%.0f".format(value)
-                    val layout = measurer.measure(label, axisStyle)
+                    val layout = yLayouts[g]
                     drawText(
                         layout,
                         topLeft = androidx.compose.ui.geometry.Offset(
-                            x = (leftPad - layout.size.width - 4f).coerceAtLeast(0f),
+                            x = (leftPad - layout.size.width - 4.dp.toPx()).coerceAtLeast(0f),
                             y = (y - layout.size.height / 2f).coerceIn(0f, h - layout.size.height.toFloat())
                         ),
                     )
@@ -312,18 +333,19 @@ private fun LiveLineChart(rawPoints: List<EquityPoint>, breakeven: Double = 0.0)
                 // X-axis time labels (4 across visible span)
                 val spanMs = (tsMillis(sliceTs.last()) - tsMillis(sliceTs.first())).coerceAtLeast(0L)
                 val nXLabels = 4
-                for (i in 0 until nXLabels) {
-                    val frac = i / (nXLabels - 1f)
-                    val idx = ((slice.size - 1) * frac).toInt().coerceIn(0, slice.size - 1)
+                val xIdxs = (0 until nXLabels).map { i ->
+                    ((slice.size - 1) * (i / (nXLabels - 1f))).toInt().coerceIn(0, slice.size - 1)
+                }.distinct()
+                for (idx in xIdxs) {
                     val label = formatTimeAt(sliceTs[idx], spanMs)
                     if (label.isEmpty()) continue
                     val layout = measurer.measure(label, axisStyle)
                     val tx = (leftPad + idx * xStep - layout.size.width / 2f)
-                        .coerceIn(leftPad, totalW - layout.size.width.toFloat())
+                        .coerceIn(leftPad, (totalW - layout.size.width).coerceAtLeast(leftPad))
                     drawText(
                         layout,
                         topLeft = androidx.compose.ui.geometry.Offset(
-                            x = tx, y = h + 2f
+                            x = tx, y = h + 3.dp.toPx()
                         ),
                     )
                 }

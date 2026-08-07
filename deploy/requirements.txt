@@ -1,0 +1,11 @@
+# Core python deps for the stack's 24/7 services (v0 — extend as units are enabled)
+fastapi
+uvicorn
+nicegui
+plotly
+requests
+yfinance
+pandas
+numpy
+websockets
+python-dotenv

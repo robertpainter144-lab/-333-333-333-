@@ -176,7 +176,7 @@ def _latest_px(sym: str) -> float | None:
 def _ntfy(msg: str) -> None:
     try:
         topic = None
-        for ln in Path("/home/ubuntu/ntfy.env").read_text().splitlines():
+        for ln in (Path.home() / "ntfy.env").read_text().splitlines():
             if ln.startswith("NTFY_TOPIC="):
                 topic = ln.split("=", 1)[1].strip()
         if topic:

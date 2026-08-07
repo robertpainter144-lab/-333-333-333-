@@ -65,7 +65,7 @@ def main():
     today = dt.date.today()
     if today.weekday() == 0:  # Monday: refresh Crenshaw PTR basket
         r = subprocess.run(
-            [str(Path.home() / "quarki-venv/bin/python"),
+            ["python3",
              "fetch_congress_pilot.py", "Dan Crenshaw", "Crenshaw_Tracker", "--write"],
             cwd=Path.home() / "scanner", capture_output=True, text=True, timeout=300)
         print("crenshaw refresh:", (r.stdout or r.stderr).strip().splitlines()[-1:])

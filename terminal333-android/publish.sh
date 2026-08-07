@@ -3,11 +3,9 @@
 # write manifest. Phone's UpdateChecker sees the new version on next launch.
 set -euo pipefail
 
-ANDROID_DIR=/Users/quarki3/trading_android
+ANDROID_DIR=/Users/quarki3/lab333/upstream333/terminal333-android
 APP_GRADLE=$ANDROID_DIR/app/build.gradle.kts
-VPS=ubuntu@129.153.96.201
-SSH_KEY=/Users/quarki3/.ssh/oracle_trading
-DIST_REMOTE=/home/ubuntu/trading-dist  # NEVER /opt/trading — creates data-dir hijack (see CONTEXT.md 2026-07-29)
+DIST_LOCAL=$HOME/trading-dist  # what api.py /api/version + /api/apk actually read
 APK_LOCAL=$ANDROID_DIR/app/build/outputs/apk/release/app-release.apk
 
 cd "$ANDROID_DIR"
@@ -44,15 +42,15 @@ SHA256=$(shasum -a 256 "$APK_LOCAL" | awk '{print $1}')
 # 4. Stage + upload.
 mkdir -p "$ANDROID_DIR/dist"
 cp "$APK_LOCAL" "$ANDROID_DIR/dist/trading-$NEW_NAME.apk"
-scp -q -i "$SSH_KEY" "$APK_LOCAL" "$VPS:$DIST_REMOTE/trading-latest.apk"
+mkdir -p "$DIST_LOCAL" && cp "$APK_LOCAL" "$DIST_LOCAL/trading-latest.apk"
 
 # 5. Manifest.
 NOTES="${1:-update available}"
-ssh -i "$SSH_KEY" "$VPS" "cat > $DIST_REMOTE/manifest.json" <<EOF
+: # (VM upload removed — Mac-local dist)
 {
   "version_code": $NEW_CODE,
   "version_name": "$NEW_NAME",
-  "url": "http://100.73.225.4:8080/api/apk",
+  "url": "https://quarki3s-macbook-air.tail33de20.ts.net/api/apk",
   "sha256": "$SHA256",
   "notes": "$NOTES"
 }

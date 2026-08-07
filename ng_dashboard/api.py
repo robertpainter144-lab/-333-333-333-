@@ -859,7 +859,7 @@ def _bots_status() -> list[dict]:
                 pid = int(r.stdout.strip()) or None
             except Exception:
                 pid = None
-        out.append({"id": unit.rsplit(".", 1)[0], "name": name, "host": "oracle",
+        out.append({"id": unit.rsplit(".", 1)[0], "name": name, "host": "mac",
                     "running": running, "pid": pid})
     out.append({"id": "shadow", "name": "Shadow A/B Engine", "host": "in-process",
                 "running": True, "pid": None})

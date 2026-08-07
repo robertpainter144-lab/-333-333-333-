@@ -15,13 +15,19 @@ android {
         applicationId = "com.lab333.terminal"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
-        versionName = "2.1"
-        // Default backend URL. Uses Tailscale MagicDNS short hostname so this
-        // doesn't break when the Mac's tailnet IP changes. Requires the phone's
-        // Tailscale app to have MagicDNS enabled (default in current versions).
-        // User can still override at runtime in Settings.
-        buildConfigField("String", "DEFAULT_BACKEND", "\"http://100.73.225.4:8080\"")
+        versionCode = 4
+        versionName = "2.2"
+        // Default backend: the Mac's public Tailscale Funnel URL — works from
+        // any network, no Tailscale needed on the phone. The owner key (from
+        // local.properties, never committed) authenticates through the
+        // public gate. User can still override at runtime in Settings.
+        buildConfigField("String", "DEFAULT_BACKEND",
+            "\"https://quarki3s-macbook-air.tail33de20.ts.net\"")
+        val lp = Properties()
+        val lpFile = rootProject.file("local.properties")
+        if (lpFile.exists()) lpFile.inputStream().use { lp.load(it) }
+        buildConfigField("String", "DEFAULT_API_KEY",
+            "\"${lp.getProperty("ownerApiKey", "")}\"")
     }
 
     signingConfigs {

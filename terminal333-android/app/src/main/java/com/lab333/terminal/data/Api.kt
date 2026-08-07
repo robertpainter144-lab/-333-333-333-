@@ -102,11 +102,23 @@ object ApiFactory {
         isLenient = true
     }
 
-    fun build(baseUrl: String): TradingApi {
+    fun build(baseUrl: String, apiKey: String = ""): TradingApi {
         val normalised = if (baseUrl.endsWith("/")) baseUrl else "$baseUrl/"
         val http = OkHttpClient.Builder()
             .connectTimeout(6, TimeUnit.SECONDS)
             .readTimeout(15, TimeUnit.SECONDS)
+            .apply {
+                // Owner key: required when requests arrive via the public
+                // HTTPS proxy (X-Forwarded-For present); harmless over
+                // direct tailnet where the gate is bypassed anyway.
+                if (apiKey.isNotBlank()) addInterceptor { chain ->
+                    chain.proceed(
+                        chain.request().newBuilder()
+                            .header("x-api-key", apiKey)
+                            .build()
+                    )
+                }
+            }
             .addInterceptor(HttpLoggingInterceptor().apply {
                 level = HttpLoggingInterceptor.Level.BASIC
             })

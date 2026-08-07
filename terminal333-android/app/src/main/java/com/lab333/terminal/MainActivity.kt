@@ -24,7 +24,7 @@ class MainActivity : ComponentActivity() {
 
         val app = applicationContext
         val settings = SettingsRepo(app)
-        val repo = TradingRepo(BuildConfig.DEFAULT_BACKEND)
+        val repo = TradingRepo(BuildConfig.DEFAULT_BACKEND, BuildConfig.DEFAULT_API_KEY)
 
         val factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")

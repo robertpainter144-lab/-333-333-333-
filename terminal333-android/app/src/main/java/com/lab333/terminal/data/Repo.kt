@@ -8,17 +8,17 @@ import kotlinx.coroutines.flow.asStateFlow
 /**
  * Thin wrapper that recreates the Retrofit client when the backend URL changes.
  */
-class TradingRepo(initialBackend: String) {
+class TradingRepo(initialBackend: String, private val apiKey: String = "") {
 
     private val _backend = MutableStateFlow(initialBackend)
     val backend: StateFlow<String> = _backend.asStateFlow()
 
-    @Volatile private var api: TradingApi = ApiFactory.build(initialBackend)
+    @Volatile private var api: TradingApi = ApiFactory.build(initialBackend, apiKey)
 
     fun setBackend(url: String) {
         if (url == _backend.value) return
         _backend.value = url
-        api = ApiFactory.build(url)
+        api = ApiFactory.build(url, apiKey)
     }
 
     suspend fun health(): HealthDto = api.health()

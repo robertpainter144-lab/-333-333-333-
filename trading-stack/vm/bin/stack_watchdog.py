@@ -16,6 +16,7 @@ Log: ~/trading-data/watchdog.log (self-truncates at 1 MB).
 from __future__ import annotations
 
 import json
+import pathlib
 import os
 import shutil
 import subprocess
@@ -244,11 +245,30 @@ def check_live_drawdown(state: dict) -> None:
                  "live_dd_amber", state, level="P4")
 
 
+def _deadman_ping() -> None:
+    """External dead-man's switch (healthchecks.io): tell the outside world
+    this host's watchdog ran. If pings stop, healthchecks alerts Robert's
+    phone independently of this host — the pager survives a hard crash.
+    URL comes from ~/healthchecks.env (secrets bundle, never in git)."""
+    import subprocess
+    try:
+        env = dict(l.strip().split("=", 1)
+                   for l in (pathlib.Path.home() / "healthchecks.env").read_text().splitlines()
+                   if "=" in l)
+        url = env.get("HC_PING_ORACLE_VM_STACK") or env.get("HC_PING_HOST")
+        if url:
+            subprocess.run(["curl", "-fsS", "-m", "10", "-o", "/dev/null", url],
+                           timeout=20, check=False)
+    except Exception:
+        pass
+
+
 def main() -> None:
     state = _load_state()
     check_liveness(state)
     check_disk(state)
     check_live_drawdown(state)
+    _deadman_ping()
     _save_state(state)
 
 

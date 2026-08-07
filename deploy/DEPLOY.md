@@ -16,7 +16,7 @@ down for two days. Lessons encoded here:
 
 ```bash
 # on the Mac: build + ship secrets (NEVER commit these)
-tar czf /tmp/stack-secrets.tgz -C ~ alpaca_live.env ntfy.env \
+tar czf /tmp/stack-secrets.tgz -C ~ alpaca_live.env ntfy.env healthchecks.env \
     trading-data/dashboard_keys.json
 scp /tmp/stack-secrets.tgz <user>@<host>:~/stack-secrets.tgz
 scp ~/lab333/secrets/github_token <user>@<host>:~/github_token

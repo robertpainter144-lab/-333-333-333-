@@ -326,7 +326,7 @@ def _value_composition(top_n: int = 3) -> dict[str, float]:
 # the rated leader and its single-winner composition must be expressible on
 # the live book, else the cap reroutes its allocation to cash. The $5
 # aggregate-drawdown review trigger remains the backstop.
-MAX_SINGLE_NAME_PCT = 0.90
+MAX_SINGLE_NAME_PCT = 0.35  # D6 rev 2026-08-04 (restored from VM-only edit 2026-08-07)
 
 # A source must carry at least this governor weight to receive another
 # source's capped-out overflow (see build_target's second pass).

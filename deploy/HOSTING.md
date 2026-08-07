@@ -53,3 +53,29 @@ Why this ordering: Oracle costs nothing and already ran the whole stack successf
 - **Termux/Tailscale on phone (secondary channel):** $0, already-owned hardware, already-provisioned tailnet.
 - **Total recurring: ~$4–5.50/mo**, at or just under the stated hard ceiling. If Hetzner's live-confirmed price exceeds that, stop and go to the runner-up (Oracle retry, $0) rather than accepting a silent budget breach.
 - **Runner-up (DigitalOcean) if invoked:** $6/mo via PayPal — an explicit, acknowledged $1/mo ceiling breach, only used if both Hetzner and an Oracle reinstatement attempt fail.
+---
+
+## DECISION (Robert, 2026-08-07) — supersedes the generic ranking above
+
+Hetzner is OFF the table (signup already refused Robert — KYC friction
+confirmed firsthand). Paid tiers rejected. The tree is:
+
+1. **Reinstate the original Oracle account** — pay the ~$0.70 balance via
+   the link in the billing-suspension email (working debit card). Free,
+   keeps the existing VM + data. Watching for revival via host_heartbeat.
+2. **Fallback: fresh Oracle Always Free account on a different email.**
+   Known risks accepted by Robert (ToS one-account rule, fraud-linking,
+   card verification at signup). Harm reduction when we do it:
+   - different email AND the new bank's debit card (never the failed card)
+   - stay PURE Always Free — never upgrade to Pay-As-You-Go. The old
+     account died from a PAYG balance + failed card; a pure-free account
+     cannot generate a bill, so a billing suspension is impossible.
+   - idle-reclaim risk accepted; the scanner's 60s loop generates steady
+     CPU/network, which is the documented reclaim criterion.
+   - new VM is bootstrapped from deploy/bootstrap.sh in <1h; nothing is
+     hand-built, so losing any account is an hour's inconvenience.
+3. **Break-glass only** (both Oracle paths dead): DigitalOcean $6/mo via
+   PayPal, two paper bots paused to fit 1GB.
+
+In every branch: healthchecks.io external dead-man's switch (approved by
+Robert 2026-08-07) + Mac host_heartbeat + phone ntfy as second channel.

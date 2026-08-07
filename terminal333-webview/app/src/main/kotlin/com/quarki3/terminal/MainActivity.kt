@@ -58,18 +58,18 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        // Any saved URL still pointing at the public/guest /terminal path is
-        // pre-split legacy: rewrite to the owner surface on the same host,
-        // keeping tailnet MagicDNS or IP hosts the user chose.
+        // Discard ANY saved URL from a prior install: the /private-terminal
+        // route only existed on the retired Oracle VM, and pinning to it (or
+        // to the dead sslip host) is exactly what blanked the app. Always
+        // boot from the current compiled DEFAULT_URL (Mac funnel + owner key)
+        // so a fresh install and an upgrade behave identically.
         prefs.getString(KEY_URL, null)?.let { saved ->
-            if (saved == LEGACY_URL) {
-                prefs.edit().remove(KEY_URL).apply()
-            } else {
-                val uri = Uri.parse(saved)
-                if (uri.path?.trimEnd('/') == "/terminal") {
-                    startUrl = saved.replaceFirst("/terminal", "/private-terminal")
-                }
-            }
+            val uri = Uri.parse(saved)
+            val onDeadRoute = saved == LEGACY_URL ||
+                uri.path?.trimEnd('/')?.endsWith("/private-terminal") == true ||
+                uri.host?.contains("sslip.io") == true ||
+                uri.host == "100.73.225.4"
+            if (onDeadRoute) prefs.edit().remove(KEY_URL).apply()
         }
 
         // targetSdk 35 enforces edge-to-edge: without consuming system-bar
@@ -122,6 +122,17 @@ class MainActivity : AppCompatActivity() {
 
             override fun onPageFinished(view: WebView, url: String?) {
                 swipeRefresh.isRefreshing = false
+            }
+        }
+
+        // Surface WebView JS console + errors to logcat (tag QT_WEB) so a
+        // blank page can be diagnosed over adb instead of guessed at.
+        android.webkit.WebView.setWebContentsDebuggingEnabled(true)
+        webView.webChromeClient = object : android.webkit.WebChromeClient() {
+            override fun onConsoleMessage(m: android.webkit.ConsoleMessage): Boolean {
+                android.util.Log.i("QT_WEB",
+                    "${m.messageLevel()} ${m.message()} @${m.sourceId()}:${m.lineNumber()}")
+                return true
             }
         }
 

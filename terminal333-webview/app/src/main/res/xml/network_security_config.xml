@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Cleartext (http) is blocked everywhere except localhost and known Tailscale
+  CGNAT (100.64.0.0/10) hosts. Android's network security config cannot express
+  a CIDR range, so the tailnet is covered by listing the concrete tailnet IPs
+  and MagicDNS names in use. Add new tailnet hosts here as needed.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+    <domain-config cleartextTrafficPermitted="true">
+        <!-- localhost -->
+        <domain includeSubdomains="true">localhost</domain>
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">10.0.2.2</domain>
+        <!-- Tailscale 100.64.0.0/10 hosts -->
+        <domain includeSubdomains="false">100.71.5.12</domain>
+        <domain includeSubdomains="false">100.73.225.4</domain>
+        <domain includeSubdomains="false">100.126.150.36</domain>
+        <domain includeSubdomains="true">tail33de20.ts.net</domain>
+        <domain includeSubdomains="false">quarki3s-macbook-air</domain>
+    </domain-config>
+</network-security-config>

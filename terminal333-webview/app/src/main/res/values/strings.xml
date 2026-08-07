@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">333</string>
+    <string name="menu_button_desc">Open settings</string>
+    <string name="dialog_title">Terminal URL</string>
+    <string name="dialog_save">Save</string>
+    <string name="dialog_cancel">Cancel</string>
+    <string name="dialog_reset">Default</string>
+</resources>

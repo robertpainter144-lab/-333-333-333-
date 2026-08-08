@@ -14,7 +14,7 @@ from pathlib import Path
 
 import requests
 
-STATE = Path(__file__).resolve().parent / "state"
+STATE = (Path(__file__).resolve().parent / "state")
 PT = STATE / "pt_shadow.jsonl"
 ELIG = STATE / "elig_shadow.jsonl"
 START_TS = 1785679200  # 2026-08-02, when both shadows shipped
@@ -61,6 +61,7 @@ def main() -> None:
     # SMS leg (Robert 2026-08-02: "text me for things like this") — no-op
     # until /home/ubuntu/twilio.env is populated.
     try:
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
         import send_sms
         send_sms.send(msg)
     except Exception as e:

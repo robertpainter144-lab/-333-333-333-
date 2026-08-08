@@ -14,7 +14,7 @@ from pathlib import Path
 
 import requests
 
-ENV = Path.home() / "twilio.env"
+ENV = (Path.home() / "twilio.env")
 
 
 def _env() -> dict:

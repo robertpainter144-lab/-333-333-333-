@@ -750,6 +750,12 @@ def _equity_ibkr(period: str) -> list[dict]:
 
 
 def _equity_alpaca_live(period: str) -> list[dict]:
+    # Prefer Alpaca's real portfolio history — it has genuine equity values
+    # across the VM-outage window, so no straight interpolated line. Fall back
+    # to the local CSV + live-bridge approach only if the API is unavailable.
+    ph = _alpaca_portfolio_history(period)
+    if len(ph) >= 2:
+        return ph
     rows = _alpaca_live_equity_history()
     points = [{"ts": r["ts"], "equity": r["equity"]} for r in rows if r["ts"]]
     points = _filter_by_period(points, period)
@@ -772,10 +778,74 @@ def _equity_alpaca_live(period: str) -> list[dict]:
     return points
 
 
+def _cap_display_targets(t: dict, cap_pct: float = 35.0) -> dict:
+    """Apply the real single-name cap (D6: 0.35) to the displayed governor-blend
+    target so the allocation bar reflects what the bot could ACTUALLY execute,
+    not the raw pre-cap blend. The frozen Jul-27 snapshot showed AAPL 90%
+    (uncapped); with the cap no name exceeds 35% and the remainder reads as
+    cash — the honest picture. Values are percentages (e.g. 90.0)."""
+    if not isinstance(t, dict) or not t:
+        return t
+    out: dict = {}
+    noncash = 0.0
+    for k, v in t.items():
+        if str(k).lower() == "cash":
+            continue
+        try:
+            cv = min(float(v), cap_pct)
+        except (TypeError, ValueError):
+            continue
+        out[k] = round(cv, 2)
+        noncash += cv
+    out["cash"] = round(max(0.0, 100.0 - noncash), 2)
+    return out
+
+
 def _alpaca_history_to_points(hist: dict) -> list[dict]:
     eq = hist.get("equity") or []
     ts = hist.get("timestamp") or []
     return [{"ts": int(t), "equity": _f(e)} for t, e in zip(ts, eq)]
+
+
+_PH_CACHE: dict = {}
+
+
+def _alpaca_portfolio_history(period: str) -> list[dict]:
+    """Real account equity series from Alpaca's own portfolio-history API.
+    Replaces the dead-CSV + single-bridge-point approach so the chart shows
+    actual equity across the 2026-07 VM outage instead of a straight
+    interpolated line. Returns [] on missing keys / error (caller falls back).
+    """
+    key = os.environ.get("ALPACA_LIVE_KEY")
+    sec = os.environ.get("ALPACA_LIVE_SECRET")
+    if not (key and sec):
+        return []
+    pmap = {"1D": ("1D", "5Min"), "1W": ("1W", "1H"), "1M": ("1M", "1D"),
+            "3M": ("3M", "1D"), "6M": ("6M", "1D"), "1Y": ("1A", "1D")}
+    per, tf = pmap.get(period, ("1M", "1D"))
+    ck = f"{per}:{tf}"
+    now = time.time()
+    c = _PH_CACHE.get(ck)
+    if c and now - c["ts"] < 60:
+        return c["rows"]
+    try:
+        import requests
+        resp = requests.get(
+            "https://api.alpaca.markets/v2/account/portfolio/history",
+            params={"period": per, "timeframe": tf, "extended_hours": "true"},
+            headers={"APCA-API-KEY-ID": key, "APCA-API-SECRET-KEY": sec},
+            timeout=12)
+        resp.raise_for_status()
+        h = resp.json()
+    except Exception as e:
+        print(f"[API] alpaca portfolio history: {e}")
+        return []
+    ts = h.get("timestamp") or []
+    eq = h.get("equity") or []
+    rows = [{"ts": int(t), "equity": round(float(e), 4)}
+            for t, e in zip(ts, eq) if e is not None and float(e) > 0]
+    _PH_CACHE[ck] = {"ts": now, "rows": rows}
+    return rows
 
 
 # ── Ticker bars (per-symbol) ─────────────────────────────────────────────────
@@ -859,7 +929,7 @@ def _bots_status() -> list[dict]:
                 pid = int(r.stdout.strip()) or None
             except Exception:
                 pid = None
-        out.append({"id": unit.rsplit(".", 1)[0], "name": name, "host": "mac",
+        out.append({"id": unit.rsplit(".", 1)[0], "name": name, "host": "oracle",
                     "running": running, "pid": pid})
     out.append({"id": "shadow", "name": "Shadow A/B Engine", "host": "in-process",
                 "running": True, "pid": None})
@@ -1342,20 +1412,32 @@ def mount(fastapi_app, main_module) -> None:
 
         class _SPAStatic(StaticFiles):
             def _owner_shell(self, scope):
-                # Owner-mode shell (direct localhost/tailnet — no proxy XFF):
-                # inject the private catalog bundle at serve time. The shared
-                # trading-gui source/dist never contains it, so nothing leaks
-                # to MVYTraders; guests arriving via Caddy get the vanilla
-                # shell and the bundle route itself 403s them anyway.
-                if any(k == b"x-forwarded-for" for k, _ in scope.get("headers") or []):
+                # Owner-mode shell: inject the private catalog bundle at serve
+                # time. Two ways in: (a) direct localhost/tailnet (no proxy
+                # XFF), or (b) via the public funnel WITH the correct owner
+                # key as ?key= (added 2026-08-07 for the Mac-failover app —
+                # server verifies the key BEFORE injecting; guests/wrong keys
+                # get the vanilla shell and the bundle route 403s them anyway).
+                from urllib.parse import parse_qs
+                _qs = parse_qs((scope.get("query_string") or b"").decode())
+                _qkey = (_qs.get("key") or [None])[0]
+                _owner_ok = _qkey == _keys.get("owner")
+                if any(k == b"x-forwarded-for" for k, _ in scope.get("headers") or []) \
+                        and not _owner_ok:
                     return None
                 try:
                     html = (_terminal_dist / "index.html").read_text()
                 except Exception:
                     return None
-                html = html.replace(
-                    "</body>",
-                    '<script defer src="/owner/catalog.js"></script></body>')
+                inject = '<script defer src="/owner/catalog.js"></script>'
+                if _owner_ok:
+                    # Auto-login the SPA: seed its stored key, then scrub the
+                    # query string from the address bar/history.
+                    inject = ('<script>try{localStorage.setItem("qt.apiKey",'
+                              + json.dumps(_qkey) +
+                              ');history.replaceState(null,"",location.pathname);}'
+                              'catch(e){}</script>' + inject)
+                html = html.replace("</body>", inject + "</body>")
                 from starlette.responses import HTMLResponse
                 resp = HTMLResponse(html)
                 resp.headers["cache-control"] = "no-cache"
@@ -1390,6 +1472,16 @@ def mount(fastapi_app, main_module) -> None:
         fastapi_app.mount("/terminal", _SPAStatic(directory=str(_terminal_dist),
                                                   html=True), name="terminal")
         print("[API] /terminal mounted (Quarki Terminal)")
+
+        @fastapi_app.middleware("http")
+        async def _tmp_access_log(request, call_next):
+            resp = await call_next(request)
+            try:
+                print(f"[ACCESS] {request.client.host} {request.method} "
+                      f"{request.url.path} -> {resp.status_code}", flush=True)
+            except Exception:
+                pass
+            return resp
     else:
         print("[API] /terminal NOT mounted — ~/trading-gui/dist/index.html missing")
 
@@ -1525,7 +1617,9 @@ def mount(fastapi_app, main_module) -> None:
             "mirror_pnl_pct":  mirror.get("pnl_pct"),
             "mirror_mode":     mirror.get("mode"),
             "mirror_bankroll": mirror.get("bankroll"),
-            "mirror_targets":  mirror.get("targets"),
+            "mirror_targets":  _cap_display_targets(mirror.get("targets")),
+            "mirror_targets_raw": mirror.get("targets"),
+            "mirror_targets_ts":  mirror.get("ts"),
         }
 
     # ── QC strategy runner ───────────────────────────────────────────────────

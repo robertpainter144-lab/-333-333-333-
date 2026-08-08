@@ -300,7 +300,9 @@ export default function EquityChart(props: {
 
     let mn = Infinity, mx = -Infinity;
     for (const p of seg) { const v = val(p); if (v < mn) mn = v; if (v > mx) mx = v; }
-    const pad = Math.max((mx - mn) * 0.15, 0.25);
+    // Small floor so zooming into a flat stretch lets the y-axis tighten far
+    // enough to reveal 5¢/1¢ ticks; still gives a line some breathing room.
+    const pad = Math.max((mx - mn) * 0.12, 0.02);
     const lo = mn - pad, hi = mx + pad;
 
     const X = (t: number) => PAD_L + ((t - d0) / Math.max(d1 - d0, 1)) * plotW;
@@ -311,26 +313,56 @@ export default function EquityChart(props: {
     const gridC = css.getPropertyValue("--bd").trim() || "#30363d";
     const mutedC = css.getPropertyValue("--muted").trim() || "#8b949e";
 
-    // Gridlines + $ ticks
     ctx.strokeStyle = gridC; ctx.fillStyle = mutedC;
     ctx.font = "10px ui-monospace, Menlo, monospace";
     ctx.setLineDash([3, 3]); ctx.lineWidth = 1;
-    for (let i = 0; i <= 3; i++) {
-      const v = lo + ((hi - lo) * i) / 3;
+
+    // Pick the smallest "nice" step so tick labels are round numbers and get
+    // finer as you zoom in (~`target` ticks across the visible range).
+    const niceStep = (range: number, cands: number[], target: number) =>
+      cands.find((c) => c >= range / target) ?? cands[cands.length - 1];
+
+    // ── Y grid + $ ticks — snapped to …1¢,5¢,10¢,25¢,50¢,$1,$2.50,$5… ──
+    const yStep = niceStep(hi - lo, [0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 25, 50, 100, 250, 500], 5);
+    const yDec = yStep < 1 ? 2 : Number.isInteger(yStep) ? 0 : 1;
+    for (let v = Math.ceil(lo / yStep) * yStep, n = 0; v <= hi && n < 14; v += yStep, n++) {
       const y = Y(v);
+      if (y < PAD_T - 1 || y > PAD_T + plotH + 1) continue;
       ctx.beginPath(); ctx.moveTo(PAD_L, y); ctx.lineTo(W - 6, y); ctx.stroke();
-      ctx.fillText(`$${v.toFixed(1)}`, 2, y + 3);
+      ctx.fillText(`$${v.toFixed(yDec)}`, 2, y + 3);
     }
-    // Time ticks
+
+    // ── X time ticks — nice time step aligned to clean boundaries: dates at
+    // week+ zoom, hours at day zoom, minutes as you pinch further in. ──
     const spanMs = d1 - d0;
-    const fmt = (t: number) =>
-      spanMs <= 36 * 3600e3
-        ? new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-        : new Date(t).toLocaleDateString([], { month: "short", day: "numeric" });
-    for (let i = 0; i <= 3; i++) {
-      const t = d0 + (spanMs * i) / 3;
-      const x = Math.min(Math.max(X(t), PAD_L), W - 40);
-      ctx.fillText(fmt(t), x - 12, H - 6);
+    const MIN = 60e3, HR = 3600e3, DAY = 24 * HR;
+    const tStep = niceStep(spanMs, [5 * MIN, 15 * MIN, 30 * MIN, HR, 2 * HR, 3 * HR, 6 * HR, 12 * HR, DAY, 2 * DAY, 7 * DAY, 14 * DAY, 30 * DAY], 4);
+    const subDay = tStep < DAY;
+    let tStart: number;
+    if (subDay) {
+      tStart = Math.ceil(d0 / tStep) * tStep;   // epoch-aligned → on the hour/5-min
+    } else {
+      const d = new Date(d0); d.setHours(0, 0, 0, 0);
+      while (d.getTime() < d0) d.setDate(d.getDate() + 1);
+      tStart = d.getTime();
+    }
+    let prevDay = "";
+    for (let t = tStart, n = 0; t <= d1 && n < 40; t += tStep, n++) {
+      const x = X(t);
+      if (x < PAD_L - 1 || x > W - 20) continue;
+      const dt = new Date(t);
+      let label: string;
+      if (!subDay) {
+        label = dt.toLocaleDateString([], { month: "short", day: "numeric" });
+      } else {
+        const dayKey = dt.toDateString();
+        // First tick of each visible day shows the date; the rest show time.
+        label = dayKey !== prevDay
+          ? dt.toLocaleDateString([], { month: "short", day: "numeric" })
+          : dt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+        prevDay = dayKey;
+      }
+      ctx.fillText(label, Math.min(Math.max(x - 12, PAD_L), W - 44), H - 6);
     }
     // Baseline markers
     ctx.setLineDash([4, 4]);

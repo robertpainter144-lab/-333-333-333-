@@ -97,7 +97,25 @@ export function AllocationBars(props: {
           />
         ))}
         {cashPct > 0.5 && (
-          <div title={`cash ${pctPlain(cashPct)}`} style={{ width: `${cashPct}%` }} className="h-full bg-panel2" />
+          <div
+            title={`cash / uninvested ${pctPlain(cashPct)}`}
+            style={{
+              width: `${cashPct}%`,
+              minWidth: 2,
+              // Diagonal-stripe fill — the standard "uninvested cash" motif,
+              // so a large cash remainder (e.g. a capped/stale target sitting
+              // 60% in cash) reads as intentional, not a broken empty bar.
+              background:
+                "repeating-linear-gradient(45deg, #30363d 0 5px, #21262d 5px 10px)",
+            }}
+            className="flex h-full items-center justify-center overflow-hidden"
+          >
+            {cashPct >= 12 && (
+              <span className="num text-[9px] font-medium text-muted">
+                {cashPct.toFixed(0)}% cash
+              </span>
+            )}
+          </div>
         )}
       </div>
       {/* Per-bar legend: this bar's own holdings, biggest → smallest. */}
@@ -110,8 +128,11 @@ export function AllocationBars(props: {
         ))}
         {cashPct > 0.5 && (
           <span className="num flex items-center gap-1 text-[10px] text-muted">
-            <span className="h-2 w-2 rounded-sm bg-panel2" /> cash{" "}
-            <span className="text-faint">{cashPct.toFixed(1)}%</span>
+            <span
+              className="h-2 w-2 rounded-sm"
+              style={{ background: "repeating-linear-gradient(45deg, #30363d 0 2px, #21262d 2px 4px)" }}
+            />{" "}
+            cash <span className="text-faint">{cashPct.toFixed(1)}%</span>
           </span>
         )}
       </div>

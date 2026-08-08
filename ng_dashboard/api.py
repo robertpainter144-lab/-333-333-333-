@@ -825,30 +825,50 @@ def _alpaca_portfolio_history(period: str) -> list[dict]:
     sec = os.environ.get("ALPACA_LIVE_SECRET")
     if not (key and sec):
         return []
-    pmap = {"1D": ("1D", "5Min"), "1W": ("1W", "1H"), "1M": ("1M", "1D"),
+    # Finest timeframe Alpaca allows per period. Alpaca rejects intraday
+    # (1H/15Min) for a full month, so 1M/3M/6M are daily — but a daily-only
+    # line renders a normal ±1%% day as a jarring single-point spike. Fix: for
+    # the medium views, SPLICE a fine-grained recent window (15Min, where the
+    # deposit + recent volatility live) onto the daily older data, so the
+    # busy recent stretch is smooth and only the quiet older weeks are daily.
+    splice = {"1M": "1W", "3M": "1W", "6M": "1W"}
+    pmap = {"1D": ("1D", "5Min"), "1W": ("1W", "15Min"), "1M": ("1M", "1D"),
             "3M": ("3M", "1D"), "6M": ("6M", "1D"), "1Y": ("1A", "1D")}
     per, tf = pmap.get(period, ("1M", "1D"))
-    ck = f"{per}:{tf}"
+    ck = f"{per}:{tf}:spliced"
     now = time.time()
     c = _PH_CACHE.get(ck)
     if c and now - c["ts"] < 60:
         return c["rows"]
-    try:
-        import requests
-        resp = requests.get(
-            "https://api.alpaca.markets/v2/account/portfolio/history",
-            params={"period": per, "timeframe": tf, "extended_hours": "true"},
-            headers={"APCA-API-KEY-ID": key, "APCA-API-SECRET-KEY": sec},
-            timeout=12)
-        resp.raise_for_status()
-        h = resp.json()
-    except Exception as e:
-        print(f"[API] alpaca portfolio history: {e}")
-        return []
-    ts = h.get("timestamp") or []
-    eq = h.get("equity") or []
-    rows = [{"ts": int(t), "equity": round(float(e), 4)}
-            for t, e in zip(ts, eq) if e is not None and float(e) > 0]
+
+    def _fetch(p, t):
+        try:
+            import requests
+            resp = requests.get(
+                "https://api.alpaca.markets/v2/account/portfolio/history",
+                params={"period": p, "timeframe": t, "extended_hours": "true"},
+                headers={"APCA-API-KEY-ID": key, "APCA-API-SECRET-KEY": sec},
+                timeout=12)
+            resp.raise_for_status()
+            h = resp.json()
+        except Exception as e:
+            print(f"[API] alpaca portfolio history {p}/{t}: {e}")
+            return []
+        ts = h.get("timestamp") or []
+        eq = h.get("equity") or []
+        return [{"ts": int(t2), "equity": round(float(e), 4)}
+                for t2, e in zip(ts, eq) if e is not None and float(e) > 0]
+
+    rows = _fetch(per, tf)
+    fine_period = splice.get(period)
+    if fine_period:
+        # Hourly (not 15Min) for the spliced recent window: enough resolution
+        # to render the deposit step + trend smoothly, without the intraday
+        # noise that makes a $500 book's 15-min marks look jagged/spiky.
+        fine = _fetch(fine_period, "1H")
+        if fine:
+            cut = fine[0]["ts"]
+            rows = [r for r in rows if r["ts"] < cut] + fine
     _PH_CACHE[ck] = {"ts": now, "rows": rows}
     return rows
 

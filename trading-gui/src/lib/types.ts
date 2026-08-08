@@ -109,8 +109,12 @@ export interface QcState {
   mirror_pnl_pct: number;
   mirror_mode: string;
   mirror_bankroll: number;
-  /** Target allocation percentages by symbol for the live mirror. */
+  /** Target allocation percentages by symbol for the live mirror (server-
+   *  capped at the D6 35% single-name limit; overflow rolls into "cash"). */
   mirror_targets: Record<string, number>;
+  /** Epoch seconds the mirror composition was last computed — feeds the
+   *  Book page's "stale target" caveat when the governor hasn't refreshed. */
+  mirror_targets_ts?: number;
 }
 
 export type EdgeMode = "paper" | "live" | "backtest-only";

@@ -755,14 +755,19 @@ def _equity_alpaca_live(period: str) -> list[dict]:
     # to the local CSV + live-bridge approach only if the API is unavailable.
     ph = _alpaca_portfolio_history(period)
     if len(ph) >= 2:
-        return ph
-    rows = _alpaca_live_equity_history()
-    points = [{"ts": r["ts"], "equity": r["equity"]} for r in rows if r["ts"]]
-    points = _filter_by_period(points, period)
+        points = list(ph)  # copy: ph may be the _PH_CACHE list, don't mutate it
+    else:
+        rows = _alpaca_live_equity_history()
+        points = [{"ts": r["ts"], "equity": r["equity"]} for r in rows if r["ts"]]
+        points = _filter_by_period(points, period)
     # Pin the last point to LIVE account equity so the chart's tail matches the
-    # EquityCard number. Without this, EquityCard reads live /v2/account (48.83)
-    # while the chart reads the last CSV row (49.29 minutes old) — visible drift
-    # the user rightly called out.
+    # EquityCard number — and, critically, so a same-day deposit/withdrawal has
+    # a real equity step to align against. Alpaca's daily portfolio-history bar
+    # for a trading day only appears ~24h after that day closes, so right after
+    # a deposit `ph`'s last bar still predates it. Without this live tail point,
+    # EquityChart.tsx's transfer-snap finds no matching step and subtracts the
+    # deposit from the stale pre-deposit balance — the equity/transfers cliff
+    # (e.g. 48.14 − 450 ≈ -402) seen right after a same-day deposit.
     try:
         cli = _alpaca_live_client()
         if cli is not None:

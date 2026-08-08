@@ -1,9 +1,9 @@
 // Shared "Book kit" — the Book page's visual grammar (allocation drift bars,
 // sortable positions table, symbol color scale) extracted so every data
 // center (Lab drawers, etc.) renders books the exact same way.
-import { useMemo, useState } from "react";
-import { EmptyState, Table, Td, Th } from "./ui";
-import { arrow, money, moneySigned, pct, pctPlain, signClass } from "../lib/format";
+import { useMemo, useState, type ReactNode } from "react";
+import { Badge, EmptyState, Table, Td, Th } from "./ui";
+import { absTime, arrow, money, moneySigned, pct, pctPlain, relTime, signClass, toEpochMs } from "../lib/format";
 import type { Position } from "../lib/types";
 
 /** High-contrast categorical palette for allocation bars — assigned by holding
@@ -35,11 +35,18 @@ export function symColor(sym: string): string {
   return `hsl(${h} 55% 55%)`;
 }
 
+/** Governor-blend targets older than this read as stale, not fresh — the
+ *  target bar gets an amber caveat instead of silently implying it's current. */
+const STALE_TARGET_MS = 24 * 60 * 60 * 1000;
+
 export function AllocationBars(props: {
   positions: Position[];
   equity: number;
   targets?: Record<string, number>;
   targetLabel?: string;
+  /** When the target composition was computed (epoch s/ms or ISO string).
+   *  Drives the "stale" caveat on the target bar; omit for no freshness claim. */
+  targetTs?: string | number | null;
 }) {
   const current = props.positions
     .map((p) => ({ sym: p.symbol, pct: props.equity > 0 ? (p.market_value / props.equity) * 100 : 0 }))
@@ -47,11 +54,21 @@ export function AllocationBars(props: {
     .sort((a, b) => b.pct - a.pct);
   const cash = Math.max(0, 100 - current.reduce((s, x) => s + x.pct, 0));
 
+  // Some sources (the QC-capped governor blend, /api/qc mirror_targets) fold
+  // uninvested capital into an explicit "cash" pseudo-symbol so the raw dict
+  // sums to 100 (see api.py _cap_display_targets). Strip it before treating
+  // the rest as real holdings so it renders through the same muted swatch as
+  // `current`'s cash below, instead of a colored "position" competing for
+  // palette slots — and so it stops double-counting and zeroing tCash.
   const targets = Object.entries(props.targets ?? {})
+    .filter(([sym]) => sym.toLowerCase() !== "cash")
     .map(([sym, p]) => ({ sym, pct: p }))
     .filter((x) => x.pct > 0.01)
     .sort((a, b) => b.pct - a.pct);
   const tCash = Math.max(0, 100 - targets.reduce((s, x) => s + x.pct, 0));
+
+  const targetAgeMs = props.targetTs != null ? Date.now() - toEpochMs(props.targetTs) : null;
+  const targetStale = targetAgeMs != null && !Number.isNaN(targetAgeMs) && targetAgeMs > STALE_TARGET_MS;
 
   // One color per symbol, assigned by its biggest footprint across both bars,
   // walking the palette in order — adjacent slices get contrasting colors.
@@ -64,9 +81,12 @@ export function AllocationBars(props: {
     .sort((a, b) => b[1] - a[1])
     .forEach(([sym], i) => colorOf.set(sym, ALLOC_PALETTE[i % ALLOC_PALETTE.length]));
 
-  const Bar = (rows: { sym: string; pct: number }[], cashPct: number, label: string) => (
+  const Bar = (rows: { sym: string; pct: number }[], cashPct: number, label: string, staleBadge?: ReactNode) => (
     <div className="mb-2.5">
-      <div className="mb-0.5 text-[9px] uppercase tracking-wider text-faint">{label}</div>
+      <div className="mb-0.5 flex items-center gap-1.5 text-[9px] uppercase tracking-wider text-faint">
+        <span>{label}</span>
+        {staleBadge}
+      </div>
       <div className="flex h-4 w-full gap-[2px] overflow-hidden rounded">
         {rows.map((r) => (
           <div
@@ -102,7 +122,19 @@ export function AllocationBars(props: {
     <div>
       {Bar(current, cash, "current")}
       {targets.length > 0 ? (
-        Bar(targets, tCash, props.targetLabel ?? "target")
+        Bar(
+          targets,
+          tCash,
+          props.targetLabel ?? "target",
+          targetStale ? (
+            <Badge
+              tone="amber"
+              title={`Governor blend last computed ${absTime(props.targetTs)} (${relTime(props.targetTs)}) — hasn't refreshed since. Positions may have drifted from what's shown here.`}
+            >
+              stale · {relTime(props.targetTs)}
+            </Badge>
+          ) : undefined,
+        )
       ) : (
         <p className="text-[10px] text-faint">No targets available.</p>
       )}

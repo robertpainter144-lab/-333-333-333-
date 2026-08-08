@@ -205,7 +205,13 @@ function BookView({ source, sim }: { source: string; sim: boolean }) {
             <StaleBanner source={source} ts={p?.ts} />
           ) : p ? (
             <>
-              <AllocationBars positions={p.positions} equity={p.equity} targets={qc.data?.mirror_targets} targetLabel="target (governor blend)" />
+              <AllocationBars
+                positions={p.positions}
+                equity={p.equity}
+                targets={qc.data?.mirror_targets}
+                targetLabel="target (governor blend)"
+                targetTs={qc.data?.mirror_targets_ts}
+              />
               {gov.data?.weights && (
                 <p className="num mt-1.5 text-[10px] text-muted">
                   blend:{" "}

@@ -829,3 +829,11 @@ archive/terminal333-v1.1-funnel (superseded by v2.2/v3.x), main reset to
 origin. (4) D38 added to DIRECTIVES.md (supersedes D24 push leg to
 Quarki33/mirror-sweeps). VM-side vm-autopush audit + stranded-work
 divergence check ran same day — see below/next entry if flagged.
+D38 follow-up: Oracle VM (129.153.96.201) confirmed unreachable from Mac —
+its vm-autopush.sh (9 Quarki33 repos, per script copy) is inert while down,
+but is a LANDMINE if Oracle is ever reinstated: neutralize
+/home/ubuntu/bin/vm-autopush.sh + its timer before services come back.
+GCP quarki-stack (fresh clone of the lab repo, other Claude window deploying
+today) is the one surface not yet audited from this machine — expected clean
+since it was built from the lab repo, verify once ssh/gcloud access exists
+on the Mac.

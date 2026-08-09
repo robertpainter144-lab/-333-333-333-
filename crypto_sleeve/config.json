@@ -1,0 +1,15 @@
+{
+  "universe": ["BTC/USD", "ETH/USD", "SOL/USD"],
+  "cap_total_usd": 50.0,
+  "per_trade_usd": 16.0,
+  "min_order_usd": 10.0,
+  "stop_pct": -0.08,
+  "take_pct": 0.15,
+  "freeze_pnl_usd": -15.0,
+  "ema_fast": 12,
+  "ema_slow": 48,
+  "bar_timeframe": "1Hour",
+  "whale_gate_min_risk_on": 0.5,
+  "whale_max_age_hours": 12,
+  "env_file": "~/alpaca_live.env"
+}

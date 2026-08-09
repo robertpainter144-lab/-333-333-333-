@@ -868,3 +868,4 @@ autopilot_feed, edge_ledger, value_screen` — and never imports the crypto/evm
 sources at all. Verified locally: 10/10 subset sources load, `evm` not
 imported, `py_compile` clean. VM `quarki-scanner.service` runs this with
 `COMBINED_MIRROR_MODE=paper` + `MemoryMax=380M`. Pushed to lab `main`.
+- 2026-08-09 14:25 — D39 crypto sleeve shipped: ~/crypto_sleeve/ (sleeve.py whale-gated momentum engine, whale_refresh.py Dune Q03 risk-on feed, config.json rails $50/−$15), launchd com.quarki3.crypto-sleeve (5min) + com.quarki3.crypto-whale-refresh (6h) on Mac interim. Idling on crypto_status=INACTIVE until Robert signs Alpaca crypto agreement + deposits ~$50 settled cash (P4 sent). Also: quarki_notify.py now falls back to ~/ntfy.env on Mac (was VM-path-only). Known issue: whale_tracker Q03 returns 0 rows — needs run_curated.py re-patch; sleeve degrades to momentum-only meanwhile.

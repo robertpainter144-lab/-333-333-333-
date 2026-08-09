@@ -335,3 +335,19 @@ Last full revision: 2026-07-29.
   CHECK: ~/bin/trading-autopush.sh contains
   `robertpainter144-lab/-333-333-333-` and no `Quarki33` push loop; no VM
   timer/script pushes to a Quarki33 remote.
+
+- **D39 — Live crypto sleeve, $50 cap (2026-08-09).** Robert's second
+  sanctioned live experiment sleeve (turbo-arm pattern): whale-gated
+  momentum on Alpaca crypto (BTC/ETH/SOL), engine at `~/crypto_sleeve/`
+  (Mac interim host, launchd `com.quarki3.crypto-sleeve` 5-min +
+  `com.quarki3.crypto-whale-refresh` 6h; migrate to VM with the stack).
+  Rails: $50 aggregate hard cap, $16/position, stop −8% / take +15%,
+  sleeve freeze + full liquidation at −$15 cumulative P/L; per-trade
+  ledger `state/closed_trades.csv` (D7-scoreable). Whale gate from
+  whale_tracker Q03 risk-on ratio; stale/empty feed degrades to
+  momentum-only entries, never blocks exits or rails. Dormant until
+  Robert signs the Alpaca crypto agreement (crypto_status ACTIVE) and
+  funds ~$50 of settled cash; activates automatically after that.
+  CHECK: `~/crypto_sleeve/config.json` has cap_total_usd ≤ 50 and
+  freeze_pnl_usd = −15; launchd job loaded; no crypto position outside
+  the sleeve's ledger accounting.

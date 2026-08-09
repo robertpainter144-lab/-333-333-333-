@@ -1503,7 +1503,8 @@ def mount(fastapi_app, main_module) -> None:
                     html = (_terminal_dist / "index.html").read_text()
                 except Exception:
                     return None
-                inject = '<script defer src="/owner/catalog.js"></script>'
+                inject = ('<script defer src="/owner/catalog.js"></script>'
+                          '<script defer src="/owner/terminal-crypto.js"></script>')
                 if _owner_ok:
                     # Via the funnel, the browser's <script> load of
                     # /owner/catalog.js ALSO hits the XFF key-gate (it can't send
@@ -1511,6 +1512,8 @@ def mount(fastapi_app, main_module) -> None:
                     # the private catalog bundle 403s and the panel never loads.
                     # Then auto-login the SPA and scrub the query string.
                     inject = ('<script defer src="/owner/catalog.js?key='
+                              + _qkey + '"></script>'
+                              '<script defer src="/owner/terminal-crypto.js?key='
                               + _qkey + '"></script>')
                     inject = ('<script>try{localStorage.setItem("qt.apiKey",'
                               + json.dumps(_qkey) +
@@ -1579,6 +1582,20 @@ def mount(fastapi_app, main_module) -> None:
             if "x-forwarded-for" in request.headers and key != _keys.get("owner"):
                 raise HTTPException(status_code=403)
             resp = FileResponse(str(_owner_cat_js),
+                                media_type="application/javascript")
+            resp.headers["cache-control"] = "no-cache"
+            return resp
+
+    # Owner-private crypto tab for the Quarki333 Terminal SPA (same pattern
+    # as catalog.js — injected only into owner-mode shells, key-gated route).
+    _owner_term_crypto = _private_dir / "owner_terminal_crypto.js"
+    if _owner_term_crypto.exists():
+        @fastapi_app.get("/owner/terminal-crypto.js", include_in_schema=False)
+        def _owner_terminal_crypto_route(request: Request):
+            key = request.headers.get("x-api-key") or request.query_params.get("key")
+            if "x-forwarded-for" in request.headers and key != _keys.get("owner"):
+                raise HTTPException(status_code=403)
+            resp = FileResponse(str(_owner_term_crypto),
                                 media_type="application/javascript")
             resp.headers["cache-control"] = "no-cache"
             return resp

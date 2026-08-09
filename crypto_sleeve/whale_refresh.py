@@ -40,7 +40,14 @@ DUNE_TTL_H = 6
 HL_TOP_N = 40
 HL_MIN_ACCT = 1_000_000        # below: noise
 HL_MAX_ACCT = 500_000_000      # above: protocol vaults / aggregates, not traders
-COINS = ("BTC", "ETH", "SOL", "XRP", "DOGE", "ADA", "LINK", "AVAX", "LTC", "DOT")
+COINS = ("BTC", "ETH", "SOL", "XRP", "DOGE", "ADA", "LINK", "AVAX", "LTC", "DOT",
+         "XLM", "SUI", "CRV", "ONDO", "PENGU", "VVV", "PEPE", "kPEPE", "AAVE")
+
+# StockTwits crypto symbol convention (verified live 2026-08-09, keyless)
+_ST_SYMBOLS = {"BTC": "BTC.X", "ETH": "ETH.X", "SOL": "SOL.X", "XRP": "XRP.X",
+               "DOGE": "DOGE.X", "ADA": "ADA.X", "LINK": "LINK.X", "AVAX": "AVAX.X",
+               "LTC": "LTC.X", "DOT": "DOT.X", "XLM": "XLM.X", "SUI": "SUI.X",
+               "CRV": "CRV.X", "AAVE": "AAVE.X", "PEPE": "PEPE.X"}
 
 STABLES = {"USDC", "USDT", "USDe", "DAI", "FRAX", "LUSD", "GUSD", "TUSD", "PYUSD",
            "USD₮", "USDT0", "USDC.e", "USDm", "USD₮0", "sUSDe", "GHO", "crvUSD", "FDUSD"}
@@ -330,6 +337,40 @@ def leg_social() -> dict | None:
             "detail": parts}
 
 
+# ── LEG: StockTwits sentiment (mood only — never counts as whale evidence) ─
+# Verified live 2026-08-09: keyless public streams, entities.sentiment.basic
+# is "Bullish"/"Bearish" (absent on untagged posts). ~30 msgs/symbol/page.
+def leg_stocktwits() -> dict | None:
+    total_bull = total_bear = 0
+    per_coin: dict[str, dict] = {}
+    for i, (coin, sym) in enumerate(_ST_SYMBOLS.items()):
+        try:
+            data = _get(f"https://api.stocktwits.com/api/2/streams/symbol/{sym}.json")
+            bull = bear = 0
+            for m in data.get("messages", []) or []:
+                basic = ((m.get("entities") or {}).get("sentiment") or {}).get("basic")
+                if basic == "Bullish":
+                    bull += 1
+                elif basic == "Bearish":
+                    bear += 1
+            per_coin[coin] = {"bullish": bull, "bearish": bear}
+            total_bull += bull
+            total_bear += bear
+        except Exception as e:
+            print(f"stocktwits {coin} failed: {e!r}")
+        if i < len(_ST_SYMBOLS) - 1:
+            time.sleep(0.5)
+    total = total_bull + total_bear
+    if total <= 0:
+        print("stocktwits leg: no sentiment-tagged messages")
+        return None
+    return {"source": "stocktwits_sentiment", "asof": now_iso(),
+            "risk_on": round(total_bull / total, 4),
+            "signal_trades": 0, "distinct_wallets": 0, "signal_usd": 0,
+            "detail": {"bullish": total_bull, "bearish": total_bear,
+                       "per_coin": per_coin}}
+
+
 # ── composite ────────────────────────────────────────────────────────────
 def main() -> None:
     prev = None
@@ -348,6 +389,9 @@ def main() -> None:
     so = leg_social()
     if so:
         legs["social"] = so
+    stw = leg_stocktwits()
+    if stw:
+        legs["stocktwits"] = stw
 
     fresh = [l for l in legs.values() if age_h(l.get("asof", "")) < 24]
     money = [l for l in fresh if l.get("signal_usd", 0) > 0]   # whale evidence
@@ -363,7 +407,7 @@ def main() -> None:
     # composite by two near-zero-evidence legs). Sentiment gets a fixed small
     # nudge weight and still contributes zero evidence counters.
     def leg_weight(l):
-        if l.get("source") == "social_sentiment":
+        if l.get("source") in ("social_sentiment", "stocktwits_sentiment"):
             return 0.15
         return (min(1.0, l.get("signal_usd", 0) / 50_000)
                 * min(1.0, l.get("distinct_wallets", 0) / 3)

@@ -5,6 +5,12 @@
       "notional": 6.0,
       "opened": "2026-08-09T23:26:46+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.58)"
+    },
+    "PEPE/USD": {
+      "entry_price": 2.878e-06,
+      "notional": 20.428889901759998,
+      "opened": "2026-08-09T23:51:45+00:00",
+      "signal_mode": "adopted"
     }
   },
   "frozen": false,

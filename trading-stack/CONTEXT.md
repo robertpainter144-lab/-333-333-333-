@@ -813,3 +813,19 @@ NOTED (Robert's call, not changed): the guest day-one bundle contains
 "Alpaca Live — real money" labels + a combined_mirror blurb (day-one-era UI
 strings; data plane is server-side 403/sim regardless). Changing that means
 editing the shared branch.
+
+## 2026-08-09 — D38: git funnel = lab repo only (autopush repointed)
+Robert: "make sure we are only working on this repo now" (-333-333-333-).
+Audit found Mac 15-min autopush still targeting 11 Quarki33 repos (job was
+unloaded since ~7/27, but plist would revive on reboot) and NOTHING
+auto-pushing the lab repo — hence main looking stale between manual pushes.
+Fixed: (1) ~/bin/trading-autopush.sh rewritten — commits+pushes ONLY
+~/lab333/upstream333 → lab main, hard remote+branch guard, rebase-then-push,
+P4 ntfy on 24h+ push failure; launchd job re-enabled+loaded. (2) upstream333
+got askpass auth (was auth-less; its origin/main ref was 22 commits stale —
+GitHub main was actually current at 6e832a3). (3) ~/lab333/stack deprecated:
+stray Terminal-333 v1.1 commit archived to branch
+archive/terminal333-v1.1-funnel (superseded by v2.2/v3.x), main reset to
+origin. (4) D38 added to DIRECTIVES.md (supersedes D24 push leg to
+Quarki33/mirror-sweeps). VM-side vm-autopush audit + stranded-work
+divergence check ran same day — see below/next entry if flagged.

@@ -25,7 +25,10 @@ from __future__ import annotations
 
 import json
 import sys
+import time
+import urllib.error
 import urllib.request
+import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -184,9 +187,33 @@ def leg_dune(prev: dict | None) -> dict | None:
     total = buys + derisk
     if total <= 0 or trades == 0:
         return prev_leg
+
+    # token-flow breakdown: reuses the same rows fetched above (zero extra
+    # Dune executions) — top 8 non-stablecoin bought_symbols by USD across
+    # the 25 tracked whales. Independent of the trades/derisk classification
+    # above, so e.g. a major-for-major buy (BTC→ETH) still counts toward
+    # ETH's flow even though it's excluded from the risk_on trade tally.
+    token_agg: dict[str, dict] = {}
+    for r in feed:
+        bought = r.get("bought_symbol", "")
+        if not bought or bought in STABLES:
+            continue
+        usd = r.get("amount_usd", 0) or 0
+        if usd <= 0:
+            continue
+        t = token_agg.setdefault(bought, {"buy_usd": 0.0, "buys": 0, "wallets": set()})
+        t["buy_usd"] += usd
+        t["buys"] += 1
+        t["wallets"].add(r.get("wallet", "?"))
+    token_flows = sorted(
+        ({"symbol": sym, "buy_usd": round(t["buy_usd"]), "buys": t["buys"],
+          "wallets": len(t["wallets"])} for sym, t in token_agg.items()),
+        key=lambda x: x["buy_usd"], reverse=True)[:8]
+
     return {"source": "dune_smart_money_dex", "asof": now_iso(),
             "risk_on": round(buys / total, 4), "signal_trades": trades,
-            "distinct_wallets": len(wallets), "signal_usd": round(total)}
+            "distinct_wallets": len(wallets), "signal_usd": round(total),
+            "token_flows": token_flows}
 
 
 # ── LEG 3: social/sentiment (mood only — never counts as whale evidence) ─
@@ -205,6 +232,48 @@ def _get(url: str, timeout: int = 20):
         return json.load(r)
 
 
+def _get_text(url: str, timeout: int = 20) -> str:
+    req = urllib.request.Request(url, headers={"User-Agent": "quarki-sleeve/1.0"})
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return r.read().decode("utf-8", errors="replace")
+
+
+_ATOM_NS = {"a": "http://www.w3.org/2005/Atom"}
+
+
+def _reddit_hot_titles(sub: str, limit: int = 60) -> list[str]:
+    # api.reddit.com/*.json and old.reddit.com/*.json 403 anonymous requests
+    # (bot-detection on the JSON API surface, confirmed live 2026-08-09 —
+    # both a UA-less and a spoofed-browser-UA request are blocked there).
+    # The public RSS surface is NOT behind that wall: www.reddit.com/<sub>/
+    # hot/.rss works keyless as long as the request carries *some* plain,
+    # honest User-Agent (empty UA -> 429; a spoofed Mozilla UA -> 403; a
+    # short custom string like "quarki-sleeve/1.0" -> 200). One retry
+    # handles the shared-anonymous-IP rate limit occasionally hit on the
+    # first call of a burst; a lone hourly launchd call rarely needs it.
+    url = f"https://www.reddit.com/r/{sub}/hot/.rss?limit={limit}"
+    last_err: Exception | None = None
+    for attempt in range(2):
+        try:
+            xml_text = _get_text(url)
+            break
+        except urllib.error.HTTPError as e:
+            last_err = e
+            if e.code == 429 and attempt == 0:
+                time.sleep(3)
+                continue
+            raise
+    else:
+        raise last_err  # pragma: no cover
+    root = ET.fromstring(xml_text)
+    titles = []
+    for entry in root.findall("a:entry", _ATOM_NS):
+        title_el = entry.find("a:title", _ATOM_NS)
+        if title_el is not None and title_el.text:
+            titles.append(title_el.text)
+    return titles
+
+
 def leg_social() -> dict | None:
     parts = {}
     # Fear & Greed (0=extreme fear, 100=extreme greed)
@@ -213,16 +282,19 @@ def leg_social() -> dict | None:
         parts["fear_greed"] = fng
     except Exception as e:
         print(f"F&G failed: {e!r}")
-    # Reddit r/CryptoCurrency hot — coin buzz + crude bull/bear keyword tilt
+    # Reddit r/CryptoCurrency hot — coin buzz + crude bull/bear keyword tilt.
+    # Via RSS (see _reddit_hot_titles) since the JSON API 403s anonymous
+    # traffic. RSS entries carry no ups/score field, so per-post weight is
+    # approximated by rank in the hot-sorted feed (index 0 = hottest) in
+    # place of the old ups-based weight — same bull/bear/buzz scoring logic
+    # otherwise unchanged.
     try:
-        posts = _get("https://www.reddit.com/r/CryptoCurrency/hot.json?limit=60"
-                     )["data"]["children"]
+        titles = _reddit_hot_titles("CryptoCurrency", limit=60)
         bull = bear = 0
         buzz: dict[str, int] = {}
-        for p in posts:
-            title = (p.get("data", {}).get("title") or "").lower()
-            ups = int(p.get("data", {}).get("ups") or 0)
-            w = 1 + min(ups, 500) // 100
+        for i, raw_title in enumerate(titles):
+            title = raw_title.lower()
+            w = max(1, 6 - i // 10)          # rank-decay proxy for ups
             if any(k in title for k in _BULL):
                 bull += w
             if any(k in title for k in _BEAR):
@@ -313,6 +385,8 @@ def main() -> None:
            "legs": legs}
     if hl and hl.get("coin_bias"):
         out["coin_bias"] = hl["coin_bias"]
+    if du and du.get("token_flows"):
+        out["token_flows"] = du["token_flows"]
     tmp = OUT.with_suffix(".tmp")
     tmp.write_text(json.dumps(out, indent=2))
     tmp.replace(OUT)

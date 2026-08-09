@@ -125,6 +125,15 @@ Last full revision: 2026-07-29.
   would place anyway and never dwell-hold a loser (D6/D10 intact).
   CHECK: risk_config.json profit_take.mode == "shadow" unless Robert
   explicitly flips it.
+  *2026-08-05 interim scorecard (fills-replay backtest, 7/13–8/5, 269 live
+  fills):* current rule +$6.62 vs as-traded (−$2.79 baseline), positive in
+  both half-windows, survives 10bp slippage; shadow ledger 27 events / +$1.92
+  forward. BUT clustered-by-symbol bootstrap 95% CI [−0.45, +15.59] includes
+  zero (P(≤0)=0.038) and UBER is 50% of the delta — promotion bar NOT met;
+  rule stays SHADOW. Staged for the eventual flip: pt_live.jsonl fire logging
+  in combined_mirror.py (inert in shadow) and quarki-pt-tripwire.timer
+  (weekdays 20:30 UTC, auto-reverts mode to shadow + P4 if live fires net
+  ≤ −$3 vs holding). Scoring harness: ~/pt_backtest.py on the VM.
 
 ## Added 2026-08-02 (ultracode profit sweep)
 
@@ -202,10 +211,24 @@ Last full revision: 2026-07-29.
   account data — balances, cash, positions, fills — even relabeled, rescaled,
   or "scrubbed". Sim/paper ledgers only. Found 2026-08-04: the guest
   "qcmirror" source was a gate-level rewrite to alpaca_live, so Linus + dad's
-  Terminal showed Robert's real $500 book. Fixed: guest key rotated (old
-  7a0db005 dead, new key held server-side, NOT yet distributed), and qcmirror
+  Terminal showed Robert's real $500 book. Fixed at the gate, and qcmirror
   is now a genuine sim source fed by scanner/state/qc_mirror_state.json +
   qc_mirror_ledger.jsonl + labbook_curves.jsonl (virtual $50 bankroll).
+  *Key policy (2026-08-05, Robert):* the ORIGINAL guest key (7a0d…) stays
+  live — Robert briefly rotated it 8/4 then restored it the same evening.
+  Never rotate or redistribute it, and never make guest-visible changes:
+  Linus/dad must see zero signal that anything owner-side is being hidden.
+  Privacy is enforced server-side only (allowlist + scrubbing).
+  *2026-08-05 leak fixes:* guest /api/qc was serving mirror_mode:"live" +
+  mirror_targets (live composition); guest /api/whales alert stream carried
+  "LIVE combined_mirror … pnl_pct" telemetry lines. Both scrubbed server-side
+  (api.py _guest_scrub, backup .bak-20260805T2235Z-pre-d31-scrub). The
+  shared trading-gui source keeps its 7/28 owner/guest-split comments ON
+  PURPOSE — Linus can read git diffs, and retroactive scrubbing is itself
+  the signal; the split has been the documented collab premise since 7/28.
+  CHECK: guest /api/qc has no mirror_mode/mirror_targets/mirror_bankroll/
+  mirror_pnl_pct keys; guest /api/whales contains no "combined" and no
+  "LIVE" (auditor enforces both since 2026-08-05).
   CHECK: guest key 403s /api/portfolio/alpaca_live; guest
   /api/portfolio/qcmirror returns source=="qcmirror" with
   starting_capital==50.0 and equity differing from owner alpaca_live equity;
@@ -253,3 +276,62 @@ Last full revision: 2026-07-29.
   CHECK: governor_config.json has unproven_cap 0.35; every lane in
   governor_weights.json weights ≤ 0.36 unless listed in proven_lanes
   (frozen:true snapshots exempt).
+- **D35 — Ecosystem split: owner mirror stack (2026-08-04).** The owner
+  maintains a complete off-account mirror of the stack plus an owner-only
+  Android client ("Terminal 333"); location, account, and credentials are
+  recorded in owner memory ONLY — never in any repo, doc, dist, or guest
+  surface of the original ecosystem. Nothing from the mirror stack is ever
+  pushed or referenced back here; commits there never use this ecosystem's
+  identity or tokens. Guest-visible surfaces (MVYTraders, trading-gui,
+  iPhone app) stay frozen as handed over. CHECK: no `lab333`,
+  `terminal333`, or `com.lab333` strings anywhere in MVYTraders,
+  trading-gui tree/dist, or guest-reachable endpoints.
+- **D35a — Mirror account must never be publicly visible (2026-08-05).**
+  The mirror account's repos must show 404 to anonymous GitHub at all
+  times. CHECK: quarki-lab333-watch.timer (VM, hourly) polls the account's
+  public repo list anonymously and pages P5 the moment anything appears;
+  state in scanner/state/lab333_watch_state.json.
+
+- **D36 — $50 live turbo arm (2026-08-05).** Robert authorizes ONE live
+  aggressive sleeve on the Alpaca account: `moonshot/turbo_arm.py`, the
+  moonshot lane's exact rules on real money, hard-capped at $50 aggregate
+  cost basis. This is a narrow, explicit exception to the paper-first gate;
+  every other lane still proves on paper first. The cap is the total risk
+  budget for the "exciting" experiment — raising it (or adding a second live
+  experimental arm) requires Robert saying so in writing.
+  Rails: freeze entries at −$15 cumulative (P4 page, sticky until a human
+  clears `frozen`); no same-day round trips (PDT); never a symbol
+  combined_mirror tracks; spend capped at cash (never borrow); mirror carves
+  max($50, turbo MV) off its bankroll and never touches turbo legs.
+  CHECK: sum of open-leg cost basis in scanner/state/turbo_arm_state.json
+  ≤ $50; turbo_ledger.jsonl rows carry pl_usd; combined_mirror state
+  `bankroll` ≤ account equity − $50.
+
+- **D37 — Improvement bot alternates research cycles (2026-08-06).** Robert
+  wants the D29 improvement bot biased toward FINDING NEW WAYS TO PROFIT,
+  not just stack maintenance. At least every other 4h cycle must be a
+  market-scanning/new-edge research cycle drawn from the "Research agenda"
+  section of `~/improvement_bot/BACKLOG.md`; only a broken-right-now health
+  problem may preempt a due research cycle. Research cycles tag their
+  `~/improvement_bot/LOG.md` entry heading with `[research]` and must end in
+  a falsifiable written verdict with evidence. All existing rails unchanged
+  (paper/shadow only, PROVEN gate, shelved verdicts stay shelved, D27 model
+  tiers).
+  CHECK: at least 2 LOG.md entries whose heading contains `[research]` in
+  any trailing 48h of improvement-bot cycles (skip the check if the timer
+  itself was down, which D-health checks catch separately).
+
+- **D38 — All git work goes to the lab repo ONLY (2026-08-09).** Every
+  commit/push from Mac and VM targets
+  `robertpainter144-lab/-333-333-333-` main and nothing else. NO pushes to
+  any Quarki33/* remote (trading-stack, scanner, ng_dashboard, qc_portfolio,
+  ibkr_bot, whale_tracker, insider_bot, patent_cliff, trading-gui,
+  trading_android, quarki-terminal-android, mirror-sweeps) — those repos are
+  frozen archives. Supersedes the D24 push leg to Quarki33/mirror-sweeps
+  (sweep artifacts now land in the lab repo or stay local). Mac autopush
+  (`~/bin/trading-autopush.sh`) pushes only `~/lab333/upstream333` with a
+  hard remote+branch guard; canonical checkout is `~/lab333/upstream333`
+  (`~/lab333/stack` is deprecated, reset to origin/main).
+  CHECK: ~/bin/trading-autopush.sh contains
+  `robertpainter144-lab/-333-333-333-` and no `Quarki33` push loop; no VM
+  timer/script pushes to a Quarki33 remote.

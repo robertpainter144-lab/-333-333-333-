@@ -55,10 +55,12 @@
     var t0 = +pts[0].ts, t1 = +pts[pts.length - 1].ts, span = t1 - t0;
     if (!(span > 0)) return "";
     var out = "";
-    var x0 = leftPad + 155;                 // clear of the legend chip
+    // label CENTERS clamped so chips clear the legend (ends at leftPad+150,
+    // plus half a chip) on the left and the $-axis chips (~44px) on the right
+    var xL = leftPad + 150 + 22, xR = W - 48 - 18;
     for (var i = 0; i <= 2; i++) {
       var frac = i / 2;
-      var x = x0 + (W - 8 - x0) * frac;
+      var x = xL + (xR - xL) * frac;
       var txt = fmtTs(t0 + span * ((x - leftPad) / (W - leftPad)), span);
       var cw = txt.length * 6 + 6;
       out += '<rect x="' + (x - cw / 2) + '" y="' + (y - 9) + '" width="' + cw +
@@ -226,6 +228,12 @@
 
   function money(v) { return (v < 0 ? "-$" : "$") + Math.abs(v).toFixed(2); }
 
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c];
+    });
+  }
+
   function big$(v) {
     if (v >= 1e9) return "$" + (v / 1e9).toFixed(1) + "B";
     if (v >= 1e6) return "$" + (v / 1e6).toFixed(1) + "M";
@@ -251,9 +259,10 @@
       return;
     }
     var authority = (g.signal_trades >= 5 && g.distinct_wallets >= 3 && g.signal_usd >= 50000);
+    var headColor = g.risk_on >= 0.5 ? GREEN : "#f85149";
     var htm = '<div style="font-size:11px;color:#7d8590">WHALE INTEL · composite</div>' +
-      '<div style="font-size:20px;font-weight:700" class="' + (g.risk_on >= 0.5 ? "grn" : "") +
-      '"' + (g.risk_on < 0.5 ? ' style="color:#f85149"' : "") + ">" + (g.risk_on * 100).toFixed(0) + "%</div>" +
+      '<div style="font-size:20px;font-weight:700;color:' + headColor + '">' +
+      (g.risk_on * 100).toFixed(0) + "%</div>" +
       riskBar(g.risk_on) +
       '<div style="font-size:10px;color:#7d8590;margin:4px 0 8px">' +
       "evidence: " + g.signal_trades + " positions · " + g.distinct_wallets + " whales · " +
@@ -273,7 +282,7 @@
       coins.forEach(function (c) {
         var b = cb[c];
         var r = b.net_long_ratio;
-        htm += '<div style="font-size:10px;color:#7d8590;margin-left:12px">' + c + ": " +
+        htm += '<div style="font-size:10px;color:#7d8590;margin-left:12px">' + esc(c) + ": " +
           b.traders_long + "L/" + b.traders_short + "S · " +
           (r == null ? "—" : (r >= 0.5 ? '<span style="color:' + GREEN + '">' : '<span style="color:#f85149">') +
             Math.round(r * 100) + "% long</span>") + " · " + big$(b.long_usd + b.short_usd) + "</div>";
@@ -290,10 +299,10 @@
       htm += '<div style="border-top:1px solid #21262d;padding-top:6px;margin-top:6px;font-size:11px">' +
         "<b>💬 Sentiment</b> (mood only, never arms the gate) — " +
         (d.fear_greed != null ? "Fear&Greed " + d.fear_greed + "/100" : "") +
-        (d.trending ? " · trending: " + d.trending.slice(0, 5).join(" ") : "") + "</div>";
+        (d.trending ? " · trending: " + d.trending.slice(0, 5).map(esc).join(" ") : "") + "</div>";
       if (d.reddit_buzz && Object.keys(d.reddit_buzz).length) {
         htm += '<div style="font-size:10px;color:#7d8590;margin-left:12px">reddit buzz: ' +
-          Object.keys(d.reddit_buzz).map(function (c) { return c + "(" + d.reddit_buzz[c] + ")"; }).join(" ") + "</div>";
+          Object.keys(d.reddit_buzz).map(function (c) { return esc(c) + "(" + (+d.reddit_buzz[c] || 0) + ")"; }).join(" ") + "</div>";
       }
     }
     htm += '<div style="font-size:9px;color:#484f58;margin-top:6px">updated ' +
@@ -317,8 +326,8 @@
       var totalUnreal = 0;
       Object.keys(s.positions || {}).forEach(function (sym) {
         var p = s.positions[sym];
-        posHtml += '<div class="cpos"><span>' + sym + " · " +
-          (p.signal_mode || "").split(" (")[0] + "</span><span>entry $" +
+        posHtml += '<div class="cpos"><span>' + esc(sym) + " · " +
+          esc((p.signal_mode || "").split(" (")[0]) + "</span><span>entry $" +
           (+p.entry_price).toFixed(2) + " · $" + (+p.notional).toFixed(2) + "</span></div>";
       });
       var gate = s.gate ? ("risk_on " + s.gate.risk_on + " · n=" +
@@ -337,9 +346,9 @@
         tbl.innerHTML = "<tr><th>symbol</th><th>P/L</th><th>%</th><th>reason</th></tr>" +
           (s.closed_trades || []).slice().reverse().map(function (t) {
             var pl = +t.realized_pl;
-            return "<tr><td>" + t.symbol + '</td><td style="color:' +
+            return "<tr><td>" + esc(t.symbol) + '</td><td style="color:' +
               (pl >= 0 ? GREEN : "#f85149") + '">' + money(pl) + "</td><td>" +
-              (+t.pl_pct * 100).toFixed(1) + "%</td><td>" + t.reason + "</td></tr>";
+              (+t.pl_pct * 100).toFixed(1) + "%</td><td>" + esc(t.reason) + "</td></tr>";
           }).join("");
       }
     }).catch(function (e) {

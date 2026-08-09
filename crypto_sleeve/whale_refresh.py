@@ -3,8 +3,11 @@
 whale_gate). Two independent legs, equally weighted where both have data:
 
   LEG 1 — Hyperliquid top-trader positioning (free, no key, refreshed every
-  run): top ~40 traders by 30d PnL (vaults/protocol accounts filtered by
-  account-value band), their live perp positions on the sleeve's coins.
+  run): top ~40 traders by 30d PnL, their live perp positions on the
+  sleeve's coins. The account-value band is a HEURISTIC that trims the
+  extremes; the leaderboard API exposes no account-type field, so
+  copy-trading vaults / protocol accounts inside the band are
+  indistinguishable from individual whales (accepted limitation).
   risk_on = long notional / (long + short). Breadth counters map naturally:
   each trader = a wallet, each position = a trade. Also writes per-coin bias
   (coin_bias) for the UI and future per-symbol gating.
@@ -83,7 +86,7 @@ def leg_hyperliquid() -> dict | None:
     traders = sorted(traders, key=month_pnl, reverse=True)[:HL_TOP_N]
 
     long_usd = short_usd = 0.0
-    n_pos = 0
+    n_pos = fetch_fails = 0
     wallets = set()
     coin_bias: dict[str, dict] = {}
     for t in traders:
@@ -92,6 +95,7 @@ def leg_hyperliquid() -> dict | None:
             st = _post("https://api.hyperliquid.xyz/info",
                        {"type": "clearinghouseState", "user": addr})
         except Exception:
+            fetch_fails += 1
             continue
         for ap in st.get("assetPositions", []):
             p = ap.get("position", {})
@@ -119,6 +123,11 @@ def leg_hyperliquid() -> dict | None:
                 cb["traders_short"] += 1
 
     total = long_usd + short_usd
+    if fetch_fails:
+        print(f"HL leg: {fetch_fails}/{len(traders)} position fetches failed")
+    if fetch_fails > len(traders) // 2:
+        print("HL leg: majority of fetches failed — dropping leg (biased sample)")
+        return None
     if total <= 0 or n_pos == 0:
         print("HL leg: no qualifying positions")
         return None
@@ -139,6 +148,10 @@ def leg_dune(prev: dict | None) -> dict | None:
     prev_leg = (prev or {}).get("legs", {}).get("dune")
     if prev_leg and age_h(prev_leg.get("asof", "")) < DUNE_TTL_H:
         return prev_leg                       # fresh enough — save the credits
+    # circuit breaker: each execute attempt costs Dune credits, so after a
+    # failure wait 3h before paying for another try
+    if prev_leg and age_h(prev_leg.get("failed_at", "1970-01-01T00:00:00+00:00")) < 3:
+        return prev_leg
     try:
         sys.path.insert(0, str(HOME / "whale_tracker"))
         import bootstrap
@@ -146,6 +159,8 @@ def leg_dune(prev: dict | None) -> dict | None:
         feed = bootstrap.execute_and_fetch(env["DUNE_API_KEY"], int(env["DUNE_Q03_ID"]))
     except Exception as e:
         print(f"Dune leg failed: {e!r}")
+        if prev_leg:
+            prev_leg["failed_at"] = now_iso()
         return prev_leg                       # stale beats nothing; gate ages it out
     if not feed:
         print("Dune leg: 0 rows")
@@ -268,12 +283,29 @@ def main() -> None:
         print("no live legs — leaving whale_signals.json untouched")
         return
 
+    # EVIDENCE-WEIGHTED composite (revised after adversarial review): a leg's
+    # vote counts in proportion to how much of the gate's own evidence floors
+    # it independently carries. A single $17k Dune trade or a fear-index mood
+    # must never veto $500M of actual top-trader positioning (that exact
+    # failure blocked the gate on 2026-08-09: HL 0.63-long diluted to a 0.31
+    # composite by two near-zero-evidence legs). Sentiment gets a fixed small
+    # nudge weight and still contributes zero evidence counters.
+    def leg_weight(l):
+        if l.get("source") == "social_sentiment":
+            return 0.15
+        return (min(1.0, l.get("signal_usd", 0) / 50_000)
+                * min(1.0, l.get("distinct_wallets", 0) / 3)
+                * min(1.0, l.get("signal_trades", 0) / 5))
+
+    wsum = sum(leg_weight(l) for l in fresh)
+    if wsum <= 0:
+        print("all legs zero-weight — leaving whale_signals.json untouched")
+        return
+    risk_on = sum(leg_weight(l) * l["risk_on"] for l in fresh) / wsum
+
     out = {"asof": now_iso(),
-           # equal-weight mean across legs: each is an independent view; usd-
-           # weighting would let HL's huge notionals drown the others. Social
-           # joins the mood average but the evidence counters below are
-           # money-legs only, so sentiment alone can never arm the gate.
-           "risk_on": round(sum(l["risk_on"] for l in fresh) / len(fresh), 4),
+           "risk_on": round(risk_on, 4),
+           "leg_weights": {k: round(leg_weight(l), 4) for k, l in legs.items()},
            "signal_trades": sum(l["signal_trades"] for l in money),
            "distinct_wallets": sum(l["distinct_wallets"] for l in money),
            "signal_usd": sum(l["signal_usd"] for l in money),

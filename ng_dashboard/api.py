@@ -1456,8 +1456,13 @@ def mount(fastapi_app, main_module) -> None:
                     return None
                 inject = '<script defer src="/owner/catalog.js"></script>'
                 if _owner_ok:
-                    # Auto-login the SPA: seed its stored key, then scrub the
-                    # query string from the address bar/history.
+                    # Via the funnel, the browser's <script> load of
+                    # /owner/catalog.js ALSO hits the XFF key-gate (it can't send
+                    # the header), so pass the key on that URL too — otherwise
+                    # the private catalog bundle 403s and the panel never loads.
+                    # Then auto-login the SPA and scrub the query string.
+                    inject = ('<script defer src="/owner/catalog.js?key='
+                              + _qkey + '"></script>')
                     inject = ('<script>try{localStorage.setItem("qt.apiKey",'
                               + json.dumps(_qkey) +
                               ');history.replaceState(null,"",location.pathname);}'

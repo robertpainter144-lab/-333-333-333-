@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import base64
 import csv
+import fcntl
 import hashlib
 import hmac
 import json
@@ -159,7 +160,9 @@ class KrakenBroker:
 
     def buy(self, symbol: str, usd: float) -> float:
         price = self.price(symbol)
-        vol = round(usd / price, 8)
+        # 0.5% haircut: market fill can be worse than the quote; without it the
+        # real USD spent could silently exceed the intended size (and the cap).
+        vol = round(usd * 0.995 / price, 8)
         self._priv("/0/private/AddOrder",
                    {"pair": self.PAIR[symbol], "type": "buy",
                     "ordertype": "market", "volume": f"{vol:.8f}"})
@@ -258,9 +261,11 @@ def suppressed_notify(st: dict, key: str, level: str, title: str, msg: str,
         st["last_notified"][key] = now
 
 
-def momentum_ok(closes: list[float]) -> bool:
+def momentum_ok(closes: list[float]) -> bool | None:
+    """True/False = real signal; None = not enough data (a data outage must
+    never read as a bearish flip and force a live sell)."""
     if len(closes) < CFG["ema_slow"] + 2:
-        return False
+        return None
     day_ago = closes[-25] if len(closes) >= 25 else closes[0]
     return ema(closes, CFG["ema_fast"]) > ema(closes, CFG["ema_slow"]) and closes[-1] > day_ago
 
@@ -311,10 +316,27 @@ def close_position(broker, pos: Position, st: dict, reason: str) -> None:
                    "realized_pl": f"{pos.unrealized_pl:.4f}",
                    "pl_pct": f"{pos.unrealized_pl / pos.notional:.4f}" if pos.notional else "0",
                    "reason": reason, "signal_mode": meta.get("signal_mode", "?")})
-    log(f"CLOSED {pos.symbol} reason={reason} pl={pos.unrealized_pl:+.2f}")
+    save_state(st)   # persist immediately: a later failure this tick must not
+    log(f"CLOSED {pos.symbol} reason={reason} pl={pos.unrealized_pl:+.2f}")  # roll back a close that already executed on the exchange
+
+
+_LOCK_FH = None
+
+
+def acquire_lock() -> bool:
+    global _LOCK_FH
+    _LOCK_FH = open(ROOT / "state" / ".lock", "w")
+    try:
+        fcntl.flock(_LOCK_FH, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        return True
+    except OSError:
+        return False
 
 
 def main() -> None:
+    if not acquire_lock():
+        log("skip: previous run still active (lock held)")
+        return
     st = load_state()
     broker = KrakenBroker() if CFG.get("broker", "kraken") == "kraken" else AlpacaBroker()
 
@@ -330,6 +352,20 @@ def main() -> None:
                "entries get logged silently, rails page you.")
 
     positions = broker.positions(st)
+
+    # Persist adopted positions (balances with no state entry — from a prior
+    # state loss or coins bought outside the sleeve). Without this the entry
+    # price re-baselines to the current price EVERY tick, which permanently
+    # disables the stop/take checks for that position.
+    adopted = [p for p in positions if p.symbol not in st["positions"]]
+    for p in adopted:
+        st["positions"][p.symbol] = {
+            "entry_price": p.entry_price, "notional": p.market_value,
+            "opened": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "signal_mode": "adopted"}
+        log(f"ADOPTED {p.symbol} qty={p.qty} @ {p.entry_price} (baseline set)")
+    if adopted:
+        save_state(st)
 
     if st.get("frozen"):
         suppressed_notify(st, "frozen", "action", "Crypto sleeve is FROZEN",
@@ -362,7 +398,7 @@ def main() -> None:
                 close_position(broker, p, st, "stop")
             elif chg >= CFG["take_pct"]:
                 close_position(broker, p, st, "take_profit")
-            elif not momentum_ok(broker.closes(p.symbol)):
+            elif momentum_ok(broker.closes(p.symbol)) is False:
                 close_position(broker, p, st, "momentum_flip")
             else:
                 still_open.append(p)
@@ -373,12 +409,19 @@ def main() -> None:
             log(f"exit check {p.symbol} FAIL {e!r}")
             still_open.append(p)
 
-    deployed = sum(p.market_value for p in still_open)
+    # Cap accounting on COST BASIS, not market value: a drawdown must not
+    # free up "room" to buy more (that would let total spend exceed the cap).
+    deployed = sum(p.notional for p in still_open)
     held = {p.symbol for p in still_open}
 
     # ---- entries ----
     allowed, mode = whale_gate()
-    cash_avail = broker.cash()
+    try:
+        cash_avail = broker.cash()
+    except Exception as e:
+        log(f"cash check FAIL {e!r} — skipping entries this tick")
+        save_state(st)
+        return
     room = CFG["cap_total_usd"] - deployed
     log(f"pl={sleeve_pl:+.2f} deployed={deployed:.2f} room={room:.2f} "
         f"cash={cash_avail:.2f} gate={mode}")
@@ -390,9 +433,9 @@ def main() -> None:
             size = min(CFG["per_trade_usd"], room, cash_avail - 0.5)
             if size < CFG["min_order_usd"]:
                 break
-            if not momentum_ok(broker.closes(sym)):
-                continue
             try:
+                if momentum_ok(broker.closes(sym)) is not True:
+                    continue
                 price = broker.buy(sym, size)
             except Exception as e:
                 # e.g. Kraken per-pair volume minimum (BTC ~$5.8, ETH ~$8.2)
@@ -404,7 +447,8 @@ def main() -> None:
                 "entry_price": price, "notional": size,
                 "opened": datetime.now(timezone.utc).isoformat(timespec="seconds"),
                 "signal_mode": mode}
-            room -= size
+            save_state(st)   # persist before touching the next symbol — a
+            room -= size     # later failure must not orphan this filled buy
             cash_avail -= size
             log(f"BUY {sym} ${size:.2f} @ ~{price} [{mode}]")
             notify("routine", "Crypto sleeve entry",

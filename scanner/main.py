@@ -6,6 +6,7 @@ Everything writes to state/signals.jsonl + state/live_activity.jsonl.
 from __future__ import annotations
 
 import argparse
+import os
 import threading
 import time
 import traceback
@@ -72,8 +73,17 @@ def main():
     ap.add_argument("--once", action="store_true", help="Run every source once and exit")
     args = ap.parse_args()
 
+    # SCANNER_ONLY="a,b,c" runs just that subset (memory-constrained hosts, e.g.
+    # the GCP e2-micro that only needs the mirror/governor panels, not the full
+    # crypto/prop-desk sweep). Empty/unset = all sources.
+    _only = os.environ.get("SCANNER_ONLY", "").strip()
+    sources = SOURCES
+    if _only:
+        _keep = {s.strip() for s in _only.split(",") if s.strip()}
+        sources = [s for s in SOURCES if s[0] in _keep]
+
     if args.once:
-        for name, fn, _ in SOURCES:
+        for name, fn, _ in sources:
             try:
                 fn()
                 _log(f"{name} ok (once)")
@@ -81,12 +91,12 @@ def main():
                 _log(f"{name} FAIL: {e!r}")
         return
 
-    _log(f"scanner started (threaded) — {len(SOURCES)} sources: " +
-         ", ".join(f"{n}({cad}s)" for n, _, cad in SOURCES))
+    _log(f"scanner started (threaded) — {len(sources)} sources: " +
+         ", ".join(f"{n}({cad}s)" for n, _, cad in sources))
 
     stop = threading.Event()
     threads = []
-    for name, fn, cadence in SOURCES:
+    for name, fn, cadence in sources:
         t = threading.Thread(target=_worker, args=(name, fn, cadence, stop),
                              name=name, daemon=True)
         t.start()

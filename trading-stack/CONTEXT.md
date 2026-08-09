@@ -837,3 +837,17 @@ GCP quarki-stack (fresh clone of the lab repo, other Claude window deploying
 today) is the one surface not yet audited from this machine — expected clean
 since it was built from the lab repo, verify once ssh/gcloud access exists
 on the Mac.
+
+## 2026-08-09 — Road readiness (Mac power-off prep)
+MOBILE.md repointed Oracle→quarki-stack (b70de0a). Claude road bundle
+(memory snapshot + global CLAUDE.md + phone pubkey + road_prep.sh)
+Taildropped to quarki-stack; road_prep.sh enables Tailscale SSH, authorizes
+the phone key, installs tmux+claude CLI, loads memory. terminal333
+standalone source rescued into this repo (4ff37e4) — its GitHub remote
+never existed; source was Mac-only. Shutdown-safety sweep verdicts:
+Mac-only meters/governor/harvester/autopush safe to pause; OPEN before
+power-off: verify quarki-stack guardrail+ntfy actually firing (live $50
+turbo arm), 333 app repoint (other window, v3.2), final upstream333 clean
+check. ACCEPTED GAP: no dead-man's switch watches quarki-stack while Mac
+is off (Mac was the pager) — queue GCP uptime check. Pre-existing: SPY
+overlay scheduler homeless since Oracle died — queue on quarki-stack.

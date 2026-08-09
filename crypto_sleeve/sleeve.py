@@ -32,6 +32,7 @@ from pathlib import Path
 HOME = Path.home()
 ROOT = Path(__file__).resolve().parent
 STATE_F = ROOT / "state" / "sleeve_state.json"
+EQUITY_F = ROOT / "state" / "equity.csv"
 LEDGER_F = ROOT / "state" / "closed_trades.csv"
 WHALE_F = ROOT / "state" / "whale_signals.json"
 CFG = json.loads((ROOT / "config.json").read_text())
@@ -83,7 +84,13 @@ class Position:
 
 class KrakenBroker:
     """Spot only. Kraken has balances, not positions — entry prices come from
-    sleeve state; an untracked balance inherits current price as entry."""
+    sleeve state; an untracked balance inherits current price as entry.
+
+    Pair/asset codes for the configured universe are discovered from Kraken's
+    public AssetPairs registry at startup, so widening the universe is a
+    config-only change. The static seed map is the offline fallback and always
+    wins for the symbols it covers (BTC/ETH/SOL keep working even if the
+    registry fetch fails mid-outage)."""
     PAIR = {"BTC/USD": "XBTUSD", "ETH/USD": "ETHUSD", "SOL/USD": "SOLUSD"}
     ASSET = {"BTC/USD": ("XXBT", "XBT.F"), "ETH/USD": ("XETH", "ETH.F"),
              "SOL/USD": ("SOL", "SOL.F")}
@@ -93,6 +100,36 @@ class KrakenBroker:
         env = read_env(CFG.get("kraken_env_file", "~/kraken.env"))
         self.key = env.get("KRAKEN_API_KEY", "")
         self.sec = env.get("KRAKEN_API_SECRET", "")
+        self.pair = dict(self.PAIR)
+        self.asset = dict(self.ASSET)
+        self._discover_pairs()
+
+    def _discover_pairs(self) -> None:
+        """Fill self.pair/self.asset for universe symbols the seed map doesn't
+        cover, from Kraken's own registry. Failure leaves the seed map — the
+        sleeve keeps managing whatever it already knows, never crashes here."""
+        missing = [s for s in CFG["universe"] if s not in self.pair]
+        if not missing:
+            return
+        try:
+            reg = self._pub("/0/public/AssetPairs", {})
+            by_alt = {v["altname"]: v["base"] for v in reg.values()
+                      if v.get("status") == "online" and v.get("quote") in ("ZUSD", "USD")}
+            for sym in missing:
+                alt = sym.replace("/", "")            # "XRP/USD" -> "XRPUSD"
+                if alt not in by_alt and alt == "DOGEUSD":
+                    alt = "XDGUSD"                    # kraken legacy doge name
+                base = by_alt.get(alt)
+                if base is None:
+                    log(f"universe symbol {sym}: no online Kraken USD pair — skipped")
+                    continue
+                # legacy X-prefix (XXBT/XETH/XXRP/XLTC/XXDG) -> clean code for the
+                # '.F' auto-earn balance suffix; base itself stays as-is
+                clean = base[1:] if len(base) > 3 and base[0] == "X" else base
+                self.pair[sym] = alt
+                self.asset[sym] = (base, f"{clean}.F")
+        except Exception as e:
+            log(f"pair discovery failed ({e!r}); static universe only")
 
     def _pub(self, path: str, params: dict) -> dict:
         url = f"{self.BASE}{path}?{urllib.parse.urlencode(params)}"
@@ -131,11 +168,11 @@ class KrakenBroker:
         return True
 
     def price(self, symbol: str) -> float:
-        t = self._pub("/0/public/Ticker", {"pair": self.PAIR[symbol]})
+        t = self._pub("/0/public/Ticker", {"pair": self.pair[symbol]})
         return float(next(iter(t.values()))["c"][0])
 
     def closes(self, symbol: str) -> list[float]:
-        r = self._pub("/0/public/OHLC", {"pair": self.PAIR[symbol], "interval": 60})
+        r = self._pub("/0/public/OHLC", {"pair": self.pair[symbol], "interval": 60})
         rows = next(v for k, v in r.items() if k != "last")
         return [float(x[4]) for x in rows]
 
@@ -147,7 +184,7 @@ class KrakenBroker:
         bal = self._priv("/0/private/Balance")
         out = []
         for sym in CFG["universe"]:
-            qty = sum(float(bal.get(a, 0)) for a in self.ASSET[sym])
+            qty = sum(float(bal.get(a, 0)) for a in self.asset[sym])
             if qty <= 0:
                 continue
             cur = self.price(sym)
@@ -164,13 +201,13 @@ class KrakenBroker:
         # real USD spent could silently exceed the intended size (and the cap).
         vol = round(usd * 0.995 / price, 8)
         self._priv("/0/private/AddOrder",
-                   {"pair": self.PAIR[symbol], "type": "buy",
+                   {"pair": self.pair[symbol], "type": "buy",
                     "ordertype": "market", "volume": f"{vol:.8f}"})
         return price
 
     def close(self, pos: Position) -> None:
         self._priv("/0/private/AddOrder",
-                   {"pair": self.PAIR[pos.symbol], "type": "sell",
+                   {"pair": self.pair[pos.symbol], "type": "sell",
                     "ordertype": "market", "volume": f"{pos.qty:.8f}"})
 
 
@@ -437,6 +474,7 @@ def main() -> None:
     log(f"pl={sleeve_pl:+.2f} deployed={deployed:.2f} room={room:.2f} "
         f"cash={cash_avail:.2f} gate={mode}")
 
+    bought = 0.0
     if allowed:
         for sym in CFG["universe"]:
             if sym in held:
@@ -461,10 +499,24 @@ def main() -> None:
             save_state(st)   # persist before touching the next symbol — a
             room -= size     # later failure must not orphan this filled buy
             cash_avail -= size
+            bought += size
             log(f"BUY {sym} ${size:.2f} @ ~{price} [{mode}]")
             notify("routine", "Crypto sleeve entry",
                    f"Bought ${size:.2f} of {sym} at about {price} ({mode}). "
                    f"Sleeve deployed ${deployed + size:.2f} of ${CFG['cap_total_usd']:.0f} cap.")
+
+    # Equity curve for the dashboard (owner-only /api/equity/crypto_sleeve).
+    # New buys are valued at notional this tick; next tick reprices them.
+    equity = cash_avail + sum(p.market_value for p in still_open) + bought
+    new_f = not EQUITY_F.exists()
+    with EQUITY_F.open("a") as f:
+        if new_f:
+            f.write("ts,equity,cash,positions_mv,realized\n")
+        f.write("%s,%.4f,%.4f,%.4f,%.4f\n"
+                % (datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                   equity, cash_avail,
+                   sum(p.market_value for p in still_open) + bought,
+                   realized_total()))
 
     save_state(st)
 

@@ -1,8 +1,16 @@
 {
-  "positions": {},
+  "positions": {
+    "BTC/USD": {
+      "entry_price": 65162.8,
+      "notional": 9.5694,
+      "opened": "2026-08-09T21:46:04+00:00",
+      "signal_mode": "momentum-only (whale feed empty)"
+    }
+  },
   "frozen": false,
   "last_notified": {
     "crypto_inactive": 1786306737.674485,
     "kraken_key": 1786308844.526507
-  }
+  },
+  "seen_active": true
 }

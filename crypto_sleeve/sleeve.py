@@ -356,14 +356,21 @@ def main() -> None:
     # ---- exits ----
     still_open = []
     for p in positions:
-        chg = p.current_price / p.entry_price - 1
-        if chg <= CFG["stop_pct"]:
-            close_position(broker, p, st, "stop")
-        elif chg >= CFG["take_pct"]:
-            close_position(broker, p, st, "take_profit")
-        elif not momentum_ok(broker.closes(p.symbol)):
-            close_position(broker, p, st, "momentum_flip")
-        else:
+        try:
+            chg = p.current_price / p.entry_price - 1
+            if chg <= CFG["stop_pct"]:
+                close_position(broker, p, st, "stop")
+            elif chg >= CFG["take_pct"]:
+                close_position(broker, p, st, "take_profit")
+            elif not momentum_ok(broker.closes(p.symbol)):
+                close_position(broker, p, st, "momentum_flip")
+            else:
+                still_open.append(p)
+        except Exception as e:
+            # One symbol's API hiccup must not block the other exits or the
+            # rails. Treat it as still open; next tick re-reads real balances
+            # (the adoption design), so even a half-completed close reconciles.
+            log(f"exit check {p.symbol} FAIL {e!r}")
             still_open.append(p)
 
     deployed = sum(p.market_value for p in still_open)

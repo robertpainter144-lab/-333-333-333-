@@ -4,7 +4,7 @@
   "universe": ["BTC/USD", "ETH/USD", "SOL/USD"],
   "cap_total_usd": 50.0,
   "per_trade_usd": 16.0,
-  "min_order_usd": 10.0,
+  "min_order_usd": 5.0,
   "stop_pct": -0.08,
   "take_pct": 0.15,
   "freeze_pnl_usd": -15.0,

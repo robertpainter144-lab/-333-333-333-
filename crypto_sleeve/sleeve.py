@@ -392,7 +392,14 @@ def main() -> None:
                 break
             if not momentum_ok(broker.closes(sym)):
                 continue
-            price = broker.buy(sym, size)
+            try:
+                price = broker.buy(sym, size)
+            except Exception as e:
+                # e.g. Kraken per-pair volume minimum (BTC ~$5.8, ETH ~$8.2)
+                # or a funds race — skip this symbol, try the next; one
+                # rejected order must never kill the whole tick.
+                log(f"BUY {sym} ${size:.2f} FAIL {e!r}")
+                continue
             st["positions"][sym] = {
                 "entry_price": price, "notional": size,
                 "opened": datetime.now(timezone.utc).isoformat(timespec="seconds"),

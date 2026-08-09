@@ -1,10 +1,10 @@
 {
   "positions": {
-    "BTC/USD": {
-      "entry_price": 65162.8,
-      "notional": 9.5694,
-      "opened": "2026-08-09T21:46:04+00:00",
-      "signal_mode": "momentum-only (whale feed empty)"
+    "SOL/USD": {
+      "entry_price": 76.56,
+      "notional": 6.0,
+      "opened": "2026-08-09T23:26:46+00:00",
+      "signal_mode": "whale-confirmed (risk_on=0.58)"
     }
   },
   "frozen": false,

@@ -1,0 +1,2 @@
+closed_at,symbol,entry_time,entry_price,exit_price,notional,realized_pl,pl_pct,reason,signal_mode
+2026-08-09T23:26:44+00:00,BTC/USD,2026-08-09T21:46:04+00:00,65162.8000,64900.1000,9.57,-0.0862,-0.0090,momentum_flip,momentum-only (whale feed empty)

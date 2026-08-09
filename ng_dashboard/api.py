@@ -647,7 +647,8 @@ def _activity_shadow(main_mod, limit: int) -> list[dict]:
 _PERIOD_SECONDS = {
     "1H":  3600,
     "1D":  86_400,
-    "1W":  86_400 * 7,
+    "5D":  86_400 * 5,   # the webapp's period buttons send 5D; unmapped it
+    "1W":  86_400 * 7,   # silently meant "all history" for every source
     "1M":  86_400 * 31,
     "3M":  86_400 * 93,
     "1Y":  86_400 * 366,
@@ -2351,8 +2352,15 @@ def mount(fastapi_app, main_module) -> None:
         try:
             import csv as _csv
             with (root / "state" / "closed_trades.csv").open() as f:
-                rows = list(_csv.DictReader(f))
-            out["realized"] = round(sum(float(r["realized_pl"]) for r in rows), 4)
+                raw = list(_csv.DictReader(f))
+            rows, realized = [], 0.0
+            for r in raw:            # one malformed row must not zero the ledger
+                try:
+                    realized += float(r["realized_pl"])
+                    rows.append(r)
+                except (ValueError, KeyError, TypeError):
+                    continue
+            out["realized"] = round(realized, 4)
             out["closed_trades"] = rows[-20:]
         except Exception:
             out["closed_trades"] = []

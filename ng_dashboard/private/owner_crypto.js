@@ -47,8 +47,11 @@
     if (values.length < 2) return;
     var vb = (svg.getAttribute("viewBox") || "0 0 400 220").split(/\s+/).map(Number);
     var W = vb[2], H = vb[3];
-    var leftPad = 44, rightPad = 40, bottomPad = 4;
-    var w = W - leftPad - rightPad, h = H - bottomPad;
+    // mirror the base chart's geometry exactly (leftPad 44, no right gutter)
+    // so both series' "now" land on the same right edge — axis labels get
+    // backing chips instead of a reserved gutter
+    var leftPad = 44, bottomPad = 4;
+    var w = W - leftPad, h = H - bottomPad;
     var min = Math.min.apply(null, values), max = Math.max.apply(null, values);
     var range = (max - min) || 1;
     var xStep = w / (values.length - 1);
@@ -67,9 +70,13 @@
       var frac = gr / 4;
       var yy = h * frac;
       var val = max - (max - min) * frac;
-      axis += '<text x="' + (W - 2) + '" y="' + (yy + 3).toFixed(1) +
-        '" fill="' + GREEN + '" opacity="0.85" font-size="10" text-anchor="end" font-family="monospace">$' +
-        (max - min < 8 ? val.toFixed(2) : val.toFixed(0)) + "</text>";
+      var txt = "$" + (max - min < 8 ? val.toFixed(2) : val.toFixed(0));
+      var cw = txt.length * 6 + 6;
+      axis += '<rect x="' + (W - cw - 1) + '" y="' + (yy - 6).toFixed(1) +
+        '" width="' + cw + '" height="12" rx="2" fill="#0d1117" opacity="0.8"/>' +
+        '<text x="' + (W - 4) + '" y="' + (yy + 3).toFixed(1) +
+        '" fill="' + GREEN + '" font-size="10" text-anchor="end" font-family="monospace">' +
+        txt + "</text>";
     }
     var lastX = leftPad + (values.length - 1) * xStep;
     var lastY = h - ((values[values.length - 1] - min) / range) * h;
@@ -93,6 +100,8 @@
     window.drawEquityWithAxes = function (svg, values, ref) {
       orig(svg, values, ref);
       try {
+        var cp = document.getElementById("pane-crypto");
+        if (cp && cp.style.display !== "none") return;  // crypto tab open: its own poll covers us
         if (typeof currentRealm !== "undefined" && currentRealm === "book" &&
             typeof currentBook !== "undefined" && currentBook === "alpaca_live") {
           var period = (typeof equityPeriod !== "undefined") ? equityPeriod : "1D";
@@ -187,7 +196,10 @@
       drawCryptoChart(document.getElementById("crypto-svg"), pts);
       var m = document.getElementById("crypto-meta");
       if (m) m.textContent = pts.length + " points · 5-min ticks · 24/7";
-    }).catch(function () {});
+    }).catch(function (e) {
+      var m = document.getElementById("crypto-meta");
+      if (m) m.textContent = "chart error: " + e.message;
+    });
     jget("/api/crypto_sleeve").then(function (s) {
       var box = document.getElementById("crypto-stats");
       if (!box || !s.available) return;
@@ -219,7 +231,11 @@
               (+t.pl_pct * 100).toFixed(1) + "%</td><td>" + t.reason + "</td></tr>";
           }).join("");
       }
-    }).catch(function () {});
+    }).catch(function (e) {
+      var box = document.getElementById("crypto-stats");
+      if (box) box.innerHTML = '<span style="color:#f85149;font-size:12px">status error: ' +
+        e.message + " — retrying every 30s</span>";
+    });
   }
 
   function addTab() {

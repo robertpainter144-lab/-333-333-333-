@@ -29,15 +29,44 @@
   }
 
   // ── 1. Green overlay on the Book chart ────────────────────────────────
-  var cachePts = null, cacheAt = 0, cachePeriod = null;
+  var cachePts = null, cacheA = null, cacheAt = 0, cachePeriod = null;
 
   function refreshCache(period) {
     var now = Date.now();
     if (cachePts && cachePeriod === period && now - cacheAt < POLL_MS) return Promise.resolve(cachePts);
-    return jget("/api/equity/crypto_sleeve?period=" + period).then(function (pts) {
-      cachePts = pts; cacheAt = now; cachePeriod = period;
-      return pts;
+    return Promise.all([
+      jget("/api/equity/crypto_sleeve?period=" + period),
+      jget("/api/equity/alpaca_live?period=" + period).catch(function () { return null; }),
+    ]).then(function (res) {
+      cachePts = res[0]; cacheA = res[1]; cacheAt = now; cachePeriod = period;
+      return cachePts;
     });
+  }
+
+  function fmtTs(ts, spanS) {
+    var d = new Date(ts * 1000);
+    if (spanS > 3 * 86400) return (d.getMonth() + 1) + "/" + d.getDate();
+    return ("0" + d.getHours()).slice(-2) + ":" + ("0" + d.getMinutes()).slice(-2);
+  }
+
+  // time labels along one edge, each on a backing chip
+  function timeAxis(pts, y, color, leftPad, W) {
+    if (!pts || pts.length < 2) return "";
+    var t0 = +pts[0].ts, t1 = +pts[pts.length - 1].ts, span = t1 - t0;
+    if (!(span > 0)) return "";
+    var out = "";
+    var x0 = leftPad + 155;                 // clear of the legend chip
+    for (var i = 0; i <= 2; i++) {
+      var frac = i / 2;
+      var x = x0 + (W - 8 - x0) * frac;
+      var txt = fmtTs(t0 + span * ((x - leftPad) / (W - leftPad)), span);
+      var cw = txt.length * 6 + 6;
+      out += '<rect x="' + (x - cw / 2) + '" y="' + (y - 9) + '" width="' + cw +
+        '" height="12" rx="2" fill="#0d1117" opacity="0.8"/>' +
+        '<text x="' + x + '" y="' + y + '" fill="' + color +
+        '" font-size="9" text-anchor="middle" font-family="monospace">' + txt + "</text>";
+    }
+    return out;
   }
 
   function overlay(svg) {
@@ -80,6 +109,11 @@
     }
     var lastX = leftPad + (values.length - 1) * xStep;
     var lastY = h - ((values[values.length - 1] - min) / range) * h;
+    // dual time axes: crypto time (green) along the TOP edge, Alpaca/market
+    // time (amber) along the BOTTOM — the two series genuinely live on
+    // different clocks (24/7 vs market hours), so each gets its own
+    axis += timeAxis(pts, 11, GREEN, leftPad, W);
+    axis += timeAxis(cacheA, H - 3, "#d29922", leftPad, W);
     g.innerHTML = axis +
       '<path d="' + d + '" fill="none" stroke="' + GREEN + '" stroke-width="2" ' +
       'stroke-linejoin="round" stroke-linecap="round" opacity="0.95"/>' +
@@ -149,6 +183,7 @@
       '<div class="card"><svg id="crypto-svg" viewBox="0 0 400 200" style="width:100%;height:200px"></svg>' +
       '<div id="crypto-meta" style="font-size:10px;color:#7d8590;margin-top:4px"></div></div>' +
       '<div class="card" id="crypto-stats">loading…</div>' +
+      '<div class="card" id="crypto-intel">loading whale intel…</div>' +
       '<div class="card"><div style="font-size:11px;color:#7d8590;margin-bottom:6px">RECENT CLOSED TRADES</div>' +
       '<table id="crypto-ledger"><tr><th>symbol</th><th>P/L</th><th>%</th><th>reason</th></tr></table></div>';
     document.querySelector(".wrap, body > div") // main container
@@ -191,6 +226,81 @@
 
   function money(v) { return (v < 0 ? "-$" : "$") + Math.abs(v).toFixed(2); }
 
+  function big$(v) {
+    if (v >= 1e9) return "$" + (v / 1e9).toFixed(1) + "B";
+    if (v >= 1e6) return "$" + (v / 1e6).toFixed(1) + "M";
+    if (v >= 1e3) return "$" + (v / 1e3).toFixed(0) + "k";
+    return "$" + Math.round(v);
+  }
+
+  function riskBar(r) {
+    var pct = Math.round(r * 100);
+    var col = r >= 0.5 ? GREEN : "#f85149";
+    return '<div style="background:#21262d;border-radius:4px;height:8px;margin:4px 0">' +
+      '<div style="width:' + pct + '%;background:' + col + ';height:8px;border-radius:4px"></div></div>' +
+      '<div style="font-size:10px;color:#7d8590">risk-on ' + pct + "% — " +
+      (r >= 0.5 ? "big players lean LONG" : "big players lean SHORT/de-risked") + "</div>";
+  }
+
+  function renderIntel(g) {
+    var box = document.getElementById("crypto-intel");
+    if (!box) return;
+    if (!g || !g.legs) {
+      box.innerHTML = '<div style="font-size:11px;color:#7d8590">WHALE INTEL</div>' +
+        '<div style="font-size:12px;margin-top:4px">no composite feed yet</div>';
+      return;
+    }
+    var authority = (g.signal_trades >= 5 && g.distinct_wallets >= 3 && g.signal_usd >= 50000);
+    var htm = '<div style="font-size:11px;color:#7d8590">WHALE INTEL · composite</div>' +
+      '<div style="font-size:20px;font-weight:700" class="' + (g.risk_on >= 0.5 ? "grn" : "") +
+      '"' + (g.risk_on < 0.5 ? ' style="color:#f85149"' : "") + ">" + (g.risk_on * 100).toFixed(0) + "%</div>" +
+      riskBar(g.risk_on) +
+      '<div style="font-size:10px;color:#7d8590;margin:4px 0 8px">' +
+      "evidence: " + g.signal_trades + " positions · " + g.distinct_wallets + " whales · " +
+      big$(g.signal_usd) + " tracked → gate " +
+      (authority ? '<b style="color:' + GREEN + '">ARMED</b>'
+                 : "<b>advisory only</b> (thin)") + "</div>";
+    var L = g.legs;
+    if (L.hyperliquid) {
+      var hl = L.hyperliquid;
+      htm += '<div style="border-top:1px solid #21262d;padding-top:6px;margin-top:2px;font-size:11px">' +
+        "<b>🐋 Hyperliquid top traders</b> — " + hl.distinct_wallets + " whales, " +
+        hl.signal_trades + " positions, long " + big$(hl.long_usd) + " / short " + big$(hl.short_usd) + "</div>";
+      var cb = hl.coin_bias || {};
+      var coins = Object.keys(cb).sort(function (a, b) {
+        return (cb[b].long_usd + cb[b].short_usd) - (cb[a].long_usd + cb[a].short_usd);
+      }).slice(0, 5);
+      coins.forEach(function (c) {
+        var b = cb[c];
+        var r = b.net_long_ratio;
+        htm += '<div style="font-size:10px;color:#7d8590;margin-left:12px">' + c + ": " +
+          b.traders_long + "L/" + b.traders_short + "S · " +
+          (r == null ? "—" : (r >= 0.5 ? '<span style="color:' + GREEN + '">' : '<span style="color:#f85149">') +
+            Math.round(r * 100) + "% long</span>") + " · " + big$(b.long_usd + b.short_usd) + "</div>";
+      });
+    }
+    if (L.dune) {
+      htm += '<div style="border-top:1px solid #21262d;padding-top:6px;margin-top:6px;font-size:11px">' +
+        "<b>🔍 On-chain smart money (Dune)</b> — " + L.dune.signal_trades + " trades, " +
+        L.dune.distinct_wallets + " wallets, " + big$(L.dune.signal_usd) +
+        " · risk-on " + Math.round(L.dune.risk_on * 100) + "%</div>";
+    }
+    if (L.social) {
+      var d = L.social.detail || {};
+      htm += '<div style="border-top:1px solid #21262d;padding-top:6px;margin-top:6px;font-size:11px">' +
+        "<b>💬 Sentiment</b> (mood only, never arms the gate) — " +
+        (d.fear_greed != null ? "Fear&Greed " + d.fear_greed + "/100" : "") +
+        (d.trending ? " · trending: " + d.trending.slice(0, 5).join(" ") : "") + "</div>";
+      if (d.reddit_buzz && Object.keys(d.reddit_buzz).length) {
+        htm += '<div style="font-size:10px;color:#7d8590;margin-left:12px">reddit buzz: ' +
+          Object.keys(d.reddit_buzz).map(function (c) { return c + "(" + d.reddit_buzz[c] + ")"; }).join(" ") + "</div>";
+      }
+    }
+    htm += '<div style="font-size:9px;color:#484f58;margin-top:6px">updated ' +
+      (g.asof || "?").replace("T", " ").slice(0, 16) + "Z</div>";
+    box.innerHTML = htm;
+  }
+
   function refreshPane() {
     jget("/api/equity/crypto_sleeve?period=ALL").then(function (pts) {
       drawCryptoChart(document.getElementById("crypto-svg"), pts);
@@ -221,6 +331,7 @@
         (s.frozen ? '<span style="color:#f85149">FROZEN</span>' : '<span class="grn">ACTIVE</span>') + "</div></div>" +
         '<div class="stat"><div class="k">WHALE GATE</div><div class="v" style="font-size:12px">' + gate + "</div></div>" +
         '<div style="margin-top:6px">' + (posHtml || '<span style="color:#7d8590;font-size:12px">no open positions</span>') + "</div>";
+      renderIntel(s.gate);
       var tbl = document.getElementById("crypto-ledger");
       if (tbl) {
         tbl.innerHTML = "<tr><th>symbol</th><th>P/L</th><th>%</th><th>reason</th></tr>" +

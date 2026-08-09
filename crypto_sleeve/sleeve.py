@@ -1,24 +1,31 @@
 #!/usr/bin/env python3
-"""D39 live crypto sleeve — whale-gated momentum on Alpaca crypto (BTC/ETH/SOL).
+"""D39 live crypto sleeve — whale-gated momentum, broker-pluggable (Kraken/Alpaca).
 
 Rails (DIRECTIVES.md D39): $50 hard cap, freeze + liquidate at sleeve P/L
 <= -$15, per-trade ledger in state/closed_trades.csv (D7-scoreable).
 Entries need EMA momentum AND (whale risk-on gate OR stale whale feed).
-While the account's crypto_status is INACTIVE the loop idles and pings
-Robert (action, repeat-suppressed 24h) to sign the Alpaca crypto agreement.
+
+config.json "broker" selects the venue:
+  kraken — needs ~/kraken.env (KRAKEN_API_KEY / KRAKEN_API_SECRET, no
+           withdrawal permission). Trades the moment the key exists.
+  alpaca — needs live crypto_status ACTIVE (crypto agreement signed).
+Missing credentials/agreement -> idle + repeat-suppressed P4 ping.
 
 Runs every 5 min via launchd com.quarki3.crypto-sleeve (Mac interim host;
 migrate to VM alongside the rest of the stack when SSH access returns).
 """
 from __future__ import annotations
 
+import base64
 import csv
+import hashlib
+import hmac
 import json
 import sys
 import time
 import urllib.parse
 import urllib.request
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 
 HOME = Path.home()
@@ -27,8 +34,6 @@ STATE_F = ROOT / "state" / "sleeve_state.json"
 LEDGER_F = ROOT / "state" / "closed_trades.csv"
 WHALE_F = ROOT / "state" / "whale_signals.json"
 CFG = json.loads((ROOT / "config.json").read_text())
-
-DATA_BASE = "https://data.alpaca.markets"
 
 sys.path.insert(0, str(HOME / "bin"))
 try:
@@ -42,34 +47,196 @@ def log(msg: str) -> None:
     print(f"{datetime.now(timezone.utc).isoformat(timespec='seconds')} {msg}", flush=True)
 
 
-def load_env() -> dict:
+def read_env(path: str) -> dict:
     env = {}
-    for line in Path(CFG["env_file"]).expanduser().read_text().splitlines():
+    p = Path(path).expanduser()
+    if not p.exists():
+        return env
+    for line in p.read_text().splitlines():
         line = line.strip()
         if "=" in line and not line.startswith("#"):
             k, _, v = line.partition("=")
             env[k.strip().replace("export ", "")] = v.strip().strip('"').strip("'")
-    key = next(v for k, v in env.items() if "KEY" in k.upper() and "SECRET" not in k.upper())
-    sec = next(v for k, v in env.items() if "SECRET" in k.upper())
-    base = next((v for k, v in env.items() if "URL" in k.upper() or "BASE" in k.upper()),
-                "https://api.alpaca.markets")
-    return {"key": key, "sec": sec, "base": base.rstrip("/")}
+    return env
 
 
-ENV = load_env()
-HDR = {"APCA-API-KEY-ID": ENV["key"], "APCA-API-SECRET-KEY": ENV["sec"],
-       "Content-Type": "application/json"}
+def ema(vals: list[float], n: int) -> float:
+    k = 2 / (n + 1)
+    e = vals[0]
+    for v in vals[1:]:
+        e = v * k + e * (1 - k)
+    return e
 
 
-def api(path: str, method: str = "GET", body: dict | None = None, base: str | None = None):
-    url = (base or ENV["base"]) + path
-    data = json.dumps(body).encode() if body is not None else None
-    req = urllib.request.Request(url, data=data, headers=HDR, method=method)
-    with urllib.request.urlopen(req, timeout=20) as r:
-        raw = r.read()
-    return json.loads(raw) if raw else None
+# ---------------------------------------------------------------- brokers
+class Position:
+    def __init__(self, symbol: str, qty: float, cur: float, entry: float, notional: float):
+        self.symbol = symbol          # canonical "BTC/USD"
+        self.qty = qty
+        self.current_price = cur
+        self.entry_price = entry
+        self.notional = notional or qty * entry
+        self.market_value = qty * cur
+        self.unrealized_pl = self.market_value - self.notional
 
 
+class KrakenBroker:
+    """Spot only. Kraken has balances, not positions — entry prices come from
+    sleeve state; an untracked balance inherits current price as entry."""
+    PAIR = {"BTC/USD": "XBTUSD", "ETH/USD": "ETHUSD", "SOL/USD": "SOLUSD"}
+    ASSET = {"BTC/USD": ("XXBT", "XBT.F"), "ETH/USD": ("XETH", "ETH.F"),
+             "SOL/USD": ("SOL", "SOL.F")}
+    BASE = "https://api.kraken.com"
+
+    def __init__(self):
+        env = read_env(CFG.get("kraken_env_file", "~/kraken.env"))
+        self.key = env.get("KRAKEN_API_KEY", "")
+        self.sec = env.get("KRAKEN_API_SECRET", "")
+
+    def _pub(self, path: str, params: dict) -> dict:
+        url = f"{self.BASE}{path}?{urllib.parse.urlencode(params)}"
+        with urllib.request.urlopen(url, timeout=20) as r:
+            out = json.load(r)
+        if out.get("error"):
+            raise RuntimeError(f"kraken {path}: {out['error']}")
+        return out["result"]
+
+    def _priv(self, path: str, params: dict | None = None) -> dict:
+        params = dict(params or {})
+        params["nonce"] = str(int(time.time() * 1000))
+        post = urllib.parse.urlencode(params)
+        digest = hashlib.sha256((params["nonce"] + post).encode()).digest()
+        mac = hmac.new(base64.b64decode(self.sec), path.encode() + digest, hashlib.sha512)
+        req = urllib.request.Request(
+            self.BASE + path, data=post.encode(),
+            headers={"API-Key": self.key, "API-Sign": base64.b64encode(mac.digest()).decode(),
+                     "Content-Type": "application/x-www-form-urlencoded"})
+        with urllib.request.urlopen(req, timeout=20) as r:
+            out = json.load(r)
+        if out.get("error"):
+            raise RuntimeError(f"kraken {path}: {out['error']}")
+        return out["result"]
+
+    def ready(self, st: dict, suppressed) -> bool:
+        if not self.key or not self.sec:
+            suppressed(st, "kraken_key", "action", "Crypto sleeve waiting on a Kraken API key",
+                       "The sleeve is pointed at your Kraken account but ~/kraken.env doesn't "
+                       "exist yet. On kraken.com: Settings > API > Create key with permissions "
+                       "'Query funds' and 'Create & modify orders' (NOT withdrawals), then save "
+                       "it on the Mac as ~/kraken.env with lines KRAKEN_API_KEY=... and "
+                       "KRAKEN_API_SECRET=... — it starts trading within 5 minutes.")
+            log("idle: no kraken API key (~/kraken.env missing)")
+            return False
+        return True
+
+    def price(self, symbol: str) -> float:
+        t = self._pub("/0/public/Ticker", {"pair": self.PAIR[symbol]})
+        return float(next(iter(t.values()))["c"][0])
+
+    def closes(self, symbol: str) -> list[float]:
+        r = self._pub("/0/public/OHLC", {"pair": self.PAIR[symbol], "interval": 60})
+        rows = next(v for k, v in r.items() if k != "last")
+        return [float(x[4]) for x in rows]
+
+    def cash(self) -> float:
+        bal = self._priv("/0/private/Balance")
+        return sum(float(bal.get(a, 0)) for a in ("ZUSD", "USD", "USD.F"))
+
+    def positions(self, st: dict) -> list[Position]:
+        bal = self._priv("/0/private/Balance")
+        out = []
+        for sym in CFG["universe"]:
+            qty = sum(float(bal.get(a, 0)) for a in self.ASSET[sym])
+            if qty <= 0:
+                continue
+            cur = self.price(sym)
+            if qty * cur < 2:          # dust
+                continue
+            meta = st["positions"].get(sym, {})
+            entry = float(meta.get("entry_price") or cur)
+            out.append(Position(sym, qty, cur, entry, float(meta.get("notional") or 0)))
+        return out
+
+    def buy(self, symbol: str, usd: float) -> float:
+        price = self.price(symbol)
+        vol = round(usd / price, 8)
+        self._priv("/0/private/AddOrder",
+                   {"pair": self.PAIR[symbol], "type": "buy",
+                    "ordertype": "market", "volume": f"{vol:.8f}"})
+        return price
+
+    def close(self, pos: Position) -> None:
+        self._priv("/0/private/AddOrder",
+                   {"pair": self.PAIR[pos.symbol], "type": "sell",
+                    "ordertype": "market", "volume": f"{pos.qty:.8f}"})
+
+
+class AlpacaBroker:
+    DATA = "https://data.alpaca.markets"
+
+    def __init__(self):
+        env = read_env(CFG.get("env_file", "~/alpaca_live.env"))
+        self.key = next(v for k, v in env.items() if "KEY" in k.upper() and "SECRET" not in k.upper())
+        self.sec = next(v for k, v in env.items() if "SECRET" in k.upper())
+        self.base = next((v for k, v in env.items() if "URL" in k.upper() or "BASE" in k.upper()),
+                         "https://api.alpaca.markets").rstrip("/")
+        self.hdr = {"APCA-API-KEY-ID": self.key, "APCA-API-SECRET-KEY": self.sec,
+                    "Content-Type": "application/json"}
+
+    def _req(self, path, method="GET", body=None, base=None):
+        data = json.dumps(body).encode() if body is not None else None
+        req = urllib.request.Request((base or self.base) + path, data=data,
+                                     headers=self.hdr, method=method)
+        with urllib.request.urlopen(req, timeout=20) as r:
+            raw = r.read()
+        return json.loads(raw) if raw else None
+
+    def ready(self, st: dict, suppressed) -> bool:
+        acct = self._req("/v2/account")
+        if acct.get("crypto_status") != "ACTIVE":
+            suppressed(st, "crypto_inactive", "action", "Crypto sleeve waiting on you",
+                       "Alpaca still hasn't got crypto enabled (crypto agreement unsigned). "
+                       "Sign it in the Alpaca dashboard, or keep using the Kraken leg.")
+            log(f"idle: alpaca crypto_status={acct.get('crypto_status')}")
+            return False
+        self._acct = acct
+        return True
+
+    def cash(self) -> float:
+        return float(self._acct.get("non_marginable_buying_power") or self._acct.get("cash") or 0)
+
+    def closes(self, symbol: str) -> list[float]:
+        q = urllib.parse.urlencode({"symbols": symbol, "timeframe": CFG["bar_timeframe"],
+                                    "limit": 80, "sort": "desc"})
+        rows = self._req(f"/v1beta3/crypto/us/bars?{q}", base=self.DATA)["bars"].get(symbol, [])
+        rows.reverse()
+        return [float(r["c"]) for r in rows]
+
+    def positions(self, st: dict) -> list[Position]:
+        out = []
+        for p in self._req("/v2/positions"):
+            if p.get("asset_class") != "crypto":
+                continue
+            flat = p["symbol"]
+            sym = f"{flat[:-3]}/{flat[-3:]}"
+            meta = st["positions"].get(sym, {})
+            entry = float(meta.get("entry_price") or p["avg_entry_price"])
+            out.append(Position(sym, float(p["qty"]), float(p["current_price"]),
+                                entry, float(meta.get("notional") or p["cost_basis"])))
+        return out
+
+    def buy(self, symbol: str, usd: float) -> float:
+        price = self.closes(symbol)[-1]
+        self._req("/v2/orders", method="POST",
+                  body={"symbol": symbol, "notional": f"{usd:.2f}", "side": "buy",
+                        "type": "market", "time_in_force": "gtc"})
+        return price
+
+    def close(self, pos: Position) -> None:
+        self._req(f"/v2/positions/{pos.symbol.replace('/', '')}", method="DELETE")
+
+
+# ---------------------------------------------------------------- engine
 def load_state() -> dict:
     if STATE_F.exists():
         return json.loads(STATE_F.read_text())
@@ -86,42 +253,20 @@ def suppressed_notify(st: dict, key: str, level: str, title: str, msg: str,
                       hours: float = 24.0) -> None:
     """D28: first occurrence pings once, persisting condition re-pings every `hours`."""
     now = time.time()
-    last = st["last_notified"].get(key, 0)
-    if now - last >= hours * 3600:
+    if now - st["last_notified"].get(key, 0) >= hours * 3600:
         notify(level, title, msg)
         st["last_notified"][key] = now
 
 
-def bars(symbol: str, limit: int = 80) -> list[dict]:
-    q = urllib.parse.urlencode({"symbols": symbol, "timeframe": CFG["bar_timeframe"],
-                                "limit": limit, "sort": "desc"})
-    out = api(f"/v1beta3/crypto/us/bars?{q}", base=DATA_BASE)
-    rows = out.get("bars", {}).get(symbol, [])
-    rows.reverse()  # oldest first
-    return rows
-
-
-def ema(vals: list[float], n: int) -> float:
-    k = 2 / (n + 1)
-    e = vals[0]
-    for v in vals[1:]:
-        e = v * k + e * (1 - k)
-    return e
-
-
-def momentum_signal(symbol: str) -> tuple[bool, float]:
-    rows = bars(symbol)
-    if len(rows) < CFG["ema_slow"] + 2:
-        return False, 0.0
-    closes = [float(r["c"]) for r in rows]
-    fast, slow = ema(closes, CFG["ema_fast"]), ema(closes, CFG["ema_slow"])
+def momentum_ok(closes: list[float]) -> bool:
+    if len(closes) < CFG["ema_slow"] + 2:
+        return False
     day_ago = closes[-25] if len(closes) >= 25 else closes[0]
-    ok = fast > slow and closes[-1] > day_ago
-    return ok, closes[-1]
+    return ema(closes, CFG["ema_fast"]) > ema(closes, CFG["ema_slow"]) and closes[-1] > day_ago
 
 
 def whale_gate() -> tuple[bool, str]:
-    """(entries_allowed, mode). Stale/no feed -> momentum-only fallback."""
+    """(entries_allowed, mode). Stale/empty/missing feed -> momentum-only fallback."""
     try:
         w = json.loads(WHALE_F.read_text())
         asof = datetime.fromisoformat(w["asof"])
@@ -155,45 +300,36 @@ def append_ledger(row: dict) -> None:
         w.writerow(row)
 
 
-def close_position(pos: dict, st: dict, reason: str) -> None:
-    sym_flat = pos["symbol"]                       # e.g. BTCUSD
-    api(f"/v2/positions/{sym_flat}", method="DELETE")
-    meta = st["positions"].pop(sym_flat, {})
-    entry = float(meta.get("entry_price") or pos["avg_entry_price"])
-    exit_p = float(pos["current_price"])
-    notional = float(meta.get("notional") or pos["cost_basis"])
-    pl = float(pos["unrealized_pl"])
+def close_position(broker, pos: Position, st: dict, reason: str) -> None:
+    broker.close(pos)
+    meta = st["positions"].pop(pos.symbol, {})
     append_ledger({"closed_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-                   "symbol": sym_flat, "entry_time": meta.get("opened", ""),
-                   "entry_price": f"{entry:.4f}", "exit_price": f"{exit_p:.4f}",
-                   "notional": f"{notional:.2f}", "realized_pl": f"{pl:.4f}",
-                   "pl_pct": f"{pl / notional:.4f}" if notional else "0",
+                   "symbol": pos.symbol, "entry_time": meta.get("opened", ""),
+                   "entry_price": f"{pos.entry_price:.4f}",
+                   "exit_price": f"{pos.current_price:.4f}",
+                   "notional": f"{pos.notional:.2f}",
+                   "realized_pl": f"{pos.unrealized_pl:.4f}",
+                   "pl_pct": f"{pos.unrealized_pl / pos.notional:.4f}" if pos.notional else "0",
                    "reason": reason, "signal_mode": meta.get("signal_mode", "?")})
-    log(f"CLOSED {sym_flat} reason={reason} pl={pl:+.2f}")
+    log(f"CLOSED {pos.symbol} reason={reason} pl={pos.unrealized_pl:+.2f}")
 
 
 def main() -> None:
     st = load_state()
+    broker = KrakenBroker() if CFG.get("broker", "kraken") == "kraken" else AlpacaBroker()
 
-    acct = api("/v2/account")
-    if acct.get("crypto_status") != "ACTIVE":
-        suppressed_notify(st, "crypto_inactive", "action", "Crypto sleeve waiting on you",
-                          "The crypto sleeve is installed and ready, but the Alpaca account "
-                          "can't trade crypto until you sign the crypto agreement. Open the "
-                          "Alpaca web dashboard > Account and accept the crypto agreement. "
-                          "The sleeve starts trading automatically once it's active.")
+    if not broker.ready(st, suppressed_notify):
         save_state(st)
-        log(f"idle: crypto_status={acct.get('crypto_status')}")
         return
 
     if not st.get("seen_active"):
         st["seen_active"] = True
         notify("info", "Crypto sleeve is LIVE",
-               "The Alpaca crypto agreement is signed and the sleeve is now active. "
-               "It will start buying as soon as settled cash is available and "
-               "momentum/whale signals line up — entries get logged silently.")
+               f"The sleeve is connected to {CFG.get('broker', 'kraken')} and active. "
+               "It buys when momentum/whale signals line up and cash is available; "
+               "entries get logged silently, rails page you.")
 
-    positions = [p for p in api("/v2/positions") if p.get("asset_class") == "crypto"]
+    positions = broker.positions(st)
 
     if st.get("frozen"):
         suppressed_notify(st, "frozen", "action", "Crypto sleeve is FROZEN",
@@ -205,63 +341,53 @@ def main() -> None:
         log("idle: frozen")
         return
 
-    unreal = sum(float(p["unrealized_pl"]) for p in positions)
-    sleeve_pl = realized_total() + unreal
+    sleeve_pl = realized_total() + sum(p.unrealized_pl for p in positions)
     if sleeve_pl <= CFG["freeze_pnl_usd"]:
         for p in positions:
-            close_position(p, st, "freeze_liquidation")
+            close_position(broker, p, st, "freeze_liquidation")
         st["frozen"] = True
         notify("action", "Crypto sleeve froze at its loss rail",
                f"Sleeve P/L hit {sleeve_pl:+.2f} (rail {CFG['freeze_pnl_usd']:+.0f}). "
-               "All crypto positions were liquidated and the sleeve is halted until "
-               "you review it. Nothing else in the account was touched.")
+               "All sleeve positions were liquidated and it is halted until you review "
+               "it. Nothing else was touched.")
         save_state(st)
         return
 
-    # ---- exits on open positions ----
+    # ---- exits ----
+    still_open = []
     for p in positions:
-        sym_flat = p["symbol"]
-        meta = st["positions"].get(sym_flat, {})
-        entry = float(meta.get("entry_price") or p["avg_entry_price"])
-        cur = float(p["current_price"])
-        chg = cur / entry - 1
-        slash_sym = meta.get("slash_symbol") or f"{sym_flat[:-3]}/{sym_flat[-3:]}"
-        mom_ok, _ = momentum_signal(slash_sym)
+        chg = p.current_price / p.entry_price - 1
         if chg <= CFG["stop_pct"]:
-            close_position(p, st, "stop")
+            close_position(broker, p, st, "stop")
         elif chg >= CFG["take_pct"]:
-            close_position(p, st, "take_profit")
-        elif not mom_ok:
-            close_position(p, st, "momentum_flip")
+            close_position(broker, p, st, "take_profit")
+        elif not momentum_ok(broker.closes(p.symbol)):
+            close_position(broker, p, st, "momentum_flip")
+        else:
+            still_open.append(p)
 
-    # refresh after exits
-    positions = [p for p in api("/v2/positions") if p.get("asset_class") == "crypto"]
-    deployed = sum(float(p["market_value"]) for p in positions)
-    held_flat = {p["symbol"] for p in positions}
+    deployed = sum(p.market_value for p in still_open)
+    held = {p.symbol for p in still_open}
 
     # ---- entries ----
     allowed, mode = whale_gate()
-    cash_avail = float(acct.get("non_marginable_buying_power") or acct.get("cash") or 0)
+    cash_avail = broker.cash()
     room = CFG["cap_total_usd"] - deployed
     log(f"pl={sleeve_pl:+.2f} deployed={deployed:.2f} room={room:.2f} "
         f"cash={cash_avail:.2f} gate={mode}")
 
     if allowed:
         for sym in CFG["universe"]:
-            flat = sym.replace("/", "")
-            if flat in held_flat:
+            if sym in held:
                 continue
             size = min(CFG["per_trade_usd"], room, cash_avail - 0.5)
             if size < CFG["min_order_usd"]:
                 break
-            mom_ok, price = momentum_signal(sym)
-            if not mom_ok:
+            if not momentum_ok(broker.closes(sym)):
                 continue
-            api("/v2/orders", method="POST",
-                body={"symbol": sym, "notional": f"{size:.2f}", "side": "buy",
-                      "type": "market", "time_in_force": "gtc"})
-            st["positions"][flat] = {
-                "slash_symbol": sym, "entry_price": price, "notional": size,
+            price = broker.buy(sym, size)
+            st["positions"][sym] = {
+                "entry_price": price, "notional": size,
                 "opened": datetime.now(timezone.utc).isoformat(timespec="seconds"),
                 "signal_mode": mode}
             room -= size

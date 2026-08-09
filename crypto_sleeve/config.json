@@ -1,4 +1,6 @@
 {
+  "broker": "kraken",
+  "kraken_env_file": "~/kraken.env",
   "universe": ["BTC/USD", "ETH/USD", "SOL/USD"],
   "cap_total_usd": 50.0,
   "per_trade_usd": 16.0,

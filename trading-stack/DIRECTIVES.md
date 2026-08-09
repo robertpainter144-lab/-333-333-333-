@@ -338,7 +338,9 @@ Last full revision: 2026-07-29.
 
 - **D39 — Live crypto sleeve, $50 cap (2026-08-09).** Robert's second
   sanctioned live experiment sleeve (turbo-arm pattern): whale-gated
-  momentum on Alpaca crypto (BTC/ETH/SOL), engine at `~/crypto_sleeve/`
+  momentum on crypto spot (BTC/ETH/SOL), broker-pluggable — PRIMARY VENUE
+  KRAKEN (Robert's existing account; Alpaca leg dormant, blocked on their
+  missing crypto agreement UI as of 2026-08-09), engine at `~/crypto_sleeve/`
   (Mac interim host, launchd `com.quarki3.crypto-sleeve` 5-min +
   `com.quarki3.crypto-whale-refresh` 6h; migrate to VM with the stack).
   Rails: $50 aggregate hard cap, $16/position, stop −8% / take +15%,

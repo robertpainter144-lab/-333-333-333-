@@ -34,11 +34,17 @@ if not feed:
     sys.exit(0)
 
 buys = derisk = major_buys = 0.0
+signal_trades = 0
+wallets = set()
 for r in feed:
     bought, sold = r.get("bought_symbol", ""), r.get("sold_symbol", "")
     usd = r.get("amount_usd", 0) or 0
     if bought in STABLES and sold in STABLES:
-        continue
+        continue                    # treasury shuffle, no direction
+    if bought in MAJORS and sold in MAJORS:
+        continue                    # wrap/rotation (ETH->WETH, BTC->ETH): no net risk change
+    signal_trades += 1
+    wallets.add(r.get("wallet", "?"))
     if bought in STABLES:
         derisk += usd
     else:
@@ -50,7 +56,9 @@ risk_on = buys / max(buys + derisk, 1)
 out = {"asof": datetime.now(timezone.utc).isoformat(timespec="seconds"),
        "risk_on": round(risk_on, 4),
        "real_buys_usd": round(buys), "derisk_usd": round(derisk),
-       "major_buys_usd": round(major_buys), "rows": len(feed)}
+       "major_buys_usd": round(major_buys), "rows": len(feed),
+       "signal_trades": signal_trades, "distinct_wallets": len(wallets),
+       "signal_usd": round(buys + derisk)}
 tmp = OUT.with_suffix(".tmp")
 tmp.write_text(json.dumps(out, indent=2))
 tmp.replace(OUT)

@@ -280,6 +280,17 @@ def whale_gate() -> tuple[bool, str]:
             return True, "momentum-only (whale feed stale %.0fh)" % age_h
         if not w.get("rows"):
             return True, "momentum-only (whale feed empty)"
+        # Minimum-evidence rule: the gate only gets authority over live entries
+        # when the signal has breadth. A sample of one wallet's single trade
+        # (or a batch of pure stable/wrap shuffles) must never block trading.
+        n = w.get("signal_trades", w.get("rows", 0))
+        wallets = w.get("distinct_wallets", 1)
+        vol = w.get("signal_usd", w.get("real_buys_usd", 0) + w.get("derisk_usd", 0))
+        if (n < CFG.get("whale_min_trades", 5)
+                or wallets < CFG.get("whale_min_wallets", 3)
+                or vol < CFG.get("whale_min_usd", 50000)):
+            return True, ("momentum-only (whale signal thin: n=%d wallets=%d vol=$%d)"
+                          % (n, wallets, vol))
         if w["risk_on"] >= CFG["whale_gate_min_risk_on"]:
             return True, "whale-confirmed (risk_on=%.2f)" % w["risk_on"]
         return False, "whale-blocked (risk_on=%.2f)" % w["risk_on"]

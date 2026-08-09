@@ -1,8 +1,11 @@
 {
-  "asof": "2026-08-09T21:50:03+00:00",
+  "asof": "2026-08-09T22:05:59+00:00",
   "risk_on": 0.0,
   "real_buys_usd": 0,
   "derisk_usd": 17448,
   "major_buys_usd": 0,
-  "rows": 1
+  "rows": 1,
+  "signal_trades": 1,
+  "distinct_wallets": 1,
+  "signal_usd": 17448
 }

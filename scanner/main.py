@@ -12,34 +12,49 @@ import time
 import traceback
 from pathlib import Path
 
-from sources import hyperliquid, solana, breadth, evm, cex_bridge, prop_desk
-from sources import auto_tune_source, watchdog, qc_mirror, patent_mirror, combined_mirror
-from sources import autopilot_mirror, autopilot_feed
-from sources import congress_feed, congress_mirror
-from sources import strategy_governor, value_screen, context_watcher, edge_ledger
+import importlib
 from signals import log_tick, STATEDIR
 
-SOURCES = [
-    ("prop_desk",   prop_desk.tick,          15),   # multi-strategy prop-desk-lite
-    ("auto_tune",   auto_tune_source.tick, 5 * 60), # self-teaching brain
-    ("watchdog",    watchdog.tick,          60),    # self-heal + surface anomalies
-    ("qc_mirror",       qc_mirror.tick,        5 * 60),  # QC-only mirror (kept for reference)
-    ("patent_mirror",   patent_mirror.tick,   30 * 60),  # patent picks mirror
-    ("combined_mirror", combined_mirror.tick,  5 * 60),  # ENSEMBLE — the target for $50 real money
-    ("autopilot_mirror", autopilot_mirror.tick, 5 * 60),  # Autopilot 'Actively Managed' paper mirror
-    ("autopilot_feed",   autopilot_feed.tick,  30 * 60),  # Robinhood sensor → autopilot_holdings.json
-    ("congress_feed",    congress_feed.tick,   60 * 60),  # House Clerk PTRs → congress_holdings.json
-    ("congress_mirror",  congress_mirror.tick,  5 * 60),  # Pelosi PTR paper mirror
-    ("strategy_governor", strategy_governor.tick, 15 * 60),  # rank paper vs live; flag winners
-    ("edge_ledger", edge_ledger.tick, 15 * 60),  # aggregate proven-edge verdict per strategy
-    ("value_screen",    value_screen.tick,      6 * 3600),  # dad's value rules, ~6h cadence
-    ("context_watcher", context_watcher.tick,   30 * 60),   # keep CONTEXT.md honest
-    ("hyperliquid", hyperliquid.tick,   2 * 60),
-    ("solana",      solana.tick,        5 * 60),
-    ("breadth",     breadth.tick,       5 * 60),
-    ("evm",         evm.tick,          10 * 60),
-    ("cex_bridge",  cex_bridge.tick,   10 * 60),
+# (name, module, fn, cadence). Imported LAZILY in _load_sources so a host that
+# only runs a subset (SCANNER_ONLY) never imports the others — and a source
+# whose local module/dep is missing is skipped, not fatal.
+_SOURCE_SPECS = [
+    ("prop_desk",        "prop_desk",         "tick", 15),
+    ("auto_tune",        "auto_tune_source",  "tick", 5 * 60),
+    ("watchdog",         "watchdog",          "tick", 60),
+    ("qc_mirror",        "qc_mirror",         "tick", 5 * 60),
+    ("patent_mirror",    "patent_mirror",     "tick", 30 * 60),
+    ("combined_mirror",  "combined_mirror",   "tick", 5 * 60),
+    ("autopilot_mirror", "autopilot_mirror",  "tick", 5 * 60),
+    ("autopilot_feed",   "autopilot_feed",    "tick", 30 * 60),
+    ("congress_feed",    "congress_feed",     "tick", 60 * 60),
+    ("congress_mirror",  "congress_mirror",   "tick", 5 * 60),
+    ("strategy_governor","strategy_governor", "tick", 15 * 60),
+    ("edge_ledger",      "edge_ledger",       "tick", 15 * 60),
+    ("value_screen",     "value_screen",      "tick", 6 * 3600),
+    ("context_watcher",  "context_watcher",   "tick", 30 * 60),
+    ("hyperliquid",      "hyperliquid",       "tick", 2 * 60),
+    ("solana",           "solana",            "tick", 5 * 60),
+    ("breadth",          "breadth",           "tick", 5 * 60),
+    ("evm",              "evm",               "tick", 10 * 60),
+    ("cex_bridge",       "cex_bridge",        "tick", 10 * 60),
 ]
+
+
+def _load_sources(keep):
+    """Import the sources we intend to run. keep=None -> all; else a name set.
+    A source whose import fails (missing local module/dep) is skipped, so one
+    bad source can't crash the orchestrator."""
+    out = []
+    for name, mod, fn, cad in _SOURCE_SPECS:
+        if keep is not None and name not in keep:
+            continue
+        try:
+            m = importlib.import_module(f"sources.{mod}")
+            out.append((name, getattr(m, fn), cad))
+        except Exception as e:
+            print(f"[scanner] skip source '{name}': {e!r}", flush=True)
+    return out
 
 STATEDIR.mkdir(exist_ok=True)
 LOGF = STATEDIR / "orchestrator.log"
@@ -77,10 +92,8 @@ def main():
     # the GCP e2-micro that only needs the mirror/governor panels, not the full
     # crypto/prop-desk sweep). Empty/unset = all sources.
     _only = os.environ.get("SCANNER_ONLY", "").strip()
-    sources = SOURCES
-    if _only:
-        _keep = {s.strip() for s in _only.split(",") if s.strip()}
-        sources = [s for s in SOURCES if s[0] in _keep]
+    _keep = {s.strip() for s in _only.split(",") if s.strip()} if _only else None
+    sources = _load_sources(_keep)
 
     if args.once:
         for name, fn, _ in sources:

@@ -851,3 +851,20 @@ turbo arm), 333 app repoint (other window, v3.2), final upstream333 clean
 check. ACCEPTED GAP: no dead-man's switch watches quarki-stack while Mac
 is off (Mac was the pager) — queue GCP uptime check. Pre-existing: SPY
 overlay scheduler homeless since Oracle died — queue on quarki-stack.
+
+## 2026-08-09 — Trimmed paper scanner for the GCP host (empty-panel fix)
+Root cause of the GCP `quarki-stack` scanner crash-loop: `main.py` imported
+ALL sources eagerly at module top, and `sources/evm.py:19` imports a local
+module `curated_wallets` that isn't in the repo → `ModuleNotFoundError` took
+down the whole orchestrator, so governor/QC/mirror panels stayed empty.
+Fix (`scanner/main.py`): replaced the eager `from sources import ...` + the
+`SOURCES = [...]` list (function refs) with `_SOURCE_SPECS` (names only) and a
+lazy `_load_sources(keep)` that imports each source on demand and SKIPS any
+whose import fails instead of crashing. `SCANNER_ONLY="a,b,c"` (already read in
+`main()`) now selects the subset to import, so the e2-micro runs only the
+paper/mirror/governor lane — `strategy_governor, combined_mirror(paper),
+qc_mirror, congress_feed, congress_mirror, patent_mirror, autopilot_mirror,
+autopilot_feed, edge_ledger, value_screen` — and never imports the crypto/evm
+sources at all. Verified locally: 10/10 subset sources load, `evm` not
+imported, `py_compile` clean. VM `quarki-scanner.service` runs this with
+`COMBINED_MIRROR_MODE=paper` + `MemoryMax=380M`. Pushed to lab `main`.

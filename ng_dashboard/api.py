@@ -1101,6 +1101,34 @@ _ACTIVITY_DISPATCH = {
     "qcmirror":    lambda m, lim: _activity_qcmirror(lim),
 }
 
+def _crypto_sleeve_dir() -> Path | None:
+    """D39 crypto sleeve state — repo-relative first (VM runs from the lab
+    checkout), home fallback (Mac symlink). Owner-only territory (D1): none of
+    the crypto_sleeve endpoints are in _GUEST_PATHS."""
+    for cand in (Path(__file__).resolve().parent.parent / "crypto_sleeve",
+                 Path.home() / "crypto_sleeve"):
+        if (cand / "state").is_dir():
+            return cand
+    return None
+
+
+def _equity_crypto_sleeve(period: str) -> list[dict]:
+    root = _crypto_sleeve_dir()
+    if root is None or not (root / "state" / "equity.csv").exists():
+        return []
+    import csv as _csv
+    from datetime import datetime as _dt
+    pts = []
+    with (root / "state" / "equity.csv").open() as f:
+        for r in _csv.DictReader(f):
+            try:
+                pts.append({"ts": int(_dt.fromisoformat(r["ts"]).timestamp()),
+                            "equity": float(r["equity"])})
+            except (ValueError, KeyError):
+                continue
+    return _filter_by_period(pts, period)
+
+
 _EQUITY_DISPATCH = {
     "paper":       lambda m, p, tf: _equity_paper(m, p, tf),
     "broker":      lambda m, p, tf: _equity_broker(m, p, tf),
@@ -1108,6 +1136,7 @@ _EQUITY_DISPATCH = {
     "ibkr":        lambda m, p, tf: _equity_ibkr(p),
     "alpaca_live": lambda m, p, tf: _equity_alpaca_live(p),
     "qcmirror":    lambda m, p, tf: _equity_qcmirror(p),
+    "crypto_sleeve": lambda m, p, tf: _equity_crypto_sleeve(p),
 }
 
 
@@ -1424,7 +1453,26 @@ def mount(fastapi_app, main_module) -> None:
     _webapp = _static_dir / "webapp.html"
     if _webapp.exists():
         @fastapi_app.get("/app", include_in_schema=False)
-        def _webapp_html():
+        def _webapp_html(request: Request):
+            # Owner-mode injection (same rules as the Terminal shell): direct
+            # tailnet/localhost (no XFF) or correct owner ?key= gets the
+            # private crypto bundle injected server-side; everyone else gets
+            # the vanilla shell with zero trace of it (D1).
+            key = (request.headers.get("x-api-key")
+                   or request.query_params.get("key"))
+            owner_ok = key == _keys.get("owner")
+            if ("x-forwarded-for" not in request.headers) or owner_ok:
+                try:
+                    from starlette.responses import HTMLResponse
+                    html = _webapp.read_text()
+                    src = "/owner/crypto.js" + (f"?key={key}" if owner_ok and key else "")
+                    html = html.replace(
+                        "</body>", f'<script defer src="{src}"></script></body>')
+                    resp = HTMLResponse(html)
+                    resp.headers["cache-control"] = "no-cache"
+                    return resp
+                except Exception:
+                    pass
             return FileResponse(str(_webapp), media_type="text/html")
 
     # New Quarki Terminal SPA (React, built in ~/trading-gui/dist). Served
@@ -1530,6 +1578,20 @@ def mount(fastapi_app, main_module) -> None:
             if "x-forwarded-for" in request.headers and key != _keys.get("owner"):
                 raise HTTPException(status_code=403)
             resp = FileResponse(str(_owner_cat_js),
+                                media_type="application/javascript")
+            resp.headers["cache-control"] = "no-cache"
+            return resp
+
+    # Owner-private crypto sleeve add-on for the /app webapp (same D1 pattern
+    # as the catalog bundle: private/ dir, key-gated route, never /static).
+    _owner_crypto_js = _private_dir / "owner_crypto.js"
+    if _owner_crypto_js.exists():
+        @fastapi_app.get("/owner/crypto.js", include_in_schema=False)
+        def _owner_crypto_js_route(request: Request):
+            key = request.headers.get("x-api-key") or request.query_params.get("key")
+            if "x-forwarded-for" in request.headers and key != _keys.get("owner"):
+                raise HTTPException(status_code=403)
+            resp = FileResponse(str(_owner_crypto_js),
                                 media_type="application/javascript")
             resp.headers["cache-control"] = "no-cache"
             return resp
@@ -2259,6 +2321,48 @@ def mount(fastapi_app, main_module) -> None:
         if not fn:
             raise HTTPException(404, f"unknown source: {source}")
         return fn(main_module, period, timeframe)
+
+    @fastapi_app.get("/api/crypto_sleeve")
+    def crypto_sleeve_status():
+        """D39 crypto sleeve live status. Owner-only through the public gate
+        (deliberately NOT in _GUEST_PATHS — real-money positions, D1/D31)."""
+        root = _crypto_sleeve_dir()
+        if root is None:
+            return {"available": False}
+        out = {"available": True, "positions": {}, "frozen": False,
+               "realized": 0.0, "gate": None, "config": {}}
+        try:
+            st = json.loads((root / "state" / "sleeve_state.json").read_text())
+            out["positions"] = st.get("positions", {})
+            out["frozen"] = bool(st.get("frozen"))
+        except Exception:
+            pass
+        try:
+            cfg = json.loads((root / "config.json").read_text())
+            out["config"] = {k: cfg.get(k) for k in
+                             ("broker", "universe", "cap_total_usd", "per_trade_usd",
+                              "stop_pct", "take_pct", "freeze_pnl_usd")}
+        except Exception:
+            pass
+        try:
+            out["gate"] = json.loads((root / "state" / "whale_signals.json").read_text())
+        except Exception:
+            pass
+        try:
+            import csv as _csv
+            with (root / "state" / "closed_trades.csv").open() as f:
+                rows = list(_csv.DictReader(f))
+            out["realized"] = round(sum(float(r["realized_pl"]) for r in rows), 4)
+            out["closed_trades"] = rows[-20:]
+        except Exception:
+            out["closed_trades"] = []
+        try:
+            eq = _equity_crypto_sleeve("ALL")
+            if eq:
+                out["equity"] = eq[-1]["equity"]
+        except Exception:
+            pass
+        return out
 
     @fastapi_app.get("/api/transfers/{source}")
     def transfers(source: str):

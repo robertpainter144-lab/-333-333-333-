@@ -1,44 +1,28 @@
 {
   "positions": {
-    "CRV/USD": {
-      "entry_price": 0.2396,
-      "notional": 5.596800000000002,
-      "opened": "2026-08-10T09:49:19+00:00",
-      "signal_mode": "whale-confirmed (risk_on=0.62)",
-      "mv": 5.61,
-      "cur": 0.2415
-    },
-    "AVAX/USD": {
-      "entry_price": 6.539,
-      "notional": 5.8984,
-      "opened": "2026-08-10T12:52:50+00:00",
-      "signal_mode": "whale-confirmed (risk_on=0.57)",
-      "mv": 5.87,
-      "cur": 6.545
-    },
     "PENGU/USD": {
       "entry_price": 0.006677,
       "notional": 5.6671,
       "opened": "2026-08-10T13:03:25+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.57)",
-      "mv": 5.62,
-      "cur": 0.006657
+      "mv": 5.58,
+      "cur": 0.00661
     },
     "VVV/USD": {
       "entry_price": 11.948,
       "notional": 5.8939,
       "opened": "2026-08-10T13:39:17+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.57)",
-      "mv": 5.93,
-      "cur": 12.074
+      "mv": 5.92,
+      "cur": 12.056
     },
     "WLD/USD": {
       "entry_price": 0.3403,
       "notional": 5.7741,
       "opened": "2026-08-10T13:49:43+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.57)",
-      "mv": 5.8,
-      "cur": 0.3435
+      "mv": 5.77,
+      "cur": 0.3417
     }
   },
   "frozen": false,
@@ -48,12 +32,10 @@
   },
   "seen_active": true,
   "targets": {
-    "CRV/USD": 5.6,
-    "AVAX/USD": 5.9,
     "PENGU/USD": 5.67,
     "VVV/USD": 5.89,
     "WLD/USD": 5.77
   },
-  "targets_ts": "2026-08-10T14:46:05+00:00",
+  "targets_ts": "2026-08-10T15:01:26+00:00",
   "targets_gate": "whale-confirmed (risk_on=0.58)"
 }

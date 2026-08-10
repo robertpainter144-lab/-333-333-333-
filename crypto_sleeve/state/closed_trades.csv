@@ -8,3 +8,5 @@ closed_at,symbol,entry_time,entry_price,exit_price,notional,realized_pl,pl_pct,r
 2026-08-10T13:39:08+00:00,SOL/USD,2026-08-09T23:26:46+00:00,76.5600,76.4100,6.00,-0.0417,-0.0069,momentum_flip,whale-confirmed (risk_on=0.58)
 2026-08-10T13:44:19+00:00,XLM/USD,2026-08-10T09:49:18+00:00,0.1638,0.1625,6.00,-0.0763,-0.0127,momentum_flip,whale-confirmed (risk_on=0.62)
 2026-08-10T13:49:35+00:00,FET/USD,2026-08-10T13:44:30+00:00,0.1369,0.1367,5.88,-0.0379,-0.0065,momentum_flip,whale-confirmed (risk_on=0.57)
+2026-08-10T15:01:20+00:00,CRV/USD,2026-08-10T09:49:19+00:00,0.2396,0.2413,5.60,0.0120,0.0021,momentum_flip,whale-confirmed (risk_on=0.62)
+2026-08-10T15:01:21+00:00,AVAX/USD,2026-08-10T12:52:50+00:00,6.5390,6.5140,5.90,-0.0519,-0.0088,momentum_flip,whale-confirmed (risk_on=0.57)

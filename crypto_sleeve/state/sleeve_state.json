@@ -5,8 +5,8 @@
       "notional": 6.0,
       "opened": "2026-08-09T23:26:46+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.58)",
-      "mv": 5.99,
-      "cur": 76.8
+      "mv": 6.0,
+      "cur": 76.99
     },
     "BTC/USD": {
       "entry_price": 64932.9,
@@ -14,15 +14,15 @@
       "opened": "2026-08-10T09:49:17+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.62)",
       "mv": 5.98,
-      "cur": 65030.0
+      "cur": 65053.0
     },
     "XLM/USD": {
       "entry_price": 0.163807,
       "notional": 6.0,
       "opened": "2026-08-10T09:49:18+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.62)",
-      "mv": 5.96,
-      "cur": 0.163525
+      "mv": 5.97,
+      "cur": 0.163696
     },
     "CRV/USD": {
       "entry_price": 0.2396,
@@ -30,15 +30,15 @@
       "opened": "2026-08-10T09:49:19+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.62)",
       "mv": 5.65,
-      "cur": 0.24292
+      "cur": 0.24295
     },
     "SUI/USD": {
       "entry_price": 0.6912,
       "notional": 5.7391,
       "opened": "2026-08-10T10:15:04+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.62)",
-      "mv": 5.74,
-      "cur": 0.6953
+      "mv": 5.75,
+      "cur": 0.6956
     }
   },
   "frozen": false,
@@ -53,10 +53,10 @@
     "XLM/USD": 6.0,
     "SUI/USD": 5.74,
     "CRV/USD": 5.6,
+    "ETH/USD": 6.0,
     "AVAX/USD": 6.0,
-    "PENGU/USD": 6.0,
-    "VVV/USD": 6.0
+    "PENGU/USD": 6.0
   },
-  "targets_ts": "2026-08-10T11:46:46+00:00",
+  "targets_ts": "2026-08-10T12:02:00+00:00",
   "targets_gate": "whale-confirmed (risk_on=0.57)"
 }

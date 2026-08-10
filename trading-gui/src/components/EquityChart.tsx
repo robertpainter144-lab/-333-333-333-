@@ -767,7 +767,7 @@ export default function EquityChart(props: {
       ) : (
         <div
           ref={wrapRef}
-          className="relative h-48 w-full select-none"
+          className="relative h-44 w-full select-none"
           style={{ touchAction: "none" }}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
@@ -778,7 +778,9 @@ export default function EquityChart(props: {
           <canvas ref={canvasRef} className="h-full w-full" />
         </div>
       )}
-      <p className="mt-1 px-2 text-[9px] text-faint md:px-0">
+      {/* gesture hint costs a text row on phones — the whole chart must fit
+          above the fold there, and the gestures are discoverable by now */}
+      <p className="mt-1 hidden px-2 text-[9px] text-faint md:block md:px-0">
         drag to pan · pinch or scroll to zoom · double-tap to reset
         {hasXfers && <> · ▲▼ deposits/withdrawals{net ? " (collapsed — line is trading P/L only)" : " (raw account value)"}</>}
       </p>

@@ -48,10 +48,10 @@
       '<div>' +
       '<div class="text-[10px] uppercase tracking-wider text-muted">' + label +
       ' <span class="text-faint">(' + dateStr + ', ' + $(base) + ')</span></div>' +
-      '<div class="num text-sm font-semibold ' + cls(d) + '">' + arrow(d) + ' ' +
+      '<div class="num whitespace-nowrap text-sm font-semibold ' + cls(d) + '">' + arrow(d) + ' ' +
       signed(d) + ' <span class="opacity-80">(' + (p >= 0 ? '+' : '') + p.toFixed(2) + '%)</span></div>' +
       (netX !== 0
-        ? '<div class="text-[9px] text-faint" title="Adopted holdings are capital in, not P/L">net of +$' + netX.toFixed(2) + ' adopted holdings</div>'
+        ? '<div class="whitespace-nowrap text-[9px] text-faint" title="Adopted holdings are capital in, not P/L">net of +$' + netX.toFixed(2) + ' adopted</div>'
         : '') +
       '</div>'
     );
@@ -63,7 +63,7 @@
     const state = dd >= DD_FREEZE ? 'red' : dd >= DD_AMBER ? 'amber' : 'ok';
     const barColor = state === 'red' ? '#f85149' : state === 'amber' ? '#d29922' : '#3fb950';
     return (
-      '<div class="mt-4">' +
+      '<div class="mt-2">' +
       '<div class="mb-1 flex items-baseline justify-between gap-2">' +
       '<span class="min-w-0 truncate text-[10px] uppercase tracking-wider text-muted" ' +
       'title="D39: sleeve freezes all trading at $' + DD_FREEZE.toFixed(2) + ' off peak">' +
@@ -73,9 +73,9 @@
       $(dd) + ' of ' + $(DD_FREEZE) + '</span></div>' +
       '<div class="h-2 w-full overflow-hidden rounded bg-panel2">' +
       '<div class="h-full rounded" style="width:' + (frac * 100) + '%;background:' + barColor + '"></div></div>' +
-      '<div class="num mt-0.5 flex justify-between text-[9px] text-faint">' +
-      '<span>$0</span><span class="text-amber">' + $(DD_AMBER) + ' amber</span>' +
-      '<span class="text-neg">' + $(DD_FREEZE) + ' freeze</span></div>' +
+      '<div class="num mt-0.5 flex justify-between gap-1 whitespace-nowrap text-[8px] text-faint">' +
+      '<span>$0</span><span class="text-amber">$' + DD_AMBER.toFixed(0) + ' amber</span>' +
+      '<span class="text-neg">$' + DD_FREEZE.toFixed(0) + ' freeze</span></div>' +
       (state === 'red'
         ? '<div role="alert" class="mt-2 rounded border border-neg/50 bg-neg/10 px-2 py-1.5 text-xs font-bold text-neg">⛔ Sleeve frozen — D39 rail hit. No new crypto orders until reviewed.</div>'
         : '') +
@@ -102,15 +102,15 @@
     slot.innerHTML =
       '<section class="h-full rounded-lg border border-bd bg-panel">' +
       '<header class="flex items-center justify-between gap-1 border-b border-bd/60 px-2 py-2">' +
-      '<span class="flex min-w-0 items-center gap-1.5 truncate text-xs font-semibold">' +
+      '<span class="flex min-w-0 items-center gap-2 truncate text-sm font-semibold">' +
       '<span class="h-2 w-2 shrink-0 rounded-full" style="background:' + GREEN + '"></span>' +
       '<span class="truncate">Crypto — Kraken</span></span>' +
       '<span class="num shrink-0 text-[10px] text-faint">' + (ageS < 90 ? ageS + 's' : Math.round(ageS / 60) + 'm') + '</span></header>' +
       '<div class="px-2 py-2">' +
-      '<div><div class="num text-2xl font-bold tracking-tight" style="color:' + GREEN + '">' + $(equity) + '</div>' +
-      '<div class="num mt-0.5 text-[11px] text-muted">unrealized <span class="' + cls(unreal) + '">' +
+      '<div><div class="num text-4xl font-bold tracking-tight" style="color:' + GREEN + '">' + $(equity) + '</div>' +
+      '<div class="num mt-0.5 text-xs text-muted">unrealized <span class="' + cls(unreal) + '">' +
       arrow(unreal) + ' ' + signed(unreal) + '</span></div></div>' +
-      '<div class="mt-2 flex flex-col gap-2">' +
+      '<div class="mt-1.5 flex flex-col gap-1.5">' +
       deltaBlock('vs test baseline', TEST_BASELINE.value, TEST_BASELINE.date, equity, TEST_BASELINE.ts) +
       deltaBlock('vs inception', INCEPTION.value, INCEPTION.date, equity, INCEPTION.ts) +
       '</div>' + gauge(peak, equity) + '</div></section>';
@@ -123,8 +123,27 @@
     }
   }
 
+  // Robert 2026-08-10: the top balance trio is redundant now that both hero
+  // cards sit right below it — keep only the combined TOTAL. The trio is
+  // rendered by owner_crypto.js (another window's file); slimming it here
+  // from the DOM avoids cross-window edit collisions and re-applies if that
+  // bundle re-renders. Idempotent via the hidden style itself.
+  function slimTrio() {
+    // owner_crypto.js's poll rewrites the trio bar's innerHTML every few
+    // seconds, so inline hides get resurrected. A stylesheet rule survives
+    // every rewrite: the bar's tiles are its only children, in fixed order
+    // Alpaca(1) / Crypto(2) / Total(3) — hide the first two for good.
+    if (document.getElementById('qt-slim-trio')) return;
+    const st = document.createElement('style');
+    st.id = 'qt-slim-trio';
+    st.textContent =
+      'div:has(> .qtcy-tri-label):nth-child(-n+2){display:none!important}';
+    document.head.appendChild(st);
+  }
+
   let timer = null;
   async function tick() {
+    slimTrio();
     const slot = document.querySelector('[data-qt-slot="book-crypto-account"]');
     if (!slot) return; // not on the Book page right now
     try {

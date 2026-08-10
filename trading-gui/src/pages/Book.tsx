@@ -156,7 +156,7 @@ function BookView({ source, sim }: { source: string; sim: boolean }) {
               {stale ? (
                 <div className="num text-4xl font-bold text-faint">—</div>
               ) : (
-                <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
+                <div className="flex flex-wrap items-end gap-x-6 gap-y-2">
                   <div>
                     <div className="num text-4xl font-bold tracking-tight">{money(p.equity)}</div>
                     <div className="num mt-0.5 text-xs text-muted">
@@ -171,7 +171,7 @@ function BookView({ source, sim }: { source: string; sim: boolean }) {
                 </div>
               )}
               {!stale && (
-                <div className="mt-4">
+                <div className="mt-2">
                   <DrawdownGauge peak={p.peak_equity} equity={p.equity} contributed={p.starting_capital} />
                 </div>
               )}

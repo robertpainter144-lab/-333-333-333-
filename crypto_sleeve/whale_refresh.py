@@ -224,6 +224,9 @@ def leg_dune(prev: dict | None) -> dict | None:
 
 
 # ── LEG 3: social/sentiment (mood only — never counts as whale evidence) ─
+# Multi-sub sweep: the flagship sub plus the largest per-coin subs. Each is
+# one keyless RSS call (see _reddit_hot_titles); polite 1s gap between subs.
+SOCIAL_SUBS = ("CryptoCurrency", "Bitcoin", "ethereum", "solana", "SatoshiStreetBets")
 _COIN_WORDS = {"BTC": ("btc", "bitcoin"), "ETH": ("eth", "ethereum"),
                "SOL": ("sol", "solana"), "XRP": ("xrp", "ripple"),
                "DOGE": ("doge", "dogecoin"), "ADA": ("ada", "cardano"),
@@ -267,7 +270,7 @@ def _reddit_hot_titles(sub: str, limit: int = 60) -> list[str]:
         except urllib.error.HTTPError as e:
             last_err = e
             if e.code == 429 and attempt == 0:
-                time.sleep(3)
+                time.sleep(30)
                 continue
             raise
     else:
@@ -289,31 +292,42 @@ def leg_social() -> dict | None:
         parts["fear_greed"] = fng
     except Exception as e:
         print(f"F&G failed: {e!r}")
-    # Reddit r/CryptoCurrency hot — coin buzz + crude bull/bear keyword tilt.
-    # Via RSS (see _reddit_hot_titles) since the JSON API 403s anonymous
-    # traffic. RSS entries carry no ups/score field, so per-post weight is
-    # approximated by rank in the hot-sorted feed (index 0 = hottest) in
-    # place of the old ups-based weight — same bull/bear/buzz scoring logic
-    # otherwise unchanged.
-    try:
-        titles = _reddit_hot_titles("CryptoCurrency", limit=60)
-        bull = bear = 0
-        buzz: dict[str, int] = {}
+    # Reddit hot across SOCIAL_SUBS — coin buzz + crude bull/bear keyword
+    # tilt. Via RSS (see _reddit_hot_titles) since the JSON API 403s
+    # anonymous traffic. RSS entries carry no ups/score field, so per-post
+    # weight is approximated by rank in the hot-sorted feed (index 0 =
+    # hottest) in place of the old ups-based weight. A sub that fails is
+    # skipped, not fatal to the others.
+    bull = bear = 0
+    buzz: dict[str, int] = {}
+    per_sub: dict[str, dict] = {}
+    for si, sub in enumerate(SOCIAL_SUBS):
+        try:
+            titles = _reddit_hot_titles(sub, limit=60 if si == 0 else 40)
+        except Exception as e:
+            print(f"reddit r/{sub} failed: {e!r}")
+            continue
+        s_bull = s_bear = 0
         for i, raw_title in enumerate(titles):
             title = raw_title.lower()
             w = max(1, 6 - i // 10)          # rank-decay proxy for ups
             if any(k in title for k in _BULL):
-                bull += w
+                s_bull += w
             if any(k in title for k in _BEAR):
-                bear += w
+                s_bear += w
             for coin, words in _COIN_WORDS.items():
                 if any(wd in title for wd in words):
                     buzz[coin] = buzz.get(coin, 0) + w
+        bull += s_bull
+        bear += s_bear
+        per_sub[sub] = {"bull": s_bull, "bear": s_bear, "posts": len(titles)}
+        if si < len(SOCIAL_SUBS) - 1:
+            time.sleep(10)   # anonymous RSS rate limit trips at shorter gaps
+    if per_sub:
         parts["reddit_bull"] = bull
         parts["reddit_bear"] = bear
         parts["reddit_buzz"] = dict(sorted(buzz.items(), key=lambda kv: -kv[1])[:6])
-    except Exception as e:
-        print(f"reddit failed: {e!r}")
+        parts["reddit_subs"] = per_sub
     # CoinGecko trending — what retail is looking at (display only)
     try:
         tr = _get("https://api.coingecko.com/api/v3/search/trending")
@@ -371,6 +385,88 @@ def leg_stocktwits() -> dict | None:
                        "per_coin": per_coin}}
 
 
+# ── LEG: derivatives positioning (display only — zero evidence weight) ───
+# Hyperliquid metaAndAssetCtxs: funding rate, open interest, 24h volume and
+# price change for every perp, keyless, one POST. Positive funding = longs
+# paying shorts = crowded-long. risk_on = OI-weighted share of coins with
+# positive funding; signal_* stay 0 so leg_weight() is 0 and the gate
+# composite is untouched — this leg exists for the intel card.
+def leg_derivatives() -> dict | None:
+    try:
+        meta, ctxs = _post("https://api.hyperliquid.xyz/info",
+                           {"type": "metaAndAssetCtxs"})
+    except Exception as e:
+        print(f"derivatives leg failed: {e!r}")
+        return None
+    per_coin: dict[str, dict] = {}
+    oi_pos = oi_tot = 0.0
+    for asset, ctx in zip(meta.get("universe", []), ctxs):
+        coin = asset.get("name", "")
+        if coin not in COINS:
+            continue
+        try:
+            mark = float(ctx.get("markPx", 0) or 0)
+            prev = float(ctx.get("prevDayPx", 0) or 0)
+            funding = float(ctx.get("funding", 0) or 0)      # hourly rate
+            oi_usd = float(ctx.get("openInterest", 0) or 0) * mark
+            vol24 = float(ctx.get("dayNtlVlm", 0) or 0)
+        except (TypeError, ValueError):
+            continue
+        if mark <= 0:
+            continue
+        per_coin[coin] = {
+            "funding_8h_pct": round(funding * 8 * 100, 5),
+            "funding_apr_pct": round(funding * 24 * 365 * 100, 2),
+            "oi_usd": round(oi_usd),
+            "vol24_usd": round(vol24),
+            "chg24_pct": round((mark / prev - 1) * 100, 2) if prev > 0 else None,
+            "mark_px": mark,
+        }
+        oi_tot += oi_usd
+        if funding > 0:
+            oi_pos += oi_usd
+    if not per_coin or oi_tot <= 0:
+        print("derivatives leg: no qualifying coins")
+        return None
+    return {"source": "hyperliquid_derivatives", "asof": now_iso(),
+            "risk_on": round(oi_pos / oi_tot, 4),
+            "signal_trades": 0, "distinct_wallets": 0, "signal_usd": 0,
+            "detail": {"per_coin": per_coin, "oi_total_usd": round(oi_tot)}}
+
+
+# ── LEG: market breadth (display only — zero evidence weight) ────────────
+# CoinGecko /global: total market cap 24h change, BTC/ETH dominance, total
+# volume. One keyless call. risk_on = mcap change squashed to [0,1] purely
+# for display consistency; signal_* stay 0 → leg_weight 0 → gate untouched.
+def leg_market() -> dict | None:
+    try:
+        # keyless CoinGecko rate-limits per IP and leg_social's trending call
+        # runs shortly before this one — retry once after a cooldown
+        try:
+            g = _get("https://api.coingecko.com/api/v3/global")["data"]
+        except urllib.error.HTTPError as e:
+            if e.code != 429:
+                raise
+            time.sleep(20)
+            g = _get("https://api.coingecko.com/api/v3/global")["data"]
+        chg = float(g["market_cap_change_percentage_24h_usd"])
+        dom = g.get("market_cap_percentage", {}) or {}
+        detail = {
+            "mcap_chg24_pct": round(chg, 2),
+            "total_mcap_usd": round(g["total_market_cap"]["usd"]),
+            "total_vol24_usd": round(g["total_volume"]["usd"]),
+            "btc_dominance_pct": round(float(dom.get("btc", 0)), 1),
+            "eth_dominance_pct": round(float(dom.get("eth", 0)), 1),
+        }
+    except Exception as e:
+        print(f"market leg failed: {e!r}")
+        return None
+    return {"source": "coingecko_global", "asof": now_iso(),
+            "risk_on": round(max(0.0, min(1.0, 0.5 + chg / 10)), 4),
+            "signal_trades": 0, "distinct_wallets": 0, "signal_usd": 0,
+            "detail": detail}
+
+
 # ── composite ────────────────────────────────────────────────────────────
 def main() -> None:
     prev = None
@@ -392,6 +488,12 @@ def main() -> None:
     stw = leg_stocktwits()
     if stw:
         legs["stocktwits"] = stw
+    dv = leg_derivatives()
+    if dv:
+        legs["derivatives"] = dv
+    mk = leg_market()
+    if mk:
+        legs["market"] = mk
 
     fresh = [l for l in legs.values() if age_h(l.get("asof", "")) < 24]
     money = [l for l in fresh if l.get("signal_usd", 0) > 0]   # whale evidence

@@ -5,40 +5,40 @@
       "notional": 5.596800000000002,
       "opened": "2026-08-10T09:49:19+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.62)",
-      "mv": 5.74,
-      "cur": 0.24688
+      "mv": 5.69,
+      "cur": 0.24471
     },
     "AVAX/USD": {
       "entry_price": 6.539,
       "notional": 5.8984,
       "opened": "2026-08-10T12:52:50+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.57)",
-      "mv": 5.87,
-      "cur": 6.539
+      "mv": 5.88,
+      "cur": 6.553
     },
     "PENGU/USD": {
       "entry_price": 0.006677,
       "notional": 5.6671,
       "opened": "2026-08-10T13:03:25+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.57)",
-      "mv": 5.64,
-      "cur": 0.006684
+      "mv": 5.63,
+      "cur": 0.006661
     },
     "VVV/USD": {
       "entry_price": 11.948,
       "notional": 5.8939,
       "opened": "2026-08-10T13:39:17+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.57)",
-      "mv": 5.92,
-      "cur": 12.065
+      "mv": 5.93,
+      "cur": 12.082
     },
     "WLD/USD": {
       "entry_price": 0.3403,
       "notional": 5.7741,
       "opened": "2026-08-10T13:49:43+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.57)",
-      "mv": 5.82,
-      "cur": 0.3446
+      "mv": 5.85,
+      "cur": 0.3466
     }
   },
   "frozen": false,
@@ -56,6 +56,6 @@
     "PEPE/USD": 6.0,
     "DOT/USD": 6.0
   },
-  "targets_ts": "2026-08-10T14:05:05+00:00",
+  "targets_ts": "2026-08-10T14:20:27+00:00",
   "targets_gate": "whale-confirmed (risk_on=0.57)"
 }

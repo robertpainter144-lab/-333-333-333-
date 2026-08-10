@@ -12,7 +12,7 @@
     "default": 1.0
   },
   "vm_sync": {
-    "enabled": true,
+    "enabled": false,
     "host": "ubuntu@129.153.96.201",
     "key": "/Users/quarki3/.ssh/oracle_trading",
     "dest": "trading-data/consumption/state.json"

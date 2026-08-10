@@ -6,15 +6,15 @@
       "opened": "2026-08-09T23:26:46+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.58)",
       "mv": 6.0,
-      "cur": 76.97
+      "cur": 77.0
     },
     "PEPE/USD": {
       "entry_price": 2.878e-06,
       "notional": 20.428889901759998,
       "opened": "2026-08-09T23:51:45+00:00",
       "signal_mode": "adopted",
-      "mv": 20.55,
-      "cur": 2.895e-06
+      "mv": 20.57,
+      "cur": 2.898e-06
     }
   },
   "frozen": false,
@@ -31,6 +31,6 @@
     "XLM/USD": 6.0,
     "SUI/USD": 5.57
   },
-  "targets_ts": "2026-08-10T07:47:45+00:00",
+  "targets_ts": "2026-08-10T08:02:54+00:00",
   "targets_gate": "whale-confirmed (risk_on=0.62)"
 }

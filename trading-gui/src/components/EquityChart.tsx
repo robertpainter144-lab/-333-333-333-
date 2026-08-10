@@ -18,9 +18,35 @@ const MARKERS = [
   { ts: new Date("2026-07-13T00:00:00-04:00").getTime(), label: "inception $50.04" },
 ];
 
-const PAD_L = 46;
+const PAD_L = 38;
 const PAD_B = 20;
 const PAD_T = 8;
+
+/** Add-on series painted over the chart by external modules with no
+ *  build-time coupling: entries pushed into window.__qtOverlaySeries and
+ *  tagged with a channel are drawn by the chart instance whose
+ *  `overlayChannel` prop matches — on their own y-scale, with a right-edge
+ *  value axis in the series color and an optional top time axis. Dispatch a
+ *  "qt-overlay-series" window event after changing the registry. */
+export type OverlaySeries = {
+  channel: string;
+  color: string;
+  topAxisColor?: string;
+  /** Draw a dashed flat segment at the first point's value across any
+   *  visible region BEFORE the series begins, so a young series still reads
+   *  as a full line (dashed = pre-history, solid = real data). */
+  leadIn?: boolean;
+  /** 0–1: reserve this fraction of the plot height as a dedicated lane at
+   *  the TOP for this series; the main line compresses into the remainder.
+   *  Stacked lanes share the time axis but never visually tangle. */
+  lane?: number;
+  points: { t: number; v: number }[];
+};
+declare global {
+  interface Window {
+    __qtOverlaySeries?: OverlaySeries[];
+  }
+}
 const MIN_SPAN_MS = 10 * 60e3; // can't zoom tighter than 10 minutes
 const POS_C = "#3fb950";
 const NEG_C = "#f85149";
@@ -45,8 +71,18 @@ export default function EquityChart(props: {
   points: EquityPoint[];
   transfers?: TransferPoint[];
   color?: string;
+  overlayChannel?: string;
 }) {
   const [range, setRange] = useState("ALL");
+  const overlayChannel = props.overlayChannel;
+  // Bumped by the "qt-overlay-series" event so registry changes redraw.
+  const [overlayRev, setOverlayRev] = useState(0);
+  useEffect(() => {
+    if (!overlayChannel) return;
+    const bump = () => setOverlayRev((r) => r + 1);
+    window.addEventListener("qt-overlay-series", bump);
+    return () => window.removeEventListener("qt-overlay-series", bump);
+  }, [overlayChannel]);
   // DEFAULT COLLAPSED: P/L is made by trading, not by moving money in or out,
   // so the line ships with transfer steps removed. "raw" opts into the
   // account-value view (axis rescales across deposits) and is remembered.
@@ -124,8 +160,37 @@ export default function EquityChart(props: {
   const [domain, setDomain] = useState<[number, number] | null>(null);
   const [readout, setReadout] = useState<Pt | null>(null);
 
-  const dataMin = data.length ? data[0].t : 0;
-  const dataMax = data.length ? data[data.length - 1].t : 1;
+  // Overlay extent (within the selected range) folds into the pannable
+  // domain, so a series that starts after — or runs past — the main data is
+  // still reachable. Also decides the right-gutter width: overlays get a
+  // dedicated value-axis gutter mirroring the left one, instead of painting
+  // ticks over the plot.
+  const ovExtent = useMemo(() => {
+    if (!overlayChannel || !Array.isArray(window.__qtOverlaySeries)) return null;
+    const win = RANGES.find((r) => r.id === range)?.ms ?? Infinity;
+    const cutoff = win === Infinity ? -Infinity : Date.now() - win;
+    let mn = Infinity, mx = -Infinity;
+    for (const o of window.__qtOverlaySeries) {
+      if (!o || o.channel !== overlayChannel || !Array.isArray(o.points)) continue;
+      for (const p of o.points) {
+        if (!Number.isFinite(p.t) || p.t < cutoff) continue;
+        if (p.t < mn) mn = p.t;
+        if (p.t > mx) mx = p.t;
+      }
+    }
+    return mx > mn ? { mn, mx } : null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [overlayChannel, overlayRev, range]);
+  const padR = ovExtent ? 34 : 6;
+  const padRRef = useRef(padR);
+  padRRef.current = padR;
+
+  let dataMin = data.length ? data[0].t : ovExtent ? ovExtent.mn : 0;
+  let dataMax = data.length ? data[data.length - 1].t : ovExtent ? ovExtent.mx : 1;
+  if (ovExtent) {
+    dataMin = Math.min(dataMin, ovExtent.mn);
+    dataMax = Math.max(dataMax, ovExtent.mx);
+  }
   const d0 = domain ? domain[0] : dataMin;
   const d1 = domain ? domain[1] : dataMax;
 
@@ -162,7 +227,7 @@ export default function EquityChart(props: {
 
   const xToT = (x: number, w: number) => {
     const { d0: a, d1: b } = domRef.current;
-    return a + ((x - PAD_L) / Math.max(w - PAD_L - 6, 1)) * (b - a);
+    return a + ((x - PAD_L) / Math.max(w - PAD_L - padRRef.current, 1)) * (b - a);
   };
 
   function onPointerDown(e: React.PointerEvent) {
@@ -203,7 +268,7 @@ export default function EquityChart(props: {
     const g = gestureStart.current;
     if (!g) return;
     const pts = [...pointers.current.values()];
-    const w = Math.max(rect.width - PAD_L - 6, 1);
+    const w = Math.max(rect.width - PAD_L - padRRef.current, 1);
 
     if (pts.length === 1) {
       // PAN: pixel delta → time delta on the domain captured at gesture start
@@ -241,7 +306,7 @@ export default function EquityChart(props: {
     const onWheelNative = (e: WheelEvent) => {
       e.preventDefault();
       const rect = el.getBoundingClientRect();
-      const w = Math.max(rect.width - PAD_L - 6, 1);
+      const w = Math.max(rect.width - PAD_L - padRRef.current, 1);
       const { d0: a, d1: b } = domRef.current;
       const midT = a + (((e.clientX - rect.left) - PAD_L) / w) * (b - a);
       const scale = e.deltaY > 0 ? 1.15 : 0.87;
@@ -279,8 +344,24 @@ export default function EquityChart(props: {
     ctx.scale(dpr, dpr);
     const W = rect.width;
     const H = rect.height;
-    const plotW = W - PAD_L - 6;
-    const plotH = H - PAD_T - PAD_B;
+    // Overlay series registered for this chart's channel (drawn after the
+    // main line). When one wants a top time axis, reserve headroom for it.
+    const overlays =
+      overlayChannel && Array.isArray(window.__qtOverlaySeries)
+        ? window.__qtOverlaySeries.filter(
+            (o) => o && o.channel === overlayChannel && Array.isArray(o.points) && o.points.length >= 2,
+          )
+        : [];
+    const padT = overlays.some((o) => o.topAxisColor) ? 18 : PAD_T;
+    const plotW = W - PAD_L - padR;
+    const plotH = H - padT - PAD_B;
+    // Stacked lanes: an overlay may claim the top slice of the plot; the
+    // main series draws in what remains, so the two never overlap.
+    const laneFrac = Math.min(0.6, overlays.reduce((m, o) => Math.max(m, o.lane ?? 0), 0));
+    const laneGap = laneFrac > 0 ? 5 : 0;
+    const laneH = plotH * laneFrac;
+    const mainTop = padT + laneH + laneGap;
+    const mainH = plotH - laneH - laneGap;
 
     // Visible slice PLUS one bracketing point each side, so the line always
     // reaches the plot edges while panning instead of clipping/jumping.
@@ -306,7 +387,7 @@ export default function EquityChart(props: {
     const lo = mn - pad, hi = mx + pad;
 
     const X = (t: number) => PAD_L + ((t - d0) / Math.max(d1 - d0, 1)) * plotW;
-    const Y = (v: number) => PAD_T + (1 - (v - lo) / Math.max(hi - lo, 1e-9)) * plotH;
+    const Y = (v: number) => mainTop + (1 - (v - lo) / Math.max(hi - lo, 1e-9)) * mainH;
 
     ctx.clearRect(0, 0, W, H);
     const css = getComputedStyle(document.documentElement);
@@ -314,7 +395,7 @@ export default function EquityChart(props: {
     const mutedC = css.getPropertyValue("--muted").trim() || "#8b949e";
 
     ctx.strokeStyle = gridC; ctx.fillStyle = mutedC;
-    ctx.font = "10px ui-monospace, Menlo, monospace";
+    ctx.font = "9px ui-monospace, Menlo, monospace";
     ctx.setLineDash([3, 3]); ctx.lineWidth = 1;
 
     // Pick the smallest "nice" step so tick labels are round numbers and get
@@ -325,12 +406,17 @@ export default function EquityChart(props: {
     // ── Y grid + $ ticks — snapped to …1¢,5¢,10¢,25¢,50¢,$1,$2.50,$5… ──
     const yStep = niceStep(hi - lo, [0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 25, 50, 100, 250, 500], 5);
     const yDec = yStep < 1 ? 2 : Number.isInteger(yStep) ? 0 : 1;
+    // With an overlay on, each side's numbers take its line's color — left
+    // in the main series color, right in the overlay's — so the two axes
+    // read as a matched, color-coded pair.
+    if (overlays.length) ctx.fillStyle = color;
     for (let v = Math.ceil(lo / yStep) * yStep, n = 0; v <= hi && n < 14; v += yStep, n++) {
       const y = Y(v);
-      if (y < PAD_T - 1 || y > PAD_T + plotH + 1) continue;
-      ctx.beginPath(); ctx.moveTo(PAD_L, y); ctx.lineTo(W - 6, y); ctx.stroke();
+      if (y < padT - 1 || y > padT + plotH + 1) continue;
+      ctx.beginPath(); ctx.moveTo(PAD_L, y); ctx.lineTo(W - padR, y); ctx.stroke();
       ctx.fillText(`$${v.toFixed(yDec)}`, 2, y + 3);
     }
+    ctx.fillStyle = mutedC;
 
     // ── X time ticks — nice time step aligned to clean boundaries: dates at
     // week+ zoom, hours at day zoom, minutes as you pinch further in. ──
@@ -349,7 +435,7 @@ export default function EquityChart(props: {
     let prevDay = "";
     for (let t = tStart, n = 0; t <= d1 && n < 40; t += tStep, n++) {
       const x = X(t);
-      if (x < PAD_L - 1 || x > W - 20) continue;
+      if (x < PAD_L - 1 || x > W - padR - 14) continue;
       const dt = new Date(t);
       let label: string;
       if (!subDay) {
@@ -362,15 +448,21 @@ export default function EquityChart(props: {
           : dt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
         prevDay = dayKey;
       }
-      ctx.fillText(label, Math.min(Math.max(x - 12, PAD_L), W - 44), H - 6);
+      ctx.fillText(label, Math.min(Math.max(x - 12, PAD_L), W - padR - 38), H - 6);
     }
-    // Baseline markers
+    // Lane divider between the overlay band and the main series
+    if (laneFrac > 0) {
+      ctx.setLineDash([3, 3]);
+      const dy = mainTop - laneGap / 2;
+      ctx.beginPath(); ctx.moveTo(PAD_L, dy); ctx.lineTo(W - padR, dy); ctx.stroke();
+    }
+    // Baseline markers (kept inside the main lane so the overlay stays clean)
     ctx.setLineDash([4, 4]);
     for (const m of MARKERS) {
       if (m.ts < d0 || m.ts > d1) continue;
       const x = X(m.ts);
-      ctx.beginPath(); ctx.moveTo(x, PAD_T); ctx.lineTo(x, H - PAD_B); ctx.stroke();
-      ctx.fillText(m.label, Math.min(x + 3, W - 90), PAD_T + 9);
+      ctx.beginPath(); ctx.moveTo(x, mainTop); ctx.lineTo(x, H - PAD_B); ctx.stroke();
+      ctx.fillText(m.label, Math.min(x + 3, W - 90), mainTop + 9);
     }
     // Transfer markers: green = money in, red = money out. Drawn in both
     // views — in the raw view they explain the step; in the net view they
@@ -381,14 +473,14 @@ export default function EquityChart(props: {
       const c = x.amount >= 0 ? POS_C : NEG_C;
       ctx.strokeStyle = c; ctx.fillStyle = c;
       ctx.setLineDash([2, 4]);
-      ctx.beginPath(); ctx.moveTo(px, PAD_T); ctx.lineTo(px, H - PAD_B); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(px, mainTop); ctx.lineTo(px, H - PAD_B); ctx.stroke();
       ctx.setLineDash([]);
       const yb = H - PAD_B - 4;
       ctx.beginPath();
       if (x.amount >= 0) { ctx.moveTo(px, yb - 6); ctx.lineTo(px - 4, yb); ctx.lineTo(px + 4, yb); }
       else { ctx.moveTo(px, yb); ctx.lineTo(px - 4, yb - 6); ctx.lineTo(px + 4, yb - 6); }
       ctx.closePath(); ctx.fill();
-      ctx.fillText(moneySigned(x.amount, 0), Math.min(px + 6, W - 44), yb - 2);
+      ctx.fillText(moneySigned(x.amount, 0), Math.min(px + 6, W - padR - 38), yb - 2);
     }
     ctx.strokeStyle = gridC; ctx.fillStyle = mutedC;
     ctx.setLineDash([]);
@@ -396,8 +488,8 @@ export default function EquityChart(props: {
     // Area fill + line (clipped to the plot so bracketing points don't spill)
     if (seg.length >= 2) {
       ctx.save();
-      ctx.beginPath(); ctx.rect(PAD_L, PAD_T, plotW, plotH); ctx.clip();
-      const grad = ctx.createLinearGradient(0, PAD_T, 0, H - PAD_B);
+      ctx.beginPath(); ctx.rect(PAD_L, padT, plotW, plotH); ctx.clip();
+      const grad = ctx.createLinearGradient(0, mainTop, 0, H - PAD_B);
       grad.addColorStop(0, color + "40"); grad.addColorStop(1, color + "05");
       ctx.beginPath();
       ctx.moveTo(X(seg[0].t), Y(val(seg[0])));
@@ -411,23 +503,115 @@ export default function EquityChart(props: {
       ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.stroke();
       ctx.restore();
     }
+    // ── Overlay series: own y-scale on the shared time domain, so pan and
+    // zoom move both lines together. Right-edge value ticks in the series
+    // color; optional top time axis (same nice ticks as the bottom one). ──
+    for (const o of overlays) {
+      const opts = o.points
+        .filter((p) => Number.isFinite(p.t) && Number.isFinite(p.v))
+        .sort((a, b) => a.t - b.t);
+      // Visible slice + one bracketing point each side (same policy as the
+      // main line) so the overlay reaches the plot edges while panning.
+      let of = 0;
+      while (of < opts.length && opts[of].t < d0) of++;
+      let ol = of;
+      while (ol < opts.length && opts[ol].t <= d1) ol++;
+      let os = Math.max(0, of - 1);
+      let oe = Math.min(opts.length, ol + 1);
+      if (oe - os < 2) { os = Math.max(0, oe - 2); oe = Math.min(opts.length, os + 2); }
+      const oseg = opts.slice(os, oe);
+      if (oseg.length < 2) continue;
+      let omn = Infinity, omx = -Infinity;
+      for (const p of oseg) { if (p.v < omn) omn = p.v; if (p.v > omx) omx = p.v; }
+      const opad = Math.max((omx - omn) * 0.12, 0.02);
+      const olo = omn - opad, ohi = omx + opad;
+      const oH = laneFrac > 0 ? laneH : plotH;
+      const oBot = padT + oH;
+      const OY = (v: number) => padT + (1 - (v - olo) / Math.max(ohi - olo, 1e-9)) * oH;
+      // Right-gutter value axis in the overlay color (never over the plot)
+      const oStep = niceStep(ohi - olo, [0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 25, 50, 100, 250, 500], 4);
+      const oDec = oStep < 1 ? 2 : Number.isInteger(oStep) ? 0 : 1;
+      ctx.fillStyle = o.color;
+      // Overlay axes render a step smaller than the main axes, right-aligned
+      // hard against the screen edge — mirrors the left gutter's flushness.
+      ctx.font = "8px ui-monospace, Menlo, monospace";
+      ctx.textAlign = "right";
+      for (let v = Math.ceil(olo / oStep) * oStep, n = 0; v <= ohi && n < 12; v += oStep, n++) {
+        const y = OY(v);
+        if (y < padT - 1 || y > padT + plotH + 1) continue;
+        ctx.fillText(`$${v.toFixed(oDec)}`, W - 2, y + 3);
+      }
+      ctx.textAlign = "left";
+      // Top time axis in the overlay's topAxisColor
+      if (o.topAxisColor) {
+        ctx.fillStyle = o.topAxisColor;
+        let prevDayTop = "";
+        for (let t = tStart, n = 0; t <= d1 && n < 40; t += tStep, n++) {
+          const x = X(t);
+          if (x < PAD_L - 1 || x > W - padR - 14) continue;
+          const dt = new Date(t);
+          let label: string;
+          if (!subDay) {
+            label = dt.toLocaleDateString([], { month: "short", day: "numeric" });
+          } else {
+            const dayKey = dt.toDateString();
+            label = dayKey !== prevDayTop
+              ? dt.toLocaleDateString([], { month: "short", day: "numeric" })
+              : dt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+            prevDayTop = dayKey;
+          }
+          ctx.fillText(label, Math.min(Math.max(x - 12, PAD_L), W - padR - 38), 12);
+        }
+      }
+      // Flat lead-in over the pre-history region, drawn SOLID and shaded as
+      // part of the main path (owner preference: a young series reads as one
+      // continuous first-class curve across the full window).
+      const oplot = (o.leadIn && oseg[0].t > d0)
+        ? [{ t: d0, v: oseg[0].v }, ...oseg]
+        : oseg;
+      // Area shading + line, clipped to the plot — same treatment as the
+      // main series so the overlay reads as a first-class curve.
+      ctx.save();
+      ctx.beginPath(); ctx.rect(PAD_L, padT, plotW, plotH); ctx.clip();
+      const ograd = ctx.createLinearGradient(0, padT, 0, oBot);
+      ograd.addColorStop(0, o.color + "38"); ograd.addColorStop(1, o.color + "06");
+      ctx.beginPath();
+      ctx.moveTo(X(oplot[0].t), OY(oplot[0].v));
+      for (const p of oplot) ctx.lineTo(X(p.t), OY(p.v));
+      ctx.lineTo(X(oplot[oplot.length - 1].t), oBot);
+      ctx.lineTo(X(oplot[0].t), oBot);
+      ctx.closePath(); ctx.fillStyle = ograd; ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(X(oplot[0].t), OY(oplot[0].v));
+      for (const p of oplot) ctx.lineTo(X(p.t), OY(p.v));
+      ctx.strokeStyle = o.color; ctx.lineWidth = 2; ctx.stroke();
+      // Live-end dot so a young series is findable even when it spans only
+      // a sliver of the window.
+      const oLast = oseg[oseg.length - 1];
+      if (oLast.t >= d0 && oLast.t <= d1) {
+        ctx.beginPath(); ctx.arc(X(oLast.t), OY(oLast.v), 3, 0, Math.PI * 2);
+        ctx.fillStyle = o.color; ctx.fill();
+      }
+      ctx.restore();
+      ctx.font = "9px ui-monospace, Menlo, monospace";
+    }
     // Readout crosshair
     if (readout && readout.t >= d0 && readout.t <= d1) {
       const x = X(readout.t), y = Y(val(readout));
       ctx.strokeStyle = mutedC; ctx.setLineDash([2, 3]);
-      ctx.beginPath(); ctx.moveTo(x, PAD_T); ctx.lineTo(x, H - PAD_B); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x, padT); ctx.lineTo(x, H - PAD_B); ctx.stroke();
       ctx.setLineDash([]);
       ctx.beginPath(); ctx.arc(x, y, 3.5, 0, Math.PI * 2);
       ctx.fillStyle = color; ctx.fill();
     }
-  }, [data, d0, d1, color, readout, xfers, net]);
+  }, [data, d0, d1, color, readout, xfers, net, overlayChannel, overlayRev]);
 
   const zoomed = domain !== null;
   const hasXfers = xfers.length > 0;
 
   return (
     <div>
-      <div className="mb-2 flex items-center justify-between">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-y-1 px-2 md:px-0">
         <span className="text-[10px] uppercase tracking-wider text-muted">
           Equity
           {windowPL && (
@@ -451,7 +635,7 @@ export default function EquityChart(props: {
             </span>
           )}
         </span>
-        <div className="flex items-center gap-1">
+        <div className="flex min-w-0 flex-wrap items-center justify-end gap-1">
           {hasXfers && (
             <span title="P/L: deposits/withdrawals collapsed out of the line — only trading moves it. $: raw account value.">
               <Tabs
@@ -494,7 +678,7 @@ export default function EquityChart(props: {
           <canvas ref={canvasRef} className="h-full w-full" />
         </div>
       )}
-      <p className="mt-1 text-[9px] text-faint">
+      <p className="mt-1 px-2 text-[9px] text-faint md:px-0">
         drag to pan · pinch or scroll to zoom · double-tap to reset
         {hasXfers && <> · ▲▼ deposits/withdrawals{net ? " (collapsed — line is trading P/L only)" : " (raw account value)"}</>}
       </p>

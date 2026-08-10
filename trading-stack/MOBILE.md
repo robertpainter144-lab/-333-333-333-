@@ -28,12 +28,35 @@ Addresses:
    session — it's interactive; open the URL it prints in any browser, paste
    the code back.
 
-## Daily use (primary path — tailnet SSH, no key)
+## Daily use — just run the helper
+
+Termux has a helper script `~/mac` (installed over adb 2026-08-09) that tries
+each host in order and lands you in the persistent tmux session **inside the
+333 repo checkout** on whichever host answers:
+
+1. quarki-stack tailnet SSH → starts in `/home/ubuntu/lab-stack`
+2. quarki-stack public IP + `~/.ssh/oracle_trading` key → same
+3. Mac user-sshd `100.71.5.12:2222` → starts in `/Users/quarki3/lab333/upstream333`
+
+```
+./mac
+claude
+```
+
+(The latest version of the script also sits at `/sdcard/Download/mac333`; to
+refresh: `cp /storage/emulated/0/Download/mac333 mac && chmod 700 mac`.)
+
+## Primary path — tailnet SSH, no key
 
 ```
 ssh -t ubuntu@100.94.213.49 'tmux new -A -s mobile'
 claude
 ```
+
+> **Status 2026-08-09 18:20 MDT:** tailnet port 22 on 100.94.213.49 was
+> CLOSED when verified from the Mac (tailscale ping pongs, ssh times out) —
+> Tailscale SSH is not serving yet. Until that's fixed, the helper falls
+> through to the public-IP+key path automatically.
 
 - `tmux new -A -s mobile` attaches your persistent session (creates it the
   first time). Claude keeps its conversation across phone disconnects,
@@ -51,6 +74,27 @@ in Termux) is also authorized on quarki-stack by `road_prep.sh`:
 
 ```
 ssh -t -i ~/.ssh/oracle_trading ubuntu@100.94.213.49 'tmux new -A -s mobile'
+```
+
+## Fallback 2: Mac direct (primary host, port 2222)
+
+The Mac (100.71.5.12) runs the six interactive Claude windows and is
+memory-canonical, so a mobile session there continues "these" sessions most
+directly. A user-level sshd (no root) is staged: config
+`~/.ssh/mobile_sshd_config`, launchd agent
+`~/Library/LaunchAgents/com.quarki3.mobile-sshd.plist` (auto-loads at next
+login), pubkey-only, bound to the tailnet IP, and the phone's
+`oracle_trading` key is authorized. To arm it immediately without a reboot,
+run on the Mac:
+
+```
+launchctl bootstrap gui/501 ~/Library/LaunchAgents/com.quarki3.mobile-sshd.plist
+```
+
+Then from Termux: `./mac` (it probes :2222 as its third target), or directly
+
+```
+ssh -t -p 2222 -i ~/.ssh/oracle_trading quarki3@100.71.5.12 'tmux new -A -s mobile -c /Users/quarki3/lab333/upstream333'
 ```
 
 ## Break-glass: Cloud Shell (browser)

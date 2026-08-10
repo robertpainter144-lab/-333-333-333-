@@ -5,9 +5,13 @@
 // Each detent click()s the real button (React handles the rest), fires a
 // short haptic tick (navigator.vibrate — needs VIBRATE in the APK, v3.3+),
 // and pulses the button. Hitting either end gives one longer "clunk" buzz.
-// Generic by design: any group of >=3 buttons labelled like periods inside
-// a card that also contains a chart (canvas/svg) gets the behavior — Book
-// equity chart, crypto pane, catalog charts, future charts, all covered.
+// Two-finger gestures over a chart card are owned by this engine BY DESIGN
+// (native one-finger pan/drag is untouched); a card only qualifies if it
+// actually contains a rendered chart surface AND a period button group.
+// Hardened 2026-08-10 after an adversarial review fleet: accumulator-windup
+// drain, touch-identifier tracking (finger substitution), chart-surface
+// requirement (no phantom oversized cards), midpoint-local discovery (no
+// full-document scans in the touch path), disabled-button exclusion.
 (() => {
   'use strict';
   if (window.__qtPinchZoom) return;
@@ -18,44 +22,54 @@
   const SPEED_REF = 1.2;      // log2-units/sec where velocity boost kicks in
   const GAIN_MAX = 2.5;       // fastest pinch crosses detents up to 3.5x faster
   const TICK_MS = 9, CLUNK_MS = 28, EDGE_COOLDOWN = 350;
+  const MAX_HOPS = 10;
 
   function buzz(ms) {
     try { navigator.vibrate && navigator.vibrate(ms); } catch (e) {}
   }
 
-  // A period group = one parent whose direct <button> children are mostly
-  // period labels. Returns {card, btns} or null.
-  function findGroups() {
-    const seen = new Set(), out = [];
-    for (const b of document.querySelectorAll('button')) {
+  // The period group inside `root`: one parent whose direct <button> children
+  // are mostly period labels. Disabled buttons are not steppable detents.
+  function groupIn(root) {
+    const seen = new Set();
+    for (const b of root.querySelectorAll('button')) {
       const p = b.parentElement;
       if (!p || seen.has(p)) continue;
       seen.add(p);
-      const kids = Array.from(p.children).filter(c => c.tagName === 'BUTTON');
-      const periods = kids.filter(c => PERIOD_RE.test((c.textContent || '').trim()));
-      if (periods.length >= 3) {
-        // the chart card = nearest ancestor that also contains a rendered
-        // chart surface; fall back to the group's grandparent block
-        let card = p, hops = 0;
-        while (card.parentElement && hops < 8 &&
-               !card.querySelector('canvas,svg,.recharts-wrapper')) {
-          card = card.parentElement; hops++;
-        }
-        out.push({ card, btns: periods });
+      const periods = Array.from(p.children).filter(c =>
+        c.tagName === 'BUTTON' && !c.disabled &&
+        c.getAttribute('aria-disabled') !== 'true' &&
+        PERIOD_RE.test((c.textContent || '').trim()));
+      if (periods.length >= 3) return periods;
+    }
+    return null;
+  }
+
+  // Walk up from the pinch midpoint to the nearest ancestor that holds BOTH
+  // a real chart surface and a period group — that ancestor is the card.
+  // Localized to the touch point: no document-wide scans in the touch path.
+  function cardAt(x, y) {
+    let node = document.elementFromPoint(x, y);
+    for (let hops = 0; node && node !== document.body && hops < MAX_HOPS;
+         node = node.parentElement, hops++) {
+      if (!node.querySelector) continue;
+      if (node.querySelector('canvas,svg,.recharts-wrapper')) {
+        const btns = groupIn(node);
+        if (btns) return btns;
       }
     }
-    return out;
+    return null;
   }
 
   function activeIndex(btns) {
-    // Prefer explicit state markers, else the visual outlier (the selected
-    // chip is styled differently from its siblings), else remembered index.
     for (let i = 0; i < btns.length; i++) {
       const b = btns[i];
       if (b.getAttribute('aria-pressed') === 'true' ||
           b.getAttribute('data-state') === 'active' ||
           b.getAttribute('aria-selected') === 'true') return i;
     }
+    // Visual outlier: the selected chip is styled unlike its siblings.
+    // (Disabled buttons never enter btns, so they can't fake uniqueness.)
     const sig = btns.map(b => {
       const s = getComputedStyle(b);
       return s.backgroundColor + '|' + s.color + '|' + s.borderColor;
@@ -63,39 +77,43 @@
     const counts = {};
     sig.forEach(k => counts[k] = (counts[k] || 0) + 1);
     let best = -1;
-    sig.forEach((k, i) => { if (counts[k] === 1) best = best === -1 ? i : best; });
+    sig.forEach((k, i) => { if (counts[k] === 1 && best === -1) best = i; });
     return best !== -1 ? best : 0;
   }
 
-  const dist = (t) => Math.hypot(
-    t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+  const dist2 = (a, b) => Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+  function byId(list, id) {
+    for (const t of list) if (t.identifier === id) return t;
+    return null;
+  }
 
   let st = null; // active gesture
 
   function begin(e) {
     if (e.touches.length !== 2) return;
-    const mx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-    const my = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-    for (const g of findGroups()) {
-      const r = g.card.getBoundingClientRect();
-      if (mx >= r.left && mx <= r.right && my >= r.top && my <= r.bottom) {
-        st = {
-          btns: g.btns,
-          idx: activeIndex(g.btns),
-          d0: dist(e.touches), lastD: dist(e.touches),
-          lastT: e.timeStamp, acc: 0, lastEdge: 0,
-        };
-        e.preventDefault();
-        return;
-      }
-    }
+    const t0 = e.touches[0], t1 = e.touches[1];
+    const btns = cardAt((t0.clientX + t1.clientX) / 2,
+                        (t0.clientY + t1.clientY) / 2);
+    if (!btns) return;
+    st = {
+      btns,
+      idx: activeIndex(btns),
+      id0: t0.identifier, id1: t1.identifier,
+      lastD: dist2(t0, t1),
+      lastT: e.timeStamp, acc: 0, lastEdge: 0,
+    };
+    e.preventDefault();
   }
 
   function move(e) {
     if (!st) return;
     if (e.touches.length !== 2) return;
+    // Same two physical fingers only — a substituted finger (transient third
+    // touch, one lifts) would poison lastD with an unrelated distance.
+    const t0 = byId(e.touches, st.id0), t1 = byId(e.touches, st.id1);
+    if (!t0 || !t1) { st = null; return; }
     e.preventDefault();
-    const d = dist(e.touches);
+    const d = dist2(t0, t1);
     if (d <= 0 || st.lastD <= 0) return;
     const dl = Math.log2(d / st.lastD);
     const dt = Math.max(8, e.timeStamp - st.lastT);
@@ -107,6 +125,9 @@
     let guard = 0;
     while (st.acc >= DETENT && guard++ < 8) { st.acc -= DETENT; step(-1, e.timeStamp); }
     while (st.acc <= -DETENT && guard++ < 8) { st.acc += DETENT; step(+1, e.timeStamp); }
+    // If the guard capped this frame, drop the windup — carrying it forward
+    // fires phantom detents on later frames after the fingers have stopped.
+    if (Math.abs(st.acc) >= DETENT) st.acc = 0;
   }
 
   function step(dir, ts) {
@@ -118,6 +139,7 @@
     }
     st.idx = i;
     const b = st.btns[i];
+    if (!b.isConnected) { st = null; return; } // React re-render replaced it
     b.click();
     buzz(TICK_MS);
     try {
@@ -129,12 +151,14 @@
   }
 
   function end(e) {
-    if (st && e.touches.length < 2) st = null;
+    if (!st) return;
+    if (e.touches.length < 2 ||
+        !byId(e.touches, st.id0) || !byId(e.touches, st.id1)) st = null;
   }
 
   // capture-phase, non-passive: we must be able to preventDefault before the
   // page's own handlers or native scroll/zoom react. Cost when idle is one
-  // length check.
+  // length check; discovery work is localized under the pinch midpoint.
   document.addEventListener('touchstart', begin, { passive: false, capture: true });
   document.addEventListener('touchmove', move, { passive: false, capture: true });
   document.addEventListener('touchend', end, { passive: true, capture: true });

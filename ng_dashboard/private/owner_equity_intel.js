@@ -8,10 +8,14 @@
  *
  * Data: GET /api/equity/intel — composite equities news/social read:
  *   {asof, risk_on_social, held:[symbols],
- *    reddit_wsb:{sub,posts,sentiment,top_mentions:{SYM:count},top_titles:[{title}]},
+ *    reddit_wsb:{sub,posts,sentiment,top_mentions:{SYM:count},
+ *                top_titles:[{title,link}]},   // link may be absent on old data
  *    reddit_stocks:{same shape as reddit_wsb},
- *    stocktwits:[{symbol,messages,bullish,bearish,ratio}],
+ *    stocktwits:[{symbol,messages,bullish,bearish,ratio,
+ *                 samples:[{body,sentiment}]}], // samples may be absent on old data
  *    news_by_symbol:{SYM:[{title,link}]}}
+ * top_titles and stocktwits samples render inside expandable <details> blocks
+ * (source titles / message samples) so the card stays scannable by default.
  * Plus GET /api/intel/history — up to 96 rows of
  *   {ts, risk_on_social, fear_greed, errors} used only for the sparkline.
  * Every field above may be null/missing on any given tick; every renderer
@@ -74,7 +78,12 @@
     "border-radius:6px;padding:1px 8px;font-size:10px;margin:2px 4px 2px 0}",
     ".qtei-chip b{margin-left:4px}",
     ".qtei-headline{font-size:11px;margin-top:3px;line-height:1.35}",
-    ".qtei-headline a{color:inherit;text-decoration:underline;text-decoration-color:var(--bd)}"
+    ".qtei-headline a{color:inherit;text-decoration:underline;text-decoration-color:var(--bd)}",
+    ".qtei-details{margin-top:6px}",
+    ".qtei-details summary{cursor:pointer;font-size:10px;letter-spacing:.04em;color:var(--muted)}",
+    ".qtei-details summary:hover{color:inherit}",
+    ".qtei-sample{font-size:11px;margin-top:3px;line-height:1.35}",
+    ".qtei-sample .qtei-pill{margin-right:6px;vertical-align:middle}"
   ].join("");
 
   function esc(s) {
@@ -160,11 +169,12 @@
     return html;
   }
 
-  function renderRedditLeg(label, leg) {
+  function renderRedditLeg(label, leg, fallbackSub) {
     if (!leg) return '<div class="qtei-h">' + esc(label) + '</div>' +
       '<div class="qtei-muted" style="font-size:11px">No data.</div>';
     var sent = fmtSentiment(leg.sentiment);
-    var subLabel = leg.sub ? " · r/" + esc(String(leg.sub).replace(/^r\//i, "")) : "";
+    var subName = leg.sub ? String(leg.sub).replace(/^r\//i, "") : fallbackSub;
+    var subLabel = subName ? " · r/" + esc(subName) : "";
     var html = '<div class="qtei-row"><span class="qtei-h" style="margin:0">' + esc(label) +
       subLabel + '</span><span class="qtei-pill ' + sent.cls + '">' + sent.text + "</span></div>";
     html += '<div class="qtei-stats" style="margin-top:4px">' +
@@ -176,19 +186,64 @@
         return '<span class="qtei-chip">' + esc(s) + " <b>" + esc(String(tm[s])) + "</b></span>";
       }).join("") + "</div>";
     }
-    var titles = (leg.top_titles || []).map(function (t) {
-      return t && t.title != null ? esc(String(t.title)) : "";
+    // top_titles: {title, link} — link may be missing on older data, so each
+    // title only renders as <a> once safeHref() validates it; otherwise it
+    // falls back to plain escaped text (same rule as renderHeadlines below).
+    var titleItems = (leg.top_titles || []).map(function (t) {
+      if (!t || t.title == null) return null;
+      return { title: String(t.title), href: safeHref(t.link) };
     }).filter(Boolean);
-    if (titles.length)
-      html += '<div class="qtei-faint" style="font-size:10px;margin-top:6px">' +
-        titles.slice(0, 3).join(" · ") + "</div>";
+    if (titleItems.length) {
+      var rows = titleItems.slice(0, 15).map(function (it) {
+        return it.href
+          ? '<div class="qtei-headline"><a href="' + esc(it.href) +
+            '" target="_blank" rel="noopener">' + esc(it.title) + "</a></div>"
+          : '<div class="qtei-headline qtei-muted">' + esc(it.title) + "</div>";
+      }).join("");
+      var summaryText = subName ? "r/" + esc(subName) + " sources" : "sources";
+      html += '<details class="qtei-details"><summary class="qtei-summary">' +
+        summaryText + "</summary>" + rows + "</details>";
+    }
     return html;
   }
 
   function renderReddit(d) {
-    return renderRedditLeg("💬 r/WallStreetBets", d.reddit_wsb) +
+    return renderRedditLeg("💬 r/WallStreetBets", d.reddit_wsb, "wallstreetbets") +
       '<div style="margin-top:10px"></div>' +
-      renderRedditLeg("💬 r/stocks", d.reddit_stocks);
+      renderRedditLeg("💬 r/stocks", d.reddit_stocks, "stocks");
+  }
+
+  // sentiment on a stocktwits sample may be a bullish/bearish string or a
+  // signed number; either way it degrades to a muted "—" pill when absent.
+  function sampleTagHtml(sentiment) {
+    if (sentiment == null) return '<span class="qtei-pill qtei-muted">—</span>';
+    if (typeof sentiment === "number" && !isNaN(sentiment)) {
+      var cls = sentiment > 0 ? "qtei-pos" : sentiment < 0 ? "qtei-neg" : "qtei-muted";
+      var txt = sentiment > 0 ? "Bullish" : sentiment < 0 ? "Bearish" : "Neutral";
+      return '<span class="qtei-pill ' + cls + '">' + txt + "</span>";
+    }
+    var s = String(sentiment);
+    var cls2 = /bull/i.test(s) ? "qtei-pos" : /bear/i.test(s) ? "qtei-neg" : "qtei-muted";
+    return '<span class="qtei-pill ' + cls2 + '">' + esc(s) + "</span>";
+  }
+
+  // samples: [{body, sentiment}] per symbol — grouped into one collapsible
+  // block after the table; symbols with no usable samples are skipped.
+  function renderStocktwitsSamples(list) {
+    var blocks = (list || []).map(function (r) {
+      r = r || {};
+      var samples = (r.samples || []).filter(function (s) { return s && s.body != null; });
+      if (!samples.length) return "";
+      var symHtml = r.symbol != null ? esc(String(r.symbol)) : "—";
+      var rows = samples.slice(0, 5).map(function (s) {
+        return '<div class="qtei-sample">' + sampleTagHtml(s.sentiment) +
+          esc(String(s.body)) + "</div>";
+      }).join("");
+      return '<div style="margin-top:6px"><b class="qtei-num">' + symHtml + "</b>" + rows + "</div>";
+    }).filter(Boolean).join("");
+    if (!blocks) return "";
+    return '<details class="qtei-details"><summary class="qtei-summary">message samples</summary>' +
+      blocks + "</details>";
   }
 
   function renderStocktwits(list) {
@@ -207,7 +262,7 @@
     }).join("");
     return '<div class="qtei-h">🐦 StockTwits</div>' +
       '<table class="qtei-table"><tr><th>Symbol</th><th>Msgs</th><th>Bull</th><th>Bear</th><th>Ratio</th></tr>' +
-      rows + "</table>";
+      rows + "</table>" + renderStocktwitsSamples(list);
   }
 
   function renderHeadlines(held, newsBySymbol) {

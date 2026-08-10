@@ -89,9 +89,15 @@ def reddit(sub: str) -> dict:
         # A WAF/interstitial page that happens to be valid XML would
         # otherwise read as a silent zero-post result.
         raise ValueError(f"unexpected feed root {root.tag!r}")
-    titles = [(e.findtext(f"{ns}title") or "").strip()
-              for e in root.iter(f"{ns}entry")]
-    titles = [t for t in titles if t][:25]
+    entries = []
+    for e in root.iter(f"{ns}entry"):
+        t = (e.findtext(f"{ns}title") or "").strip()
+        ln = e.find(f"{ns}link")
+        if t:
+            entries.append({"title": t[:200],
+                            "link": (ln.get("href", "") if ln is not None else "")[:300]})
+    entries = entries[:25]
+    titles = [x["title"] for x in entries]
     # symbols people are talking about (cashtags + bare tickers in caps)
     mentions: dict[str, int] = {}
     for t in titles:
@@ -103,7 +109,8 @@ def reddit(sub: str) -> dict:
         "posts": len(titles),
         "sentiment": lexicon_score(titles),
         "top_mentions": dict(sorted(mentions.items(), key=lambda kv: -kv[1])[:8]),
-        "top_titles": [{"title": t[:160]} for t in titles[:5]],
+        "top_titles": [{"title": x["title"][:160], "link": x["link"]}
+                       for x in entries[:8]],
     }
 
 
@@ -114,8 +121,13 @@ def stocktwits(sym: str) -> dict:
                if (m.get("entities", {}).get("sentiment") or {}).get("basic") == "Bullish")
     bear = sum(1 for m in msgs
                if (m.get("entities", {}).get("sentiment") or {}).get("basic") == "Bearish")
+    samples = [{"body": (m.get("body") or "")[:140],
+                "sentiment": ((m.get("entities", {}).get("sentiment") or {})
+                              .get("basic") or "")}
+               for m in msgs[:5] if m.get("body")]
     return {"symbol": sym, "messages": len(msgs), "bullish": bull, "bearish": bear,
-            "ratio": round(bull / (bull + bear), 3) if (bull + bear) else None}
+            "ratio": round(bull / (bull + bear), 3) if (bull + bear) else None,
+            "samples": samples}
 
 
 def fear_greed() -> dict:
@@ -160,6 +172,9 @@ def collect() -> dict:
     news += leg("cointelegraph", _rss_titles, "https://cointelegraph.com/rss", 10) or []
     crypto["headlines"] = news[:15]
     crypto["news_sentiment"] = lexicon_score([h["title"] for h in news]) if news else None
+    crypto["news_by_symbol"] = {
+        s: leg(f"gnews_c_{s}", google_news, q, 4) or []
+        for s, q in [("BTC", "bitcoin"), ("ETH", "ethereum"), ("SOL", "solana")]}
 
     # ---- equities side ----------------------------------------------
     held = held_equity_symbols()

@@ -474,6 +474,39 @@ def main() -> None:
     log(f"pl={sleeve_pl:+.2f} deployed={deployed:.2f} room={room:.2f} "
         f"cash={cash_avail:.2f} gate={mode}")
 
+    # Display-only: live marks per position + what the engine WANTS this
+    # tick (kept positions + momentum picks up to the cap, ignoring cash)
+    # — feeds the Terminal's allocation bars, mirroring the Book page's
+    # holdings-vs-target pair. Never read back by trading logic.
+    try:
+        for p in still_open:
+            row = st["positions"].get(p.symbol)
+            if row is not None:
+                row["mv"] = round(p.market_value, 2)
+                row["cur"] = p.current_price
+        tgt = {p.symbol: round(p.notional, 2) for p in still_open}
+        t_room = CFG["cap_total_usd"] - sum(tgt.values())
+        if allowed:
+            for sym in CFG["universe"]:
+                if t_room < CFG["min_order_usd"]:
+                    break
+                if sym in tgt:
+                    continue
+                try:
+                    if momentum_ok(broker.closes(sym)) is not True:
+                        continue
+                except Exception:
+                    continue
+                want = round(min(CFG["per_trade_usd"], t_room), 2)
+                tgt[sym] = want
+                t_room -= want
+        st["targets"] = tgt
+        st["targets_ts"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        st["targets_gate"] = mode
+        save_state(st)
+    except Exception as e:
+        log(f"targets calc FAIL {e!r}")
+
     bought = 0.0
     if allowed:
         for sym in CFG["universe"]:

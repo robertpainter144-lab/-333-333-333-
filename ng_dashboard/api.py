@@ -1652,6 +1652,20 @@ def mount(fastapi_app, main_module) -> None:
                 "risk_on_social": intel.get("risk_on_social"),
                 **(intel.get("equities") or {})}
 
+    @fastapi_app.get("/api/intel/history", include_in_schema=False)
+    def _intel_history(limit: int = 96):
+        hist = _intel_file.parent / "intel_history.jsonl"
+        rows = []
+        try:
+            for line in hist.read_text().splitlines()[-max(1, min(limit, 500)):]:
+                try:
+                    rows.append(json.loads(line))
+                except Exception:
+                    continue
+        except Exception:
+            pass
+        return rows
+
     # Consumer-facing guest view — stripped Book-only page, no strategy
     # internals. Public access requires the guest key (?key=... once, then
     # stored in localStorage by the page).

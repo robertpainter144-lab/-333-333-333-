@@ -85,6 +85,10 @@ def reddit(sub: str) -> dict:
     time.sleep(10)
     root = ET.fromstring(_get(f"https://www.reddit.com/r/{sub}/hot.rss"))
     ns = "{http://www.w3.org/2005/Atom}"
+    if root.tag != f"{ns}feed":
+        # A WAF/interstitial page that happens to be valid XML would
+        # otherwise read as a silent zero-post result.
+        raise ValueError(f"unexpected feed root {root.tag!r}")
     titles = [(e.findtext(f"{ns}title") or "").strip()
               for e in root.iter(f"{ns}entry")]
     titles = [t for t in titles if t][:25]
@@ -191,11 +195,18 @@ def main():
     tmp = STATE / "intel.json.tmp"
     tmp.write_text(json.dumps(doc, indent=1))
     tmp.replace(STATE / "intel.json")
-    with (STATE / "intel_history.jsonl").open("a") as f:
+    hist = STATE / "intel_history.jsonl"
+    with hist.open("a") as f:
         f.write(json.dumps({"ts": int(time.time()),
                             "risk_on_social": doc.get("risk_on_social"),
                             "fear_greed": (doc["crypto"].get("fear_greed") or {}).get("value"),
                             "errors": len(doc["errors"])}) + "\n")
+    # Rotate: cap at ~30k rows (~1.7 years at 48/day) via atomic rewrite.
+    lines = hist.read_text().splitlines()
+    if len(lines) > 30_000:
+        htmp = STATE / "intel_history.jsonl.tmp"
+        htmp.write_text("\n".join(lines[-30_000:]) + "\n")
+        htmp.replace(hist)
     ok = sum(1 for k in ("fear_greed", "reddit_cc", "reddit_wsb") if k not in doc["errors"])
     print(f"intel ok: risk_on_social={doc.get('risk_on_social')} "
           f"errors={len(doc['errors'])} core_legs_ok={ok}/3")

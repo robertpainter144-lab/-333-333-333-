@@ -900,3 +900,22 @@ today — its endpoint had never existed), systemd quarki-intel.{service,timer}
 StockTwits ratios, per-symbol news OK; Reddit rate-limit handling (RSS + 10s
 spacing). Pending: Robert runs vm_apply_intel.sh paste on VM; equities-tab
 card + intel-history sparkline = post-reset ultracode items.
+
+## 2026-08-09 late — D40 ultracode pass (4 agents, AMBER-capped): 22 findings applied
+Build agent shipped owner_equity_intel.js (equities news/social card, mounts
+in /app Book pane, SVG sparkline from /api/intel/history). Verifiers found
+the big one: BOTH intel cards were dead code — no /owner/ routes, no script
+injection anywhere (the crypto intel card also polls a container id that
+exists nowhere; left for its owning window — backend now serves it either
+way). Fixed: /owner/equity-intel.js route + /app owner-mode injection with
+qt.apiKey localStorage seeding (owner key never rides query strings on the
+60s poll); intel state files git-rm --cached + properly ignored (they were
+tracked, guaranteeing the VM dirty-tree pull failure); vm_apply_intel.sh now
+fails loudly on pull/rebase failure + HEAD-vs-upstream check + curl -sf
+health gates; TimeoutStartSec=300 (collector sleeps 30s+ on Reddit spacing);
+/api/crypto/intel merge namespaced under news_intel; dict-shape validation
+on state reads; /api/intel/history limit clamp allows 0; _GUEST_PATHS
+ticker/ alternative anchored (ticker/[^/]+$ — was the only unanchored leg);
+Atom-root validation in reddit(); intel_history rotation at 30k rows;
+sparkline epoch-seconds→ms. Guest-gate regression test: 7/7 PASS. Deferred:
+esc() hygiene in owner_crypto_intel.js (other window's file, unwired).

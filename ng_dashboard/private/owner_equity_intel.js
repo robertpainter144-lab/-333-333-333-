@@ -118,7 +118,7 @@
   function sparklineSvg(rows) {
     var pts = (rows || [])
       .filter(function (r) { return r && r.risk_on_social != null && isFinite(+r.risk_on_social); })
-      .map(function (r) { return { t: +new Date(r.ts), v: +r.risk_on_social }; })
+      .map(function (r) { return { t: r.ts * 1000, v: +r.risk_on_social }; })
       .filter(function (p) { return isFinite(p.t); })
       .sort(function (a, b) { return a.t - b.t; });
     if (pts.length < 2)

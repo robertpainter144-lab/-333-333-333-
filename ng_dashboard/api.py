@@ -1201,7 +1201,7 @@ def mount(fastapi_app, main_module) -> None:
         r"|(portfolio|equity|activity)/(paper|broker|shadow|qcmirror)$"
         r"|sources$|bots$|version$|edge$|qc$|whales$|patent-cliff$|prop_desk/state$"
         r"|insider/(leaderboard|portfolio)$|governor$|market_pulse$|congress$"
-        r"|ticker/))"
+        r"|ticker/[^/]+$))"
     )
 
     # Per-endpoint guest scrubbing: guests get the Lab-only view of shared
@@ -1466,9 +1466,17 @@ def mount(fastapi_app, main_module) -> None:
                 try:
                     from starlette.responses import HTMLResponse
                     html = _webapp.read_text()
-                    src = "/owner/crypto.js" + (f"?key={key}" if owner_ok and key else "")
-                    html = html.replace(
-                        "</body>", f'<script defer src="{src}"></script></body>')
+                    qs = f"?key={key}" if owner_ok and key else ""
+                    inject = (f'<script defer src="/owner/crypto.js{qs}"></script>'
+                              f'<script defer src="/owner/equity-intel.js{qs}"></script>')
+                    if owner_ok and key:
+                        # Seed the header-auth key so the intel card's 60s
+                        # polling never falls back to ?key= in request URLs
+                        # (keeps the owner key out of access/proxy logs).
+                        inject = ('<script>try{localStorage.setItem("qt.apiKey",'
+                                  + json.dumps(key) + ');}catch(e){}</script>'
+                                  + inject)
+                    html = html.replace("</body>", inject + "</body>")
                     resp = HTMLResponse(html)
                     resp.headers["cache-control"] = "no-cache"
                     return resp
@@ -1614,6 +1622,19 @@ def mount(fastapi_app, main_module) -> None:
             resp.headers["cache-control"] = "no-cache"
             return resp
 
+    # Owner-private equities intel card for /app (D40 — same D1 pattern).
+    _owner_equity_intel = _private_dir / "owner_equity_intel.js"
+    if _owner_equity_intel.exists():
+        @fastapi_app.get("/owner/equity-intel.js", include_in_schema=False)
+        def _owner_equity_intel_route(request: Request):
+            key = request.headers.get("x-api-key") or request.query_params.get("key")
+            if "x-forwarded-for" in request.headers and key != _keys.get("owner"):
+                raise HTTPException(status_code=403)
+            resp = FileResponse(str(_owner_equity_intel),
+                                media_type="application/javascript")
+            resp.headers["cache-control"] = "no-cache"
+            return resp
+
     # ── Intel engine (D40): persistent news/social/sentiment feeds ─────
     # Collector: intel_engine/collect.py (quarki-intel.timer on the VM,
     # Mac-off independent). Owner-only automatically: neither path matches
@@ -1625,18 +1646,21 @@ def mount(fastapi_app, main_module) -> None:
 
     def _read_json_file(p: Path):
         try:
-            return json.loads(p.read_text())
+            d = json.loads(p.read_text())
+            return d if isinstance(d, dict) else None
         except Exception:
             return None
 
     @fastapi_app.get("/api/crypto/intel", include_in_schema=False)
     def _crypto_intel():
         doc = _read_json_file(_whale_sig_file) or {}
-        intel = _read_json_file(_intel_file) or {}
+        intel = _read_json_file(_intel_file)
         if intel:
-            doc["social"] = intel.get("crypto")
-            doc["risk_on_social"] = intel.get("risk_on_social")
-            doc["social_asof"] = intel.get("asof")
+            # Namespaced so the news collector can never clobber a whale
+            # composite field the Terminal card renders.
+            doc["news_intel"] = {"crypto": intel.get("crypto"),
+                                 "risk_on_social": intel.get("risk_on_social"),
+                                 "asof": intel.get("asof")}
         if not doc:
             return JSONResponse({"error": "no intel collected yet"},
                                 status_code=503)
@@ -1657,7 +1681,7 @@ def mount(fastapi_app, main_module) -> None:
         hist = _intel_file.parent / "intel_history.jsonl"
         rows = []
         try:
-            for line in hist.read_text().splitlines()[-max(1, min(limit, 500)):]:
+            for line in hist.read_text().splitlines()[-max(0, min(limit, 500)):] if limit > 0 else []:
                 try:
                     rows.append(json.loads(line))
                 except Exception:

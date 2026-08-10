@@ -21,8 +21,14 @@
       "notional": 6.0,
       "opened": "2026-08-10T16:09:13+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.59)",
-      "mv": 6.43,
-      "cur": 0.25972
+      "mv": 6.42,
+      "cur": 0.2593
+    },
+    "PENGU/USD": {
+      "entry_price": 0.006537,
+      "notional": 6.0,
+      "opened": "2026-08-10T22:02:45+00:00",
+      "signal_mode": "whale-confirmed (risk_on=0.60)"
     }
   },
   "frozen": false,
@@ -34,8 +40,9 @@
   "targets": {
     "CRV/USD": 6.0,
     "VVV/USD": 5.89,
-    "WLD/USD": 5.77
+    "WLD/USD": 5.77,
+    "PENGU/USD": 6.0
   },
-  "targets_ts": "2026-08-10T21:52:01+00:00",
+  "targets_ts": "2026-08-10T22:02:42+00:00",
   "targets_gate": "whale-confirmed (risk_on=0.60)"
 }

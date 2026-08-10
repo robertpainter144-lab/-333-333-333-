@@ -29,6 +29,13 @@
   const MAX_HOPS = 10;
 
   function buzz(ms) {
+    // Native bridge first (Terminal 333 v3.4+): Chromium blocks
+    // navigator.vibrate until the page has been TAPPED, and pinches never
+    // grant that activation — the bridge has no such rule and renders short
+    // ticks as the system's crisp CLICK effect.
+    try {
+      if (window.QTNative && QTNative.vibrate) { QTNative.vibrate(ms); return; }
+    } catch (e) {}
     try { navigator.vibrate && navigator.vibrate(ms); } catch (e) {}
   }
 

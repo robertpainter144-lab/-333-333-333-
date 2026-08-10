@@ -359,6 +359,7 @@
           '<summary style="' + sumSty + '">sources</summary>' +
           '<div style="' + listSty + '">' +
           c.reddit.top_titles.map(function (t) {
+            if (!t) return "";
             return '<div style="margin-bottom:2px">r/' + esc(c.reddit.sub || "") + " — " +
               newsSourceLink(t.link, t.title) + "</div>";
           }).join("") + "</div></details>";
@@ -388,17 +389,19 @@
           '<summary style="' + sumSty + '">📰 headlines</summary>' +
           '<div style="' + listSty + '">' +
           (c.headlines || []).map(function (h) {
+            if (!h) return "";
             return '<div style="margin-bottom:2px">' + newsSourceLink(h.link, h.title) + "</div>";
           }).join("") +
           symKeys.map(function (sym) {
             return '<div style="margin-top:4px"><b>' + esc(sym) + "</b></div>" +
               bySym[sym].map(function (h) {
+                if (!h) return "";
                 return '<div style="margin-left:8px;margin-bottom:2px">' + newsSourceLink(h.link, h.title) + "</div>";
               }).join("");
           }).join("") + "</div></details>";
       }
       host.innerHTML = out;
-    });
+    }).catch(function () { /* dropdown stays absent on fetch failure */ });
   }
 
   function refreshPane() {

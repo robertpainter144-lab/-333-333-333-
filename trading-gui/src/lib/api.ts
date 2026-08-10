@@ -124,7 +124,9 @@ export const api = {
   sources: () => get<SourceInfo[]>("/api/sources"),
   portfolio: (source: string) => get<Portfolio>(`/api/portfolio/${source}`),
   portfolios: () => get<Portfolio[]>("/api/portfolio"),
-  equity: (source: string) => get<EquityPoint[]>(`/api/equity/${source}`),
+  // Full-depth fetch: range buttons window client-side, so ask the server
+  // for the longest span once (recent window is fine-grained via splicing).
+  equity: (source: string) => get<EquityPoint[]>(`/api/equity/${source}?period=5Y`),
   /** Owner-only; guests must never call it (403 → auth redirect). */
   transfers: (source: string) => get<TransferPoint[]>(`/api/transfers/${source}`),
   activity: (source: string, limit = 50) =>

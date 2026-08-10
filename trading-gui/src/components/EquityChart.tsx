@@ -5,10 +5,13 @@ import { Tabs } from "./ui";
 
 const RANGES = [
   { id: "1D", label: "1D", ms: 24 * 3600e3 },
+  { id: "3D", label: "3D", ms: 3 * 24 * 3600e3 },
   { id: "1W", label: "1W", ms: 7 * 24 * 3600e3 },
   { id: "1M", label: "1M", ms: 31 * 24 * 3600e3 },
   { id: "3M", label: "3M", ms: 92 * 24 * 3600e3 },
   { id: "6M", label: "6M", ms: 183 * 24 * 3600e3 },
+  { id: "1Y", label: "1Y", ms: 366 * 24 * 3600e3 },
+  { id: "5Y", label: "5Y", ms: 5 * 366 * 24 * 3600e3 },
   { id: "ALL", label: "ALL", ms: Infinity },
 ];
 

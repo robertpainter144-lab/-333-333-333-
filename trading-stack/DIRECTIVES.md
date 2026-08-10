@@ -335,6 +335,18 @@ Last full revision: 2026-07-29.
   CHECK: ~/bin/trading-autopush.sh contains
   `robertpainter144-lab/-333-333-333-` and no `Quarki33` push loop; no VM
   timer/script pushes to a Quarki33 remote.
+  **Reaffirmed EXCLUSIVE 2026-08-09 18:30 (Robert: "make sure this is the
+  only repo we are working with until I say otherwise").** Enforcement sweep
+  same evening: every remaining live push URL on the Mac neutered to
+  `DISABLED-BY-D38-USE-LAB-REPO` — insider_bot, MVYTraders,
+  quarki-terminal-android, trading-companion, lab333/terminal333, and the 4
+  nested trading-system/* checkouts (fetch URLs kept for reference).
+  Includes MVYTraders and robertpainter144-lab/terminal333: no pushes
+  ANYWHERE except `-333-333-333-` main until Robert lifts this.
+  companion-sync auto_sync.sh pushes are dead (plist unloaded + URL
+  neutered); mvy_watch stays (read-only tripwire).
+  CHECK: `git -C <repo> remote -v` shows no live push URL other than
+  `robertpainter144-lab/-333-333-333-` for every git checkout under ~.
 
 - **D39 — Live crypto sleeve, $50 cap (2026-08-09).** Robert's second
   sanctioned live experiment sleeve (turbo-arm pattern): whale-gated

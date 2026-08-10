@@ -1512,7 +1512,8 @@ def mount(fastapi_app, main_module) -> None:
                 except Exception:
                     return None
                 inject = ('<script defer src="/owner/catalog.js"></script>'
-                          '<script defer src="/owner/terminal-crypto.js"></script>')
+                          '<script defer src="/owner/terminal-crypto.js"></script>'
+                          '<script defer src="/owner/zoom.js"></script>')
                 if _owner_ok:
                     # Via the funnel, the browser's <script> load of
                     # /owner/catalog.js ALSO hits the XFF key-gate (it can't send
@@ -1522,6 +1523,8 @@ def mount(fastapi_app, main_module) -> None:
                     inject = ('<script defer src="/owner/catalog.js?key='
                               + _qkey + '"></script>'
                               '<script defer src="/owner/terminal-crypto.js?key='
+                              + _qkey + '"></script>'
+                              '<script defer src="/owner/zoom.js?key='
                               + _qkey + '"></script>')
                     inject = ('<script>try{localStorage.setItem("qt.apiKey",'
                               + json.dumps(_qkey) +
@@ -1604,6 +1607,19 @@ def mount(fastapi_app, main_module) -> None:
             if "x-forwarded-for" in request.headers and key != _keys.get("owner"):
                 raise HTTPException(status_code=403)
             resp = FileResponse(str(_owner_term_crypto),
+                                media_type="application/javascript")
+            resp.headers["cache-control"] = "no-cache"
+            return resp
+
+    # Pinch-to-zoom period detents for chart cards — same owner-key gate.
+    _owner_zoom_js = _private_dir / "owner_zoom.js"
+    if _owner_zoom_js.exists():
+        @fastapi_app.get("/owner/zoom.js", include_in_schema=False)
+        def _owner_zoom_js_route(request: Request):
+            key = request.headers.get("x-api-key") or request.query_params.get("key")
+            if "x-forwarded-for" in request.headers and key != _keys.get("owner"):
+                raise HTTPException(status_code=403)
+            resp = FileResponse(str(_owner_zoom_js),
                                 media_type="application/javascript")
             resp.headers["cache-control"] = "no-cache"
             return resp

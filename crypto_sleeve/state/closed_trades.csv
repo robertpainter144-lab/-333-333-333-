@@ -12,3 +12,4 @@ closed_at,symbol,entry_time,entry_price,exit_price,notional,realized_pl,pl_pct,r
 2026-08-10T15:01:21+00:00,AVAX/USD,2026-08-10T12:52:50+00:00,6.5390,6.5140,5.90,-0.0519,-0.0088,momentum_flip,whale-confirmed (risk_on=0.57)
 2026-08-10T15:12:00+00:00,DOT/USD,2026-08-10T15:06:57+00:00,0.8132,0.8123,6.00,-0.0366,-0.0061,momentum_flip,whale-confirmed (risk_on=0.58)
 2026-08-10T16:03:55+00:00,PENGU/USD,2026-08-10T13:03:25+00:00,0.0067,0.0066,5.67,-0.0790,-0.0139,momentum_flip,whale-confirmed (risk_on=0.57)
+2026-08-10T21:10:07+00:00,PENGU/USD,2026-08-10T18:04:57+00:00,0.0066,0.0066,6.00,0.0016,0.0003,momentum_flip,whale-confirmed (risk_on=0.60)

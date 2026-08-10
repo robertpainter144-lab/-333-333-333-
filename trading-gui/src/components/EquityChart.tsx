@@ -4,6 +4,10 @@ import { toEpochMs, money, moneySigned, pct, signClass, arrow } from "../lib/for
 import { Tabs } from "./ui";
 
 const RANGES = [
+  { id: "1H", label: "1H", ms: 3600e3 },
+  { id: "3H", label: "3H", ms: 3 * 3600e3 },
+  { id: "6H", label: "6H", ms: 6 * 3600e3 },
+  { id: "12H", label: "12H", ms: 12 * 3600e3 },
   { id: "1D", label: "1D", ms: 24 * 3600e3 },
   { id: "3D", label: "3D", ms: 3 * 24 * 3600e3 },
   { id: "1W", label: "1W", ms: 7 * 24 * 3600e3 },
@@ -51,6 +55,8 @@ declare global {
   }
 }
 const MIN_SPAN_MS = 10 * 60e3; // can't zoom tighter than 10 minutes
+const WKND_W = 0.15;                       // weekend renders at 15% width
+const COMPRESS_MIN_SPAN = 48 * 3600e3;     // linear clock under 2 days
 const POS_C = "#3fb950";
 const NEG_C = "#f85149";
 const LS_NET = "qt.equityNet";
@@ -223,6 +229,50 @@ export default function EquityChart(props: {
     return [lo, lo + span];
   };
 
+  // ── Compressed clock ──
+  // Weekend dead time (Fri 18:00 → Sun 18:00 local ≈ the span with no
+  // US-equity marks) renders at WKND_W of its real width on multi-day
+  // windows, so the line reads continuous the way broker charts draw it —
+  // WITHOUT deleting the hours where a 24/7 overlay series still trades.
+  // Sub-2-day windows keep a true linear clock. All gestures map through
+  // the same curve, so pan/zoom stays pixel-accurate.
+  const clock = useMemo(() => {
+    const spans: [number, number][] = [];
+    const d = new Date(dataMin - 30 * 86400e3);
+    d.setHours(18, 0, 0, 0);
+    while (d.getDay() !== 5) d.setDate(d.getDate() - 1);
+    for (let ws = d.getTime(); ws < dataMax + 30 * 86400e3; ) {
+      spans.push([ws, ws + 48 * 3600e3]);
+      const n = new Date(ws);
+      n.setDate(n.getDate() + 7);
+      ws = n.getTime();
+    }
+    const u = (t: number) => {
+      let rem = 0;
+      for (const [ws, we] of spans) {
+        if (t <= ws) break;
+        rem += (Math.min(t, we) - ws) * (1 - WKND_W);
+      }
+      return t - rem;
+    };
+    const inv = (uu: number) => {
+      let rem = 0;
+      for (const [ws, we] of spans) {
+        const uWs = ws - rem;
+        if (uu <= uWs) return uu + rem;
+        const uWe = uWs + (we - ws) * WKND_W;
+        if (uu < uWe) return ws + (uu - uWs) / WKND_W;
+        rem += (we - ws) * (1 - WKND_W);
+      }
+      return uu + rem;
+    };
+    return { u, inv };
+  }, [dataMin, dataMax]);
+  const LINEAR = { u: (t: number) => t, inv: (u: number) => u };
+  const activeClock = d1 - d0 > COMPRESS_MIN_SPAN ? clock : LINEAR;
+  const clockRef = useRef(activeClock);
+  clockRef.current = activeClock;
+
   // ── Gesture state (refs — no re-render churn mid-gesture) ──
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const gestureStart = useRef<{ d0: number; d1: number; x: number; dist: number; mid: number } | null>(null);
@@ -230,7 +280,9 @@ export default function EquityChart(props: {
 
   const xToT = (x: number, w: number) => {
     const { d0: a, d1: b } = domRef.current;
-    return a + ((x - PAD_L) / Math.max(w - PAD_L - padRRef.current, 1)) * (b - a);
+    const ck = clockRef.current;
+    const ua = ck.u(a), ub = ck.u(b);
+    return ck.inv(ua + ((x - PAD_L) / Math.max(w - PAD_L - padRRef.current, 1)) * (ub - ua));
   };
 
   function onPointerDown(e: React.PointerEvent) {
@@ -273,19 +325,22 @@ export default function EquityChart(props: {
     const pts = [...pointers.current.values()];
     const w = Math.max(rect.width - PAD_L - padRRef.current, 1);
 
+    const ck = clockRef.current;
     if (pts.length === 1) {
-      // PAN: pixel delta → time delta on the domain captured at gesture start
-      const dxT = ((pts[0].x - g.x) / w) * (g.d1 - g.d0);
-      setDomain(clampDomain(g.d0 - dxT, g.d1 - dxT));
+      // PAN: pixel delta → compressed-time delta on the start domain
+      const gu0 = ck.u(g.d0), gu1 = ck.u(g.d1);
+      const dxU = ((pts[0].x - g.x) / w) * (gu1 - gu0);
+      setDomain(clampDomain(ck.inv(gu0 - dxU), ck.inv(gu1 - dxU)));
       if (data.length) setReadout(nearest(data, xToT(pts[0].x - rect.left, rect.width)));
     } else if (pts.length >= 2) {
-      // PINCH: scale the start-domain around the pinch midpoint
+      // PINCH: scale the start-domain around the pinch midpoint (u-space)
       const dist = Math.max(Math.abs(pts[0].x - pts[1].x), 1);
       const scale = g.dist / dist;
-      const midT = g.d0 + (((g.mid - rect.left) - PAD_L) / w) * (g.d1 - g.d0);
-      const lo = midT - (midT - g.d0) * scale;
-      const hi = midT + (g.d1 - midT) * scale;
-      setDomain(clampDomain(lo, hi));
+      const gu0 = ck.u(g.d0), gu1 = ck.u(g.d1);
+      const midU = gu0 + (((g.mid - rect.left) - PAD_L) / w) * (gu1 - gu0);
+      setDomain(clampDomain(
+        ck.inv(midU - (midU - gu0) * scale),
+        ck.inv(midU + (gu1 - midU) * scale)));
     }
   }
 
@@ -311,9 +366,13 @@ export default function EquityChart(props: {
       const rect = el.getBoundingClientRect();
       const w = Math.max(rect.width - PAD_L - padRRef.current, 1);
       const { d0: a, d1: b } = domRef.current;
-      const midT = a + (((e.clientX - rect.left) - PAD_L) / w) * (b - a);
+      const ck = clockRef.current;
+      const ua = ck.u(a), ub = ck.u(b);
+      const midU = ua + (((e.clientX - rect.left) - PAD_L) / w) * (ub - ua);
       const scale = e.deltaY > 0 ? 1.15 : 0.87;
-      setDomain(clampDomain(midT - (midT - a) * scale, midT + (b - midT) * scale));
+      setDomain(clampDomain(
+        ck.inv(midU - (midU - ua) * scale),
+        ck.inv(midU + (ub - midU) * scale)));
     };
     el.addEventListener("wheel", onWheelNative, { passive: false });
     return () => el.removeEventListener("wheel", onWheelNative);
@@ -389,7 +448,11 @@ export default function EquityChart(props: {
     const pad = Math.max((mx - mn) * 0.12, 0.02);
     const lo = mn - pad, hi = mx + pad;
 
-    const X = (t: number) => PAD_L + ((t - d0) / Math.max(d1 - d0, 1)) * plotW;
+    // All x-positions go through the session clock: weekends render
+    // compressed on multi-day windows (see makeClock above).
+    const ck = activeClock;
+    const u0 = ck.u(d0), u1 = ck.u(d1);
+    const X = (t: number) => PAD_L + ((ck.u(t) - u0) / Math.max(u1 - u0, 1)) * plotW;
     const Y = (v: number) => mainTop + (1 - (v - lo) / Math.max(hi - lo, 1e-9)) * mainH;
 
     ctx.clearRect(0, 0, W, H);
@@ -408,7 +471,8 @@ export default function EquityChart(props: {
 
     // ── Y grid + $ ticks — snapped to …1¢,5¢,10¢,25¢,50¢,$1,$2.50,$5… ──
     const yStep = niceStep(hi - lo, [0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 25, 50, 100, 250, 500], 5);
-    const yDec = yStep < 1 ? 2 : Number.isInteger(yStep) ? 0 : 1;
+    // Always dollars-and-cents: a $499.59 book must never read "$499.6".
+    const yDec = 2;
     // With an overlay on, each side's numbers take its line's color — left
     // in the main series color, right in the overlay's — so the two axes
     // read as a matched, color-coded pair.
@@ -436,9 +500,13 @@ export default function EquityChart(props: {
       tStart = d.getTime();
     }
     let prevDay = "";
+    let lastLabX = -1e9;
     for (let t = tStart, n = 0; t <= d1 && n < 40; t += tStep, n++) {
       const x = X(t);
       if (x < PAD_L - 1 || x > W - padR - 14) continue;
+      // Compressed weekends bunch tick positions — keep labels legible.
+      if (x - lastLabX < 40) continue;
+      lastLabX = x;
       const dt = new Date(t);
       let label: string;
       if (!subDay) {
@@ -488,27 +556,17 @@ export default function EquityChart(props: {
     ctx.strokeStyle = gridC; ctx.fillStyle = mutedC;
     ctx.setLineDash([]);
 
-    // Area fill + line (clipped to the plot so bracketing points don't spill)
-    if (seg.length >= 2) {
-      ctx.save();
-      ctx.beginPath(); ctx.rect(PAD_L, padT, plotW, plotH); ctx.clip();
-      const grad = ctx.createLinearGradient(0, mainTop, 0, H - PAD_B);
-      grad.addColorStop(0, color + "40"); grad.addColorStop(1, color + "05");
-      ctx.beginPath();
-      ctx.moveTo(X(seg[0].t), Y(val(seg[0])));
-      for (const p of seg) ctx.lineTo(X(p.t), Y(val(p)));
-      ctx.lineTo(X(seg[seg.length - 1].t), H - PAD_B);
-      ctx.lineTo(X(seg[0].t), H - PAD_B);
-      ctx.closePath(); ctx.fillStyle = grad; ctx.fill();
-      ctx.beginPath();
-      ctx.moveTo(X(seg[0].t), Y(val(seg[0])));
-      for (const p of seg) ctx.lineTo(X(p.t), Y(val(p)));
-      ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.stroke();
-      ctx.restore();
-    }
-    // ── Overlay series: own y-scale on the shared time domain, so pan and
-    // zoom move both lines together. Right-edge value ticks in the series
-    // color; optional top time axis (same nice ticks as the bottom one). ──
+    // ── Overlay pass 1: shading + line painted BEFORE (under) the main
+    // series — the primary line stays predominant, its translucent fill
+    // blends with the overlay's where they overlap (olive where yellow
+    // crosses green) instead of one series scribbling over the other. ──
+    const oDrawn: {
+      o: OverlaySeries;
+      oseg: { t: number; v: number }[];
+      OY: (v: number) => number;
+      olo: number;
+      ohi: number;
+    }[] = [];
     for (const o of overlays) {
       const opts = o.points
         .filter((p) => Number.isFinite(p.t) && Number.isFinite(p.v))
@@ -531,9 +589,62 @@ export default function EquityChart(props: {
       const oH = laneFrac > 0 ? laneH : plotH;
       const oBot = padT + oH;
       const OY = (v: number) => padT + (1 - (v - olo) / Math.max(ohi - olo, 1e-9)) * oH;
-      // Right-gutter value axis in the overlay color (never over the plot)
+      // Flat lead-in over the pre-history region, drawn SOLID and shaded as
+      // part of the main path (owner preference: a young series reads as one
+      // continuous first-class curve across the full window).
+      const oplot = (o.leadIn && oseg[0].t > d0)
+        ? [{ t: d0, v: oseg[0].v }, ...oseg]
+        : oseg;
+      ctx.save();
+      ctx.beginPath(); ctx.rect(PAD_L, padT, plotW, plotH); ctx.clip();
+      const ograd = ctx.createLinearGradient(0, padT, 0, oBot);
+      ograd.addColorStop(0, o.color + "22"); ograd.addColorStop(1, o.color + "04");
+      ctx.beginPath();
+      ctx.moveTo(X(oplot[0].t), OY(oplot[0].v));
+      for (const p of oplot) ctx.lineTo(X(p.t), OY(p.v));
+      ctx.lineTo(X(oplot[oplot.length - 1].t), oBot);
+      ctx.lineTo(X(oplot[0].t), oBot);
+      ctx.closePath(); ctx.fillStyle = ograd; ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(X(oplot[0].t), OY(oplot[0].v));
+      for (const p of oplot) ctx.lineTo(X(p.t), OY(p.v));
+      ctx.strokeStyle = o.color; ctx.lineWidth = 1.8; ctx.stroke();
+      // Live-end dot so a young series is findable even when it spans only
+      // a sliver of the window.
+      const oLast = oseg[oseg.length - 1];
+      if (oLast.t >= d0 && oLast.t <= d1) {
+        ctx.beginPath(); ctx.arc(X(oLast.t), OY(oLast.v), 3, 0, Math.PI * 2);
+        ctx.fillStyle = o.color; ctx.fill();
+      }
+      ctx.restore();
+      oDrawn.push({ o, oseg, OY, olo, ohi });
+    }
+
+    // Main area fill + line — painted OVER the overlays (predominant)
+    if (seg.length >= 2) {
+      ctx.save();
+      ctx.beginPath(); ctx.rect(PAD_L, padT, plotW, plotH); ctx.clip();
+      const grad = ctx.createLinearGradient(0, mainTop, 0, H - PAD_B);
+      grad.addColorStop(0, color + "40"); grad.addColorStop(1, color + "05");
+      ctx.beginPath();
+      ctx.moveTo(X(seg[0].t), Y(val(seg[0])));
+      for (const p of seg) ctx.lineTo(X(p.t), Y(val(p)));
+      ctx.lineTo(X(seg[seg.length - 1].t), H - PAD_B);
+      ctx.lineTo(X(seg[0].t), H - PAD_B);
+      ctx.closePath(); ctx.fillStyle = grad; ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(X(seg[0].t), Y(val(seg[0])));
+      for (const p of seg) ctx.lineTo(X(p.t), Y(val(p)));
+      ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.stroke();
+      ctx.restore();
+    }
+
+    // ── Overlay pass 2: axes — right-edge value ticks + top clock, drawn
+    // last so the small colored labels stay crisp above both fills. ──
+    for (const { o, OY, olo, ohi } of oDrawn) {
       const oStep = niceStep(ohi - olo, [0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 25, 50, 100, 250, 500], 4);
-      const oDec = oStep < 1 ? 2 : Number.isInteger(oStep) ? 0 : 1;
+      // Match the main axis: full dollars-and-cents, never rounded away.
+      const oDec = 2;
       ctx.fillStyle = o.color;
       // Overlay axes render a step smaller than the main axes, right-aligned
       // hard against the screen edge — mirrors the left gutter's flushness.
@@ -549,9 +660,12 @@ export default function EquityChart(props: {
       if (o.topAxisColor) {
         ctx.fillStyle = o.topAxisColor;
         let prevDayTop = "";
+        let lastTopX = -1e9;
         for (let t = tStart, n = 0; t <= d1 && n < 40; t += tStep, n++) {
           const x = X(t);
           if (x < PAD_L - 1 || x > W - padR - 14) continue;
+          if (x - lastTopX < 40) continue;
+          lastTopX = x;
           const dt = new Date(t);
           let label: string;
           if (!subDay) {
@@ -566,36 +680,6 @@ export default function EquityChart(props: {
           ctx.fillText(label, Math.min(Math.max(x - 12, PAD_L), W - padR - 38), 12);
         }
       }
-      // Flat lead-in over the pre-history region, drawn SOLID and shaded as
-      // part of the main path (owner preference: a young series reads as one
-      // continuous first-class curve across the full window).
-      const oplot = (o.leadIn && oseg[0].t > d0)
-        ? [{ t: d0, v: oseg[0].v }, ...oseg]
-        : oseg;
-      // Area shading + line, clipped to the plot — same treatment as the
-      // main series so the overlay reads as a first-class curve.
-      ctx.save();
-      ctx.beginPath(); ctx.rect(PAD_L, padT, plotW, plotH); ctx.clip();
-      const ograd = ctx.createLinearGradient(0, padT, 0, oBot);
-      ograd.addColorStop(0, o.color + "38"); ograd.addColorStop(1, o.color + "06");
-      ctx.beginPath();
-      ctx.moveTo(X(oplot[0].t), OY(oplot[0].v));
-      for (const p of oplot) ctx.lineTo(X(p.t), OY(p.v));
-      ctx.lineTo(X(oplot[oplot.length - 1].t), oBot);
-      ctx.lineTo(X(oplot[0].t), oBot);
-      ctx.closePath(); ctx.fillStyle = ograd; ctx.fill();
-      ctx.beginPath();
-      ctx.moveTo(X(oplot[0].t), OY(oplot[0].v));
-      for (const p of oplot) ctx.lineTo(X(p.t), OY(p.v));
-      ctx.strokeStyle = o.color; ctx.lineWidth = 2; ctx.stroke();
-      // Live-end dot so a young series is findable even when it spans only
-      // a sliver of the window.
-      const oLast = oseg[oseg.length - 1];
-      if (oLast.t >= d0 && oLast.t <= d1) {
-        ctx.beginPath(); ctx.arc(X(oLast.t), OY(oLast.v), 3, 0, Math.PI * 2);
-        ctx.fillStyle = o.color; ctx.fill();
-      }
-      ctx.restore();
       ctx.font = "9px ui-monospace, Menlo, monospace";
     }
     // Readout crosshair
@@ -662,7 +746,10 @@ export default function EquityChart(props: {
               ⟲ reset
             </button>
           )}
-          <Tabs small tabs={RANGES.map((r) => ({ id: r.id, label: r.label }))} active={range} onChange={setRange} />
+          {/* 13 ranges don't fit a phone row — the strip scrolls sideways */}
+          <div className="max-w-full overflow-x-auto">
+            <Tabs small tabs={RANGES.map((r) => ({ id: r.id, label: r.label }))} active={range} onChange={setRange} />
+          </div>
         </div>
       </div>
       {data.length === 0 ? (

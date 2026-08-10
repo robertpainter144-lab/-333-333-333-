@@ -304,10 +304,101 @@
         htm += '<div style="font-size:10px;color:#7d8590;margin-left:12px">reddit buzz: ' +
           Object.keys(d.reddit_buzz).map(function (c) { return esc(c) + "(" + (+d.reddit_buzz[c] || 0) + ")"; }).join(" ") + "</div>";
       }
+      // Tappable source dropdowns fed by the separate /api/crypto/intel news
+      // feed (news_intel.crypto — fear&greed/reddit/stocktwits/headlines).
+      // Purely additive: populateNewsIntel() fills this in async and leaves
+      // it empty (zero visual change) when news_intel hasn't been collected.
+      htm += '<div id="crypto-intel-news"></div>';
     }
     htm += '<div style="font-size:9px;color:#484f58;margin-top:6px">updated ' +
       (g.asof || "?").replace("T", " ").slice(0, 16) + "Z</div>";
     box.innerHTML = htm;
+    if (L.social) populateNewsIntel();
+  }
+
+  // ── tappable source dropdowns for news_intel (additive, decoupled from
+  // the whale-composite gate poll above) ─────────────────────────────────
+  function newsSourceLink(url, label) {
+    var text = esc(label);
+    if (typeof url === "string" && /^https?:\/\//i.test(url)) {
+      try {
+        var u = new URL(url);
+        if (u.protocol === "http:" || u.protocol === "https:") {
+          return '<a href="' + esc(url) + '" target="_blank" rel="noopener" style="color:#7d8590">' +
+            text + "</a>";
+        }
+      } catch (e) {}
+    }
+    return text;
+  }
+
+  var newsIntelCache = null, newsIntelAt = 0;
+  function fetchNewsIntel() {
+    var now = Date.now();
+    if (newsIntelCache && now - newsIntelAt < POLL_MS) return Promise.resolve(newsIntelCache);
+    return jget("/api/crypto/intel").then(function (doc) {
+      newsIntelCache = (doc && doc.news_intel) || null;
+      newsIntelAt = now;
+      return newsIntelCache;
+    }).catch(function () { return null; });
+  }
+
+  function populateNewsIntel() {
+    if (!document.getElementById("crypto-intel-news")) return;
+    fetchNewsIntel().then(function (ni) {
+      var host = document.getElementById("crypto-intel-news"); // re-grab: box may have re-rendered meanwhile
+      if (!host) return;
+      var c = ni && ni.crypto;
+      if (!c) { host.innerHTML = ""; return; }
+      var sumSty = "font-size:10px;color:#7d8590;cursor:pointer";
+      var listSty = "font-size:10px;color:#7d8590;margin:3px 0 0 10px";
+      var out = "";
+      // (1) reddit — sources behind the reddit buzz line
+      if (c.reddit && c.reddit.top_titles && c.reddit.top_titles.length) {
+        out += '<details style="margin-left:12px;margin-top:2px">' +
+          '<summary style="' + sumSty + '">sources</summary>' +
+          '<div style="' + listSty + '">' +
+          c.reddit.top_titles.map(function (t) {
+            return '<div style="margin-bottom:2px">r/' + esc(c.reddit.sub || "") + " — " +
+              newsSourceLink(t.link, t.title) + "</div>";
+          }).join("") + "</div></details>";
+      }
+      // (2) stocktwits — sample messages behind the social/stocktwits leg
+      var withSamples = (c.stocktwits || []).filter(function (s) { return s.samples && s.samples.length; });
+      if (withSamples.length) {
+        out += '<details style="margin-left:12px;margin-top:2px">' +
+          '<summary style="' + sumSty + '">samples</summary>' +
+          '<div style="' + listSty + '">' +
+          withSamples.map(function (s) {
+            return '<div style="margin-bottom:4px"><b>' + esc(s.symbol) + "</b>" +
+              s.samples.map(function (m) {
+                var tag = (m.sentiment || "").toLowerCase();
+                var col = tag === "bullish" ? GREEN : tag === "bearish" ? "#f85149" : "#7d8590";
+                return '<div style="margin-left:8px">' + esc(m.body) +
+                  (m.sentiment ? ' <span style="color:' + col + '">[' + esc(m.sentiment) + "]</span>" : "") +
+                  "</div>";
+              }).join("") + "</div>";
+          }).join("") + "</div></details>";
+      }
+      // (3) headlines — general feed plus per-coin groups
+      var bySym = c.news_by_symbol || {};
+      var symKeys = Object.keys(bySym).filter(function (k) { return bySym[k] && bySym[k].length; });
+      if ((c.headlines && c.headlines.length) || symKeys.length) {
+        out += '<details style="margin-left:12px;margin-top:2px">' +
+          '<summary style="' + sumSty + '">📰 headlines</summary>' +
+          '<div style="' + listSty + '">' +
+          (c.headlines || []).map(function (h) {
+            return '<div style="margin-bottom:2px">' + newsSourceLink(h.link, h.title) + "</div>";
+          }).join("") +
+          symKeys.map(function (sym) {
+            return '<div style="margin-top:4px"><b>' + esc(sym) + "</b></div>" +
+              bySym[sym].map(function (h) {
+                return '<div style="margin-left:8px;margin-bottom:2px">' + newsSourceLink(h.link, h.title) + "</div>";
+              }).join("");
+          }).join("") + "</div></details>";
+      }
+      host.innerHTML = out;
+    });
   }
 
   function refreshPane() {

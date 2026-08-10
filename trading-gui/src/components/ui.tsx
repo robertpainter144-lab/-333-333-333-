@@ -3,23 +3,35 @@
 
 import type { ReactNode } from "react";
 
+/** bleed: on mobile the card escapes the page gutter and drops its side
+ *  border/rounding so content (e.g. chart axes) runs flush to the screen
+ *  edges; from md up it renders as a normal card. */
 export function Card(props: {
   title?: ReactNode;
   right?: ReactNode;
   children: ReactNode;
   className?: string;
   pad?: boolean;
+  bleed?: boolean;
 }) {
-  const { title, right, children, className = "", pad = true } = props;
+  const { title, right, children, className = "", pad = true, bleed = false } = props;
+  // max-w-full must NOT apply while bleeding: it caps the box at the parent
+  // width, which swallows the negative right margin and leaves a seam
+  // between the card edge and the screen.
+  // Mobile bleed is fully borderless — cards read as bands of panel color
+  // separated by the page background; md+ restores the framed card.
+  const frame = bleed
+    ? "-mx-3 md:mx-0 md:max-w-full md:rounded-lg md:border md:border-bd"
+    : "max-w-full rounded-lg border border-bd";
   return (
-    <section className={`min-w-0 max-w-full overflow-hidden rounded-lg border border-bd bg-panel ${className}`}>
+    <section className={`min-w-0 overflow-hidden bg-panel ${frame} ${className}`}>
       {(title || right) && (
         <header className="flex items-center justify-between gap-2 border-b border-bd px-3 py-2">
           <h2 className="text-xs font-semibold uppercase tracking-wider text-muted">{title}</h2>
           {right && <div className="flex items-center gap-2">{right}</div>}
         </header>
       )}
-      <div className={pad ? "p-3" : ""}>{children}</div>
+      <div className={pad ? (bleed ? "py-3 md:p-3" : "p-3") : ""}>{children}</div>
     </section>
   );
 }

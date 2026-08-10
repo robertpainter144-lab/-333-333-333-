@@ -17,11 +17,15 @@
   if (window.__qtPinchZoom) return;
   window.__qtPinchZoom = true;
 
-  const PERIOD_RE = /^(1D|5D|1W|2W|1M|3M|6M|9M|1Y|2Y|5Y|YTD|ALL|MAX)$/i;
-  const DETENT = 0.32;        // log2 pinch-scale units per step (~25% spread)
-  const SPEED_REF = 1.2;      // log2-units/sec where velocity boost kicks in
-  const GAIN_MAX = 2.5;       // fastest pinch crosses detents up to 3.5x faster
-  const TICK_MS = 9, CLUNK_MS = 28, EDGE_COOLDOWN = 350;
+  const PERIOD_RE = /^(\d{1,2}[HDWMY]|YTD|ALL|MAX)$/i; // 1H..12H, 1D, 3D, 1W, 1M..6M, 1Y, 5Y, ALL…
+  // Tuned on Robert's real fingers 2026-08-10: a genuine pinch sweeps far
+  // more log-spread than synthetic tests, and sub-10ms buzzes are below what
+  // the Flip4's motor renders. Detents ~0.55 log2 units => a full deliberate
+  // pinch crosses ~3-4 levels; velocity gain reserved for genuinely fast flicks.
+  const DETENT = 0.55;        // log2 pinch-scale units per step
+  const SPEED_REF = 2.2;      // log2-units/sec where velocity boost kicks in
+  const GAIN_MAX = 2.0;       // fastest pinch crosses detents up to 3x faster
+  const TICK_MS = 22, CLUNK_MS = 50, EDGE_COOLDOWN = 350;
   const MAX_HOPS = 10;
 
   function buzz(ms) {
@@ -142,6 +146,7 @@
     if (!b.isConnected) { st = null; return; } // React re-render replaced it
     b.click();
     buzz(TICK_MS);
+    try { b.scrollIntoView({ inline: 'center', block: 'nearest' }); } catch (e) {}
     try {
       b.animate(
         [{ transform: 'scale(1)' }, { transform: 'scale(1.22)' },

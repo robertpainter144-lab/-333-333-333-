@@ -125,6 +125,32 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        // Native haptics bridge: Chromium blocks navigator.vibrate until the
+        // user has TAPPED the page (pinch gestures never qualify — their
+        // touchstart is preventDefaulted by the zoom engine), so the pinch
+        // detent ticks were silently dropped. window.QTNative.vibrate(ms)
+        // bypasses web user-activation rules; short calls map to the system's
+        // crisp CLICK effects rather than a mushy raw buzz.
+        webView.addJavascriptInterface(object {
+            @android.webkit.JavascriptInterface
+            fun vibrate(ms: Int) {
+                try {
+                    @Suppress("DEPRECATION")
+                    val v = getSystemService(Context.VIBRATOR_SERVICE) as android.os.Vibrator
+                    val eff = when {
+                        ms <= 25 -> android.os.VibrationEffect.createPredefined(
+                            android.os.VibrationEffect.EFFECT_CLICK)
+                        ms <= 60 -> android.os.VibrationEffect.createPredefined(
+                            android.os.VibrationEffect.EFFECT_HEAVY_CLICK)
+                        else -> android.os.VibrationEffect.createOneShot(
+                            ms.toLong().coerceIn(1, 300),
+                            android.os.VibrationEffect.DEFAULT_AMPLITUDE)
+                    }
+                    v.vibrate(eff)
+                } catch (_: Exception) { }
+            }
+        }, "QTNative")
+
         // Surface WebView JS console + errors to logcat (tag QT_WEB) so a
         // blank page can be diagnosed over adb instead of guessed at.
         android.webkit.WebView.setWebContentsDebuggingEnabled(true)

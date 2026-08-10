@@ -1,5 +1,4 @@
 import EquityChart from "../components/EquityChart";
-import PageIntro from "../components/PageIntro";
 import { Badge, Card, EmptyState, Skeleton, StaleBanner } from "../components/ui";
 import { AllocationBars, PositionsTable } from "../components/BookKit";
 import { useActivity, useEquity, useGovernor, usePortfolio, useQc, useTransfers, useWhoami } from "../lib/hooks";
@@ -99,7 +98,7 @@ export default function Book() {
   const w = useWhoami();
   if (w.isPending) {
     return (
-      <Card title="Book">
+      <Card bleed title="Book">
         <Skeleton lines={5} />
       </Card>
     );
@@ -122,16 +121,13 @@ function BookView({ source, sim }: { source: string; sim: boolean }) {
 
   return (
     <div className="grid min-w-0 gap-3 lg:grid-cols-3">
-      <div className="lg:col-span-3"><PageIntro icon="📒" title="The Book — the money page.">
-        {sim
-          ? "You are viewing the paper mirror of the live strategy book: same composition, simulated balance."
-          : "Your real Alpaca account. Live equity, the drawdown review trigger (3% of contributed capital), and the drift between what the book holds and the governor-blend target it is steering toward. Every other page is paper research feeding this one."}
-      </PageIntro></div>
+      {/* Intro copy removed 2026-08-09 per Robert — the page explains itself. */}
       {/* min-w-0: grid items default to min-width:auto, so any wide inner row
           (stat chips) blows the card past narrow viewports (Flip cover). */}
       <div className="flex min-w-0 flex-col gap-3 lg:col-span-2">
         {/* Hero */}
         <Card
+          bleed
           title={
             <span className="flex items-center gap-2">
               <span className="h-2 w-2 rounded-full" style={{ background: sim ? "#bc8cff" : LIVE_COLOR }} />
@@ -179,8 +175,8 @@ function BookView({ source, sim }: { source: string; sim: boolean }) {
           ) : null}
         </Card>
 
-        {/* Equity chart */}
-        <Card title={sim ? "Equity — strategy book (sim)" : "Equity — alpaca_live"}>
+        {/* Equity chart — full-bleed on mobile so the axes reach the screen edges */}
+        <Card bleed title={sim ? "Equity — strategy book (sim)" : "Equity — alpaca_live"}>
           {equity.isPending ? (
             <Skeleton lines={5} />
           ) : equity.isError ? (
@@ -188,23 +184,27 @@ function BookView({ source, sim }: { source: string; sim: boolean }) {
           ) : (
             <>
               {!sim && transfers.isError && (
-                <div className="mb-2 rounded border border-amber/50 bg-amber/10 px-2 py-1 text-[10px] text-amber">
+                <div className="mx-3 mb-2 rounded border border-amber/50 bg-amber/10 px-2 py-1 text-[10px] text-amber md:mx-0">
                   ⚠ Transfer history unavailable — the line and P/L may temporarily include deposits/withdrawals.
                 </div>
               )}
-              <EquityChart points={equity.data ?? []} transfers={transfers.data ?? []} color={LIVE_COLOR} />
+              <EquityChart points={equity.data ?? []} transfers={transfers.data ?? []} color={LIVE_COLOR} overlayChannel="book" />
             </>
           )}
         </Card>
 
         {/* Allocation + positions */}
-        <Card title="Positions & allocation drift">
+        <Card bleed title="Positions & allocation drift">
           {live.isPending ? (
             <Skeleton lines={6} />
           ) : stale ? (
             <StaleBanner source={source} ts={p?.ts} />
           ) : p ? (
             <>
+              {/* Generic owner-side mount point: sits directly above the
+                  current-allocation bar. Filled imperatively by owner-mode
+                  injection; renders nothing for everyone else. */}
+              <div data-qt-slot="book-alloc-top" />
               <AllocationBars
                 positions={p.positions}
                 equity={p.equity}
@@ -233,7 +233,7 @@ function BookView({ source, sim }: { source: string; sim: boolean }) {
 
       <div className="flex flex-col gap-3">
         {/* Cash panel */}
-        <Card title="Cash & settlement">
+        <Card bleed title="Cash & settlement">
           {live.isPending ? (
             <Skeleton lines={2} />
           ) : p && !stale ? (
@@ -263,7 +263,7 @@ function BookView({ source, sim }: { source: string; sim: boolean }) {
         </Card>
 
         {/* How this book decides — plain-language decision loop */}
-        <Card title="Decisions — how this book trades">
+        <Card bleed title="Decisions — how this book trades">
           <div className="flex flex-col gap-2 text-[11px] leading-5 text-muted">
             <p>
               <b className="text-fg">Target:</b> a governor-weighted <i>blend</i> of every proven
@@ -297,7 +297,7 @@ function BookView({ source, sim }: { source: string; sim: boolean }) {
         {/* IBKR card removed 2026-07-28 — bot dark since 07-20, source retired. */}
 
         {/* Activity feed */}
-        <Card title={sim ? "Recent actions — strategy book (sim)" : "Recent actions — alpaca_live"}>
+        <Card bleed title={sim ? "Recent actions — strategy book (sim)" : "Recent actions — alpaca_live"}>
           {activity.isPending ? (
             <Skeleton lines={4} />
           ) : !activity.data || activity.data.length === 0 ? (

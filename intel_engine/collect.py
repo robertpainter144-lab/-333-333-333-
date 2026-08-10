@@ -81,6 +81,8 @@ def held_equity_symbols() -> list[str]:
 
 def reddit(sub: str) -> dict:
     # .json is 403-blocked for anonymous clients; the Atom feed is open.
+    # Space out calls — 3 quick hits from one IP earn a 429.
+    time.sleep(10)
     root = ET.fromstring(_get(f"https://www.reddit.com/r/{sub}/hot.rss"))
     ns = "{http://www.w3.org/2005/Atom}"
     titles = [(e.findtext(f"{ns}title") or "").strip()

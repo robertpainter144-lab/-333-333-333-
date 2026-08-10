@@ -365,3 +365,19 @@ Last full revision: 2026-07-29.
   CHECK: `~/crypto_sleeve/config.json` has cap_total_usd ≤ 50 and
   freeze_pnl_usd = −15; launchd job loaded; no crypto position outside
   the sleeve's ledger accounting.
+
+- **D40 — Persistent intel engine (2026-08-09).** Robert: a portion of the
+  Terminal must "stay on and scrape the entire web" for news + social
+  sentiment feeding both equities and crypto decisions. Implementation:
+  `intel_engine/collect.py` on quarki-stack (quarki-intel.timer, 30 min,
+  Mac-off independent) collecting PUBLIC KEYLESS sources only — Reddit RSS
+  (CryptoCurrency/wallstreetbets/stocks), StockTwits streams, alternative.me
+  Fear&Greed, CoinGecko global, CoinDesk/CoinTelegraph RSS, Google News per
+  held symbol — lexicon-scored into risk_on_social (0..1). Served owner-only
+  at /api/crypto/intel (merged with the whale composite the Terminal card
+  already renders) and /api/equity/intel. No login scraping, no ToS-breaking
+  collection (D4 discipline); sources degrade fail-soft. Intel is ADVISORY
+  — it feeds displays and research, never places orders directly (D7 gate
+  unchanged for any strategy built on it).
+  CHECK: quarki-intel.timer active on VM; intel_engine/state/intel.json
+  asof < 2h old; /api/crypto/intel 403s guest keys.

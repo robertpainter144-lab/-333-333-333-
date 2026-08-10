@@ -1614,6 +1614,44 @@ def mount(fastapi_app, main_module) -> None:
             resp.headers["cache-control"] = "no-cache"
             return resp
 
+    # ── Intel engine (D40): persistent news/social/sentiment feeds ─────
+    # Collector: intel_engine/collect.py (quarki-intel.timer on the VM,
+    # Mac-off independent). Owner-only automatically: neither path matches
+    # _GUEST_PATHS, so the _public_gate middleware 403s funnel traffic
+    # without the owner key.
+    _intel_repo_root = Path(__file__).resolve().parent.parent
+    _whale_sig_file = _intel_repo_root / "crypto_sleeve" / "state" / "whale_signals.json"
+    _intel_file = _intel_repo_root / "intel_engine" / "state" / "intel.json"
+
+    def _read_json_file(p: Path):
+        try:
+            return json.loads(p.read_text())
+        except Exception:
+            return None
+
+    @fastapi_app.get("/api/crypto/intel", include_in_schema=False)
+    def _crypto_intel():
+        doc = _read_json_file(_whale_sig_file) or {}
+        intel = _read_json_file(_intel_file) or {}
+        if intel:
+            doc["social"] = intel.get("crypto")
+            doc["risk_on_social"] = intel.get("risk_on_social")
+            doc["social_asof"] = intel.get("asof")
+        if not doc:
+            return JSONResponse({"error": "no intel collected yet"},
+                                status_code=503)
+        return doc
+
+    @fastapi_app.get("/api/equity/intel", include_in_schema=False)
+    def _equity_intel():
+        intel = _read_json_file(_intel_file)
+        if not intel:
+            return JSONResponse({"error": "no intel collected yet"},
+                                status_code=503)
+        return {"asof": intel.get("asof"),
+                "risk_on_social": intel.get("risk_on_social"),
+                **(intel.get("equities") or {})}
+
     # Consumer-facing guest view — stripped Book-only page, no strategy
     # internals. Public access requires the guest key (?key=... once, then
     # stored in localStorage by the page).

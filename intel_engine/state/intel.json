@@ -1,10 +1,11 @@
 {
- "asof": "2026-08-10T01:03:05.450899+00:00",
+ "asof": "2026-08-10T01:03:36.786983+00:00",
  "errors": {
+  "reddit_cc": "HTTPError: HTTP Error 429: Too Many Requests",
   "reddit_wsb": "HTTPError: HTTP Error 429: Too Many Requests",
   "reddit_stocks": "HTTPError: HTTP Error 429: Too Many Requests"
  },
- "risk_on_social": 0.531,
+ "risk_on_social": 0.597,
  "crypto": {
   "fear_greed": {
    "value": 30,
@@ -16,31 +17,7 @@
    "btc_dominance": 56.7,
    "eth_dominance": 10.0
   },
-  "reddit": {
-   "sub": "CryptoCurrency",
-   "posts": 25,
-   "sentiment": 0.333,
-   "top_mentions": {
-    "ETH": 1
-   },
-   "top_titles": [
-    {
-     "title": "Daily Crypto Discussion - August 9, 2026 (GMT+0)"
-    },
-    {
-     "title": "Arbitrum to minimize Arbitrum Nova - Moons need to bridged"
-    },
-    {
-     "title": "Controversial Bitcoin fork BIP-110 mines two blocks, then stops"
-    },
-    {
-     "title": "Is this a sign ??"
-    },
-    {
-     "title": "Done with Pi network"
-    }
-   ]
-  },
+  "reddit": null,
   "stocktwits": [
    {
     "symbol": "BTC.X",

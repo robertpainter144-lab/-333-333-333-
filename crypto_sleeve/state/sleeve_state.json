@@ -13,8 +13,8 @@
       "notional": 20.428889901759998,
       "opened": "2026-08-09T23:51:45+00:00",
       "signal_mode": "adopted",
-      "mv": 20.58,
-      "cur": 2.899e-06
+      "mv": 20.59,
+      "cur": 2.9e-06
     }
   },
   "frozen": false,
@@ -31,6 +31,6 @@
     "XLM/USD": 6.0,
     "SUI/USD": 5.57
   },
-  "targets_ts": "2026-08-10T06:26:55+00:00",
+  "targets_ts": "2026-08-10T06:32:00+00:00",
   "targets_gate": "whale-confirmed (risk_on=0.58)"
 }

@@ -1,44 +1,42 @@
 {
   "positions": {
-    "SOL/USD": {
-      "entry_price": 76.56,
-      "notional": 6.0,
-      "opened": "2026-08-09T23:26:46+00:00",
-      "signal_mode": "whale-confirmed (risk_on=0.58)",
-      "mv": 5.97,
-      "cur": 76.62
-    },
-    "XLM/USD": {
-      "entry_price": 0.163807,
-      "notional": 6.0,
-      "opened": "2026-08-10T09:49:18+00:00",
-      "signal_mode": "whale-confirmed (risk_on=0.62)",
-      "mv": 5.94,
-      "cur": 0.162928
-    },
     "CRV/USD": {
       "entry_price": 0.2396,
       "notional": 5.596800000000002,
       "opened": "2026-08-10T09:49:19+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.62)",
       "mv": 5.7,
-      "cur": 0.24532
+      "cur": 0.24516
     },
     "AVAX/USD": {
       "entry_price": 6.539,
       "notional": 5.8984,
       "opened": "2026-08-10T12:52:50+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.57)",
-      "mv": 5.87,
-      "cur": 6.536
+      "mv": 5.86,
+      "cur": 6.528
     },
     "PENGU/USD": {
       "entry_price": 0.006677,
       "notional": 5.6671,
       "opened": "2026-08-10T13:03:25+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.57)",
-      "mv": 5.65,
-      "cur": 0.006685
+      "mv": 5.62,
+      "cur": 0.00665
+    },
+    "VVV/USD": {
+      "entry_price": 11.948,
+      "notional": 5.8939,
+      "opened": "2026-08-10T13:39:17+00:00",
+      "signal_mode": "whale-confirmed (risk_on=0.57)",
+      "mv": 5.86,
+      "cur": 11.939
+    },
+    "WLD/USD": {
+      "entry_price": 0.3403,
+      "notional": 5.7741,
+      "opened": "2026-08-10T13:49:43+00:00",
+      "signal_mode": "whale-confirmed (risk_on=0.57)"
     }
   },
   "frozen": false,
@@ -48,15 +46,12 @@
   },
   "seen_active": true,
   "targets": {
-    "SOL/USD": 6.0,
-    "XLM/USD": 6.0,
     "CRV/USD": 5.6,
     "AVAX/USD": 5.9,
     "PENGU/USD": 5.67,
-    "VVV/USD": 6.0,
-    "FET/USD": 6.0,
+    "VVV/USD": 5.89,
     "WLD/USD": 6.0
   },
-  "targets_ts": "2026-08-10T13:34:06+00:00",
+  "targets_ts": "2026-08-10T13:49:40+00:00",
   "targets_gate": "whale-confirmed (risk_on=0.57)"
 }

@@ -125,7 +125,11 @@ function BookView({ source, sim }: { source: string; sim: boolean }) {
       {/* min-w-0: grid items default to min-width:auto, so any wide inner row
           (stat chips) blows the card past narrow viewports (Flip cover). */}
       <div className="flex min-w-0 flex-col gap-3 lg:col-span-2">
-        {/* Hero */}
+        {/* Hero (+ owner-injected crypto twin to its right — the wrapper is a
+            single-column grid for guests; owner injection flips it to two
+            columns only when it fills the slot, so the chart stays above the
+            fold on phones) */}
+        <div data-qt-row="book-heroes" className="grid min-w-0 gap-3">
         <Card
           bleed
           title={
@@ -174,6 +178,12 @@ function BookView({ source, sim }: { source: string; sim: boolean }) {
             </>
           ) : null}
         </Card>
+
+        {/* Generic owner-side mount point: a crypto-sleeve account card twin
+            of the hero beside it. Filled imperatively by owner-mode injection;
+            renders nothing for everyone else (guests never see real crypto). */}
+        <div data-qt-slot="book-crypto-account" className="min-w-0" />
+        </div>
 
         {/* Equity chart — full-bleed on mobile so the axes reach the screen edges */}
         <Card bleed title={sim ? "Equity — strategy book (sim)" : "Equity — alpaca_live"}>

@@ -5,8 +5,8 @@
       "notional": 6.0,
       "opened": "2026-08-09T23:26:46+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.58)",
-      "mv": 5.99,
-      "cur": 76.86
+      "mv": 6.0,
+      "cur": 76.94
     },
     "PEPE/USD": {
       "entry_price": 2.878e-06,
@@ -31,6 +31,6 @@
     "XLM/USD": 6.0,
     "SUI/USD": 5.57
   },
-  "targets_ts": "2026-08-10T06:32:00+00:00",
+  "targets_ts": "2026-08-10T06:47:13+00:00",
   "targets_gate": "whale-confirmed (risk_on=0.58)"
 }

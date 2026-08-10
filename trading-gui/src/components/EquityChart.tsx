@@ -25,7 +25,7 @@ const MARKERS = [
   { ts: new Date("2026-07-13T00:00:00-04:00").getTime(), label: "inception $50.04" },
 ];
 
-const PAD_L = 38;
+const PAD_L = 47;   // fits "$1000.00" at the 9px tick font — never clip a digit
 const PAD_B = 20;
 const PAD_T = 8;
 
@@ -95,7 +95,10 @@ export default function EquityChart(props: {
   // DEFAULT COLLAPSED: P/L is made by trading, not by moving money in or out,
   // so the line ships with transfer steps removed. "raw" opts into the
   // account-value view (axis rescales across deposits) and is remembered.
-  const [net, setNet] = useState(() => localStorage.getItem(LS_NET) !== "0");
+  // Default to the REAL account-value axis ("$"): Robert reads the yellow
+  // numbers as the actual balance ($499.xx), and the net view's $49.xx axis
+  // looks "one digit too short". P/L shape stays one tap away and sticks.
+  const [net, setNet] = useState(() => localStorage.getItem(LS_NET) === "1");
   const color = props.color ?? "#ffd60a";
 
   const rawRows = useMemo(
@@ -469,8 +472,13 @@ export default function EquityChart(props: {
     const niceStep = (range: number, cands: number[], target: number) =>
       cands.find((c) => c >= range / target) ?? cands[cands.length - 1];
 
-    // ── Y grid + $ ticks — snapped to …1¢,5¢,10¢,25¢,50¢,$1,$2.50,$5… ──
-    const yStep = niceStep(hi - lo, [0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 25, 50, 100, 250, 500], 5);
+    // ── Y grid + $ ticks — snapped to …1¢,2¢,5¢,10¢…$1,$2,$2.50,$5… with a
+    // pixel-adaptive tick count, so each zoom level picks its own natural
+    // spacing (tight ranges get fine ¢ graduations, wide ones stay uncluttered).
+    const yTarget = Math.max(4, Math.min(9, Math.floor(mainH / 42)));
+    const yStep = niceStep(hi - lo,
+      [0.01, 0.02, 0.05, 0.1, 0.2, 0.25, 0.5, 1, 2, 2.5, 5, 10, 20, 25, 50, 100, 200, 250, 500],
+      yTarget);
     // Always dollars-and-cents: a $499.59 book must never read "$499.6".
     const yDec = 2;
     // With an overlay on, each side's numbers take its line's color — left
@@ -642,7 +650,9 @@ export default function EquityChart(props: {
     // ── Overlay pass 2: axes — right-edge value ticks + top clock, drawn
     // last so the small colored labels stay crisp above both fills. ──
     for (const { o, OY, olo, ohi } of oDrawn) {
-      const oStep = niceStep(ohi - olo, [0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 25, 50, 100, 250, 500], 4);
+      const oStep = niceStep(ohi - olo,
+        [0.01, 0.02, 0.05, 0.1, 0.2, 0.25, 0.5, 1, 2, 2.5, 5, 10, 20, 25, 50, 100, 200, 250, 500],
+        Math.max(3, Math.min(7, Math.floor(mainH / 56))));
       // Match the main axis: full dollars-and-cents, never rounded away.
       const oDec = 2;
       ctx.fillStyle = o.color;

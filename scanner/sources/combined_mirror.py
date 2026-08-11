@@ -601,8 +601,10 @@ def tick() -> None:
         pos_since.setdefault(s, now)
     pt_peaks = {s: p for s, p in (state_prev.get("pt_peaks") or {}).items()
                 if s in positions}
+    # 10d TTL (was 7d): must outlive the ratchet's max flat window (~7.25
+    # calendar days) so the reentry-premium guard still knows the exit prices.
     last_exits = {s: e for s, e in (state_prev.get("last_exits") or {}).items()
-                  if now - e.get("ts", 0) < 7 * 86400}
+                  if now - e.get("ts", 0) < 10 * 86400}
     pt_suppress = {s: t for s, t in (state_prev.get("pt_suppress") or {}).items()
                    if t > now}
     pt_logged = {s: t for s, t in (state_prev.get("pt_logged") or {}).items()
@@ -665,39 +667,56 @@ def tick() -> None:
     pt_reason: dict[str, str] = {}   # shared bypass+why for ratchet and PT sells
     ratch = _ratchet_cfg()
     rstate = dict(state_prev.get("ratchet") or {})
+    _ratchet_reentering = False      # set on dip/timeout; flat clears only on a real fill
     if (market_open and not frozen and ALPACA_MODE == "live"
             and ratch.get("mode") == "live" and account_equity):
         _contrib = float(ratch.get("contributed_usd", 0) or 0)
-        _trigger = _contrib + float(ratch.get("trigger_offset_usd", -0.25))
+        # Mirror scope only (review finding: whole-account equity includes
+        # the D36 turbo sleeve's independent P/L): compare the mirror's own
+        # slice against contributed-minus-carve, same netting as total_book.
+        _trigger = (_contrib - TURBO_RESERVE_USD
+                    + float(ratch.get("trigger_offset_usd", -0.25)))
         if not rstate.get("flat"):
             _cooled = (now - float(rstate.get("last_rebuy_ts", 0))
                        > 86400 * float(ratch.get("min_cycle_days", 1)))
-            if _contrib and positions and _cooled and account_equity >= _trigger:
+            if _contrib and positions and _cooled and total_book >= _trigger:
+                # dust below MIN_ORDER_USD can never clear the sell gate —
+                # keep it out of the basket so re-entry math stays resolvable
+                _sellable = {s: p for s, p in positions.items()
+                             if p.get("mv", 0) >= MIN_ORDER_USD}
                 rstate = {"flat": True, "flat_ts": now,
-                          "flat_equity": round(account_equity, 2),
-                          "flat_value": round(sum(p["mv"] for p in positions.values()), 2),
-                          "basket": {s: p["qty"] for s, p in positions.items()},
+                          "flat_equity": round(total_book, 2),
+                          "flat_value": round(sum(p["mv"] for p in _sellable.values()), 2),
+                          "basket": {s: p["qty"] for s, p in _sellable.items()},
                           "last_rebuy_ts": rstate.get("last_rebuy_ts", 0)}
                 desired = {}
                 for _s in positions:
                     # routes through the dwell-guard bypass and lands as the
                     # order's "why" in the ledger + app activity blurbs
                     pt_reason[_s] = (f"BREAKEVEN RATCHET: book recovered to "
-                                     f"${account_equity:.2f} (breakeven "
+                                     f"${total_book:.2f} (breakeven "
                                      f"${_trigger:.2f}) — banking the whole book; "
                                      f"re-enters on a "
                                      f"{ratch.get('rebuy_dip_pct', 0.5)}% dip")
                 emit_live("combined_mirror",
-                          f"[RATCHET] equity ${account_equity:.2f} ≥ breakeven "
+                          f"[RATCHET] mirror book ${total_book:.2f} ≥ breakeven "
                           f"${_trigger:.2f} — banking the whole book to cash")
                 _ntfy(f"Breakeven ratchet fired: the book recovered to "
-                      f"${account_equity:.2f} (breakeven ${_trigger:.2f}), so every "
+                      f"${total_book:.2f} (breakeven ${_trigger:.2f}), so every "
                       f"position was sold to lock the recovery in. It re-enters by "
                       f"itself once the sold basket is "
                       f"{ratch.get('rebuy_dip_pct', 0.5)}% cheaper, or after "
                       f"{ratch.get('max_flat_td', 5)} trading days. Nothing to do.")
         else:
             _basket = rstate.get("basket") or {}
+            # Straggler retry (review finding: a failed/skipped sell left a
+            # leg exposed while the book was nominally flat, and the dwell
+            # guard could defer it): any basket symbol still held gets its
+            # bypass re-armed every tick until it actually sells.
+            for _s in _basket:
+                if _s in positions:
+                    pt_reason[_s] = ("BREAKEVEN RATCHET: basket leg not yet "
+                                     "sold — forcing exit")
             _vals = []
             for _s, _q in _basket.items():
                 _p = cur_px.get(_s) or _latest_px(_s)
@@ -707,23 +726,37 @@ def tick() -> None:
             _flat_val = float(rstate.get("flat_value") or 0)
             _dip = (_basket_val is not None and _flat_val
                     and _basket_val <= _flat_val * (1 - float(ratch.get("rebuy_dip_pct", 0.5)) / 100))
+            # The basket-dip signal is only meaningful for the composition it
+            # measured (review finding: governor rotation while flat would
+            # let an old-basket dip buy NEW names at no discount) — dip-based
+            # re-entry requires today's targets to be covered by the basket;
+            # a rotated composition waits for the timeout instead.
+            _covered = set(desired) <= set(_basket)
             # ~1.45 calendar days per trading day keeps the fallback honest
             # across weekends without a holiday calendar.
             _timeout = (now - float(rstate.get("flat_ts", now))) / 86400 \
                 >= float(ratch.get("max_flat_td", 5)) * 1.45
-            if _dip or _timeout:
-                _why = ("sold basket got cheaper" if _dip
+            if (_dip and _covered) or _timeout:
+                _why = ("sold basket got cheaper" if (_dip and _covered)
                         else "max flat window reached")
-                emit_live("combined_mirror",
-                          f"[RATCHET] re-entering ({_why}): basket "
-                          f"${(_basket_val or 0):.2f} vs ${_flat_val:.2f} at flatten")
-                _ntfy(f"Breakeven ratchet re-entry: {_why} (basket now "
-                      f"${(_basket_val or 0):.2f} vs ${_flat_val:.2f} when sold). "
-                      f"The book is buying back toward the governor targets now.")
-                rstate = {"flat": False, "last_rebuy_ts": now}
-                # desired stays as computed — rebuy toward targets this tick
+                _ratchet_reentering = True
+                if not rstate.get("reentry_pending"):
+                    rstate["reentry_pending"] = True
+                    emit_live("combined_mirror",
+                              f"[RATCHET] re-entering ({_why}): basket "
+                              f"${(_basket_val or 0):.2f} vs ${_flat_val:.2f} at flatten")
+                    _ntfy(f"Breakeven ratchet re-entry: {_why} (basket now "
+                          f"${(_basket_val or 0):.2f} vs ${_flat_val:.2f} when sold). "
+                          f"The book is buying back toward the governor targets now.")
+                # desired stays as computed — rebuy toward targets this tick;
+                # flat clears below only once a buy actually fills
             else:
                 desired = {}  # stay in cash; suppress all buys while flat
+    # Cash-hold backstop (review finding: if the gate above goes false while
+    # flat — mode flipped, account fetch failed, paper mode — nothing else
+    # stops buys): a flat book stays flat until the ratchet itself re-enters.
+    if rstate.get("flat") and not _ratchet_reentering:
+        desired = {}
 
     # Profit-taking check (position-level, armed at +arm_pct from avg entry,
     # fires on a giveback_pct retreat from the running peak). SHADOW mode
@@ -736,6 +769,11 @@ def tick() -> None:
     # pt_reason initialized above the ratchet block — do NOT reinit here.
     if market_open and not frozen and pt.get("mode") in ("shadow", "live"):
         for s, p in positions.items():
+            if s in pt_reason:
+                # the ratchet already claimed this symbol this tick — a PT
+                # fire here would contaminate the shadow ledger today and,
+                # live, pt_suppress would block the ratchet's own re-entry
+                continue
             px, entry = cur_px.get(s), p.get("avg_entry") or 0
             peak = pt_peaks.get(s, 0.0)
             if not px or not entry or p.get("mv", 0) < pt["min_notional_usd"]:
@@ -915,6 +953,24 @@ def tick() -> None:
     if skipped_buys:
         log_tick("combined_mirror", "buys deferred: " + ",".join(skipped_buys))
 
+    # Ratchet re-entry finalizes ONLY on a real fill (review finding: price
+    # conditions alone said nothing about whether cooldowns/budget/premium
+    # guards let any buy through — clearing flat without a fill left the book
+    # in cash with all its protections dropped). No fill → still flat,
+    # retried next tick.
+    if _ratchet_reentering:
+        _buy_ok = any(a.get("side") == "BUY"
+                      and "error" not in str(a.get("result", ""))
+                      for a in actions)
+        if _buy_ok:
+            for _s in (rstate.get("basket") or {}):
+                # re-arm the reentry-premium guard from the rebuy moment,
+                # not the flatten moment (48h window would have expired)
+                if _s in last_exits:
+                    last_exits[_s]["ts"] = now
+            rstate = {"flat": False, "last_rebuy_ts": now}
+            emit_live("combined_mirror", "[RATCHET] re-entry filled — cycle closed")
+
     invested = sum(p["mv"] for p in positions.values())
     # For live mode, derive P/L directly from account.equity so the displayed
     # value ALWAYS matches the equity number shown on the app. `last_equity`
@@ -935,7 +991,10 @@ def tick() -> None:
     if account_equity is not None:
         _append_equity_history(now, account_equity)
 
-    STATE.write_text(json.dumps({
+    # Atomic write (review finding: a torn state.json read back as {} makes
+    # a genuinely-flat book indistinguishable from "never flattened").
+    _state_tmp = STATE.with_suffix(".json.tmp")
+    _state_tmp.write_text(json.dumps({
         "ts": now,
         "mode": ALPACA_MODE,
         "bankroll": round(total_book, 2),
@@ -965,6 +1024,7 @@ def tick() -> None:
         "elig_logged": elig_logged,
         "ratchet": rstate,
     }, indent=2, default=float))
+    os.replace(_state_tmp, STATE)
     if actions:
         with LEDGER.open("a") as f:
             for a in actions:

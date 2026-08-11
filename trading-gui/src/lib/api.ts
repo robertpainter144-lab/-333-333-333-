@@ -5,6 +5,7 @@ import type {
   GovernorHistory,
   LabBook,
   Activity,
+  ActivityDetail,
   Bot,
   CongressState,
   EdgeResponse,
@@ -131,6 +132,10 @@ export const api = {
   transfers: (source: string) => get<TransferPoint[]>(`/api/transfers/${source}`),
   activity: (source: string, limit = 50) =>
     get<Activity[]>(`/api/activity/${source}?limit=${limit}`),
+  activityDetail: (source: string, symbol: string, side: string, reason: string) =>
+    get<ActivityDetail>(
+      `/api/activity_detail/${source}?symbol=${encodeURIComponent(symbol)}` +
+      `&side=${encodeURIComponent(side)}&reason=${encodeURIComponent(reason)}`),
   qc: () => get<QcState>("/api/qc"),
   edge: () => get<EdgeResponse>("/api/edge"),
   bots: () => get<Bot[]>("/api/bots"),

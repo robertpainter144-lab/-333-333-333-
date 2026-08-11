@@ -1,9 +1,11 @@
+import { useState } from "react";
 import EquityChart from "../components/EquityChart";
 import { Badge, Card, EmptyState, Skeleton, StaleBanner } from "../components/ui";
 import { AllocationBars, PositionsTable } from "../components/BookKit";
+import { api } from "../lib/api";
 import { useActivity, useEquity, useGovernor, usePortfolio, useQc, useTransfers, useWhoami } from "../lib/hooks";
 import { absTime, arrow, money, moneySigned, pct, relTime, signClass, toEpochMs } from "../lib/format";
-import type { TransferPoint } from "../lib/types";
+import type { Activity, ActivityDetail, TransferPoint } from "../lib/types";
 
 /** Honest baselines per API.md semantics — dates/values are contract, not data. */
 const TEST_BASELINE = { value: 48.06, date: "2026-07-27" };
@@ -51,6 +53,75 @@ function Delta(props: { label: string; base: number; date: string; equity: numbe
         </div>
       )}
     </div>
+  );
+}
+
+function ActivityRow(props: {
+  a: Activity;
+  source: string;
+  open: boolean;
+  detail: ActivityDetail | null | undefined;
+  onToggle: () => void;
+}) {
+  const { a, open, detail } = props;
+  return (
+    <li className="flex flex-col gap-0.5 py-1.5">
+      <button
+        type="button"
+        onClick={props.onToggle}
+        className="flex w-full items-center justify-between gap-2 text-left"
+        title="Tap for the full decision analysis"
+      >
+        <div className="flex min-w-0 items-center gap-2">
+          <span className={`text-[9px] transition-transform ${open ? "rotate-90" : ""}`}>▶</span>
+          <Badge tone={String(a.side).toUpperCase() === "BUY" ? "green" : "red"}>
+            {String(a.side).toUpperCase()}
+          </Badge>
+          <span className="text-xs font-semibold">{a.symbol}</span>
+          <span className="num text-[10px] text-muted">
+            {money(a.notional)} @ {money(a.price)}
+          </span>
+        </div>
+        <span className="num shrink-0 text-[10px] text-faint" title={absTime(a.ts)}>
+          {relTime(a.ts)}
+        </span>
+      </button>
+      {!open && a.reason && (
+        <p className="pl-5 text-[10px] leading-4 text-muted">{a.reason}</p>
+      )}
+      {open && (
+        <div className="ml-5 mt-1 flex flex-col gap-2 rounded border border-bd/60 bg-panel2 px-2.5 py-2">
+          {detail === null || detail === undefined ? (
+            <p className="text-[10px] text-faint">Assembling the decision trail…</p>
+          ) : (
+            <>
+              <div>
+                <div className="text-[9px] uppercase tracking-wider text-faint">Why this order fired</div>
+                {detail.how.map((s, i) => (
+                  <p key={i} className="mt-0.5 text-[11px] leading-4 text-fg">{s}</p>
+                ))}
+              </div>
+              {detail.picked_by.length > 0 && (
+                <div>
+                  <div className="text-[9px] uppercase tracking-wider text-faint">Who picked {a.symbol}</div>
+                  {detail.picked_by.map((s, i) => (
+                    <p key={i} className="mt-0.5 text-[11px] leading-4 text-muted">{s}</p>
+                  ))}
+                </div>
+              )}
+              {detail.regime.length > 0 && (
+                <div>
+                  <div className="text-[9px] uppercase tracking-wider text-faint">The regime right now</div>
+                  {detail.regime.map((s, i) => (
+                    <p key={i} className="mt-0.5 text-[11px] leading-4 text-muted">{s}</p>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </li>
   );
 }
 
@@ -115,6 +186,28 @@ function BookView({ source, sim }: { source: string; sim: boolean }) {
   const activity = useActivity(source, 30);
   const qc = useQc();
   const gov = useGovernor();
+
+  // Tap an activity row → expand into the full decision blurb (how the
+  // rebalancer arithmetic fired, which sources picked the name, the regime).
+  const [openAct, setOpenAct] = useState<string | null>(null);
+  const [actDetails, setActDetails] = useState<Record<string, ActivityDetail | null>>({});
+  const toggleAct = (a: Activity, key: string) => {
+    if (openAct === key) {
+      setOpenAct(null);
+      return;
+    }
+    setOpenAct(key);
+    if (actDetails[key] === undefined) {
+      setActDetails((p) => ({ ...p, [key]: null })); // null = loading
+      api.activityDetail(source, a.symbol, a.side, a.reason ?? "").then(
+        (d) => setActDetails((p) => ({ ...p, [key]: d })),
+        () => setActDetails((p) => ({
+          ...p,
+          [key]: { symbol: a.symbol, side: a.side, how: ["Decision detail is unavailable for this entry."], picked_by: [], regime: [] },
+        })),
+      );
+    }
+  };
 
   const p = live.data;
   const stale = p?.stale === true;
@@ -316,27 +409,19 @@ function BookView({ source, sim }: { source: string; sim: boolean }) {
             </EmptyState>
           ) : (
             <ul className="flex flex-col divide-y divide-bd/60">
-              {activity.data.slice(0, 20).map((a, i) => (
-                <li key={a.order_id ?? i} className="flex flex-col gap-0.5 py-1.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <Badge tone={String(a.side).toUpperCase() === "BUY" ? "green" : "red"}>
-                        {String(a.side).toUpperCase()}
-                      </Badge>
-                      <span className="text-xs font-semibold">{a.symbol}</span>
-                      <span className="num text-[10px] text-muted">
-                        {money(a.notional)} @ {money(a.price)}
-                      </span>
-                    </div>
-                    <span className="num text-[10px] text-faint" title={absTime(a.ts)}>
-                      {relTime(a.ts)}
-                    </span>
-                  </div>
-                  {a.reason && (
-                    <p className="pl-1 text-[10px] leading-4 text-muted">{a.reason}</p>
-                  )}
-                </li>
-              ))}
+              {activity.data.slice(0, 20).map((a, i) => {
+                const key = a.order_id ?? `${a.ts}-${i}`;
+                return (
+                  <ActivityRow
+                    key={key}
+                    a={a}
+                    source={source}
+                    open={openAct === key}
+                    detail={actDetails[key]}
+                    onToggle={() => toggleAct(a, key)}
+                  />
+                );
+              })}
             </ul>
           )}
         </Card>

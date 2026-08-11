@@ -63,6 +63,14 @@ export interface TransferPoint {
   type: "deposit" | "withdrawal";
 }
 
+export interface ActivityDetail {
+  symbol: string;
+  side: string;
+  how: string[];
+  picked_by: string[];
+  regime: string[];
+}
+
 export interface Activity {
   source: string;
   ts: string;

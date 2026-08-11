@@ -291,6 +291,54 @@ def _alpaca_paper_arm_rows() -> list[dict]:
     return rows
 
 
+# ─── standalone paper lanes (jsonl ledgers of discrete closed trades) ──────
+# moonshot_lane and midcap_lane write one json row per CLOSED trade with a
+# pl_pct field — the cleanest evidence shape here: real round trips on the
+# Alpaca paper account. Same gate math as everything else.
+LANE_LEDGERS = {
+    "moonshot_lane": (STATEDIR / "moonshot_ledger.jsonl", "paper"),
+    "midcap_lane":   (STATEDIR / "midcap_ledger.jsonl",   "paper"),
+    "earnvol_lane":  (STATEDIR / "earnvol_ledger.jsonl",  "paper"),
+}
+
+
+def _lane_ledger_rows() -> list[dict]:
+    rows = []
+    for name, (led, mode) in LANE_LEDGERS.items():
+        pnls, last_ts = [], None
+        if led.exists():
+            for line in led.read_text().splitlines():
+                try:
+                    d = json.loads(line)
+                except Exception:
+                    continue
+                if "pl_pct" not in d:
+                    continue
+                try:
+                    pnls.append(float(d["pl_pct"]))
+                except (TypeError, ValueError):
+                    continue
+                ts = _parse_ts(d.get("ts"))
+                if ts:
+                    last_ts = max(last_ts or 0, ts)
+        n = len(pnls)
+        if n == 0:
+            # zero-trade lanes still get a row: an armed-but-unproven lane
+            # should be VISIBLE on the scoreboard, not silently absent.
+            rows.append(_row(name=name, mode=mode, n=0, win_rate=None,
+                             expectancy_pct=None, sharpe=None,
+                             total_pnl_pct=None, last_trade_ts=None))
+            continue
+        wins = sum(1 for p in pnls if p > 0)
+        win_rate = round(wins / n * 100, 1)
+        expectancy = round(sum(pnls) / n, 4)
+        sharpe = round(statistics.mean(pnls) / statistics.pstdev(pnls), 3) if n > 1 and statistics.pstdev(pnls) > 0 else None
+        rows.append(_row(name=name, mode=mode, n=n, win_rate=win_rate,
+                         expectancy_pct=expectancy, sharpe=sharpe,
+                         total_pnl_pct=round(sum(pnls), 3), last_trade_ts=last_ts))
+    return rows
+
+
 # ─── backtest-only claims (never traded, hardcoded from each backtest report)
 def _backtest_only_rows() -> list[dict]:
     rows = []
@@ -311,6 +359,7 @@ def build() -> dict:
         strategies.append(qc_row)
     strategies.extend(_mirror_rows())
     strategies.extend(_alpaca_paper_arm_rows())
+    strategies.extend(_lane_ledger_rows())
     strategies.extend(_backtest_only_rows())
     return {"ts": int(time.time()), "strategies": strategies}
 

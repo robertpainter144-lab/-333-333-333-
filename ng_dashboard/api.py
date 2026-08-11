@@ -2425,6 +2425,109 @@ def mount(fastapi_app, main_module) -> None:
         rows.sort(key=lambda r: r.get("ts", ""), reverse=True)
         return rows[: limit * 2]
 
+    @fastapi_app.get("/api/activity_detail/{source}")
+    def activity_detail(source: str, symbol: str, side: str = "", reason: str = ""):
+        """Per-trade decision blurb for the Book activity list (owner surface;
+        deliberately NOT in _GUEST_PATHS — it names live sources and weights).
+        Composes: the at-the-time reason recorded on the fill, each strategy
+        source's CURRENT rationale for holding the symbol, and the regime the
+        governor is running right now. Plain sentences per D28."""
+        S = Path.home() / "scanner" / "state"
+
+        def _j(name):
+            try:
+                return json.loads((S / name).read_text())
+            except Exception:
+                return {}
+
+        sym = symbol.upper()
+        picked_by = []
+
+        cong = _j("congress_holdings.json")
+        w = (cong.get("holdings") or {}).get(sym)
+        if w:
+            picked_by.append(
+                f"Congress lane: {sym} is {w * 100:.1f}% of the composition built "
+                f"from {cong.get('filings_parsed', '?')} parsed House PTR filings "
+                f"across {len(cong.get('politicians') or [])} politicians — the lane "
+                "mirrors what disclosing members actually bought.")
+
+        pat = _j("patent_mirror_state.json")
+        if sym in (pat.get("picks") or []):
+            picked_by.append(
+                f"Patent lane: {sym} is a current patent-cliff pick — ranked from FDA "
+                "Orange Book exclusivity expiries (generics pressure on rivals / "
+                "upside for challengers).")
+
+        qc = _j("qc_mirror_state.json")
+        qw = (qc.get("targets") or {}).get(sym)
+        if qw:
+            picked_by.append(
+                f"QC lane: {sym} is {qw:.0f}% of the QuantConnect-leaderboard mirror's "
+                "target — it holds what the current top community strategies hold.")
+
+        vs = _j("value_screen_state.json")
+        for p in (vs.get("picks") or []):
+            if (p.get("symbol") or p.get("t")) == sym:
+                picked_by.append(
+                    "Value screen: a current corrected-quality pick "
+                    f"({p.get('reason') or p.get('industry') or 'ranked entry'}).")
+                break
+
+        gov_ui = _j("strategy_governor_ui.json")
+        gov_w = _j("governor_weights.json")
+        weights = gov_w.get("weights") or gov_ui.get("weights") or {}
+        top = sorted(weights.items(), key=lambda kv: -kv[1])[:3]
+        leader = gov_ui.get("leader")
+        if isinstance(leader, dict):
+            leader = leader.get("name")
+        risk = {}
+        try:
+            risk = json.loads((Path.home() / "scanner" / "state" / "risk_config.json").read_text())
+        except Exception:
+            pass
+        regime = []
+        if top:
+            regime.append(
+                "The governor is running its adaptive tempo: capital follows earned "
+                "weight, currently " +
+                " · ".join(f"{k} {v * 100:.0f}%" for k, v in top if v >= 0.005) +
+                (f", leader: {leader}" if leader else "") + ".")
+        breaker = (risk.get("circuit_breaker") or {}).get("day_pl_pct") or risk.get("breaker_day_pl_pct")
+        regime.append(
+            "Standing rails: " +
+            (f"session freeze if day P/L breaches {breaker}%; " if breaker else "") +
+            "single-name cap 35% of the book; buys sized against settled cash only; "
+            "drawdown ≥3% of contributed capital forces a review (D6).")
+
+        how = []
+        if reason:
+            how.append(
+                f"Recorded at the moment the order was placed: \"{reason}\". "
+                "That is the rebalancer's actual arithmetic — the governor-blend "
+                "target for the symbol vs what the book held; the order closes "
+                "that gap, it is never a discretionary call.")
+        else:
+            how.append(
+                "This fill predates per-order reason recording (or was a broker-side "
+                "event like a partial refill), so the at-time arithmetic wasn't "
+                "captured. The sources below explain why the symbol is in the "
+                "target composition at all.")
+
+        if not picked_by:
+            picked_by.append(
+                f"No current source composition includes {sym} — this was likely an "
+                "exit/trim (the target dropped the name and the rebalancer sold the "
+                "remainder), or the source that held it has since rotated away.")
+
+        return {
+            "symbol": sym,
+            "side": side.upper(),
+            "how": how,
+            "picked_by": picked_by,
+            "regime": regime,
+        }
+
     @fastapi_app.get("/api/equity/{source}")
     def equity(source: str, period: str = "1M", timeframe: str = "1D"):
         fn = _EQUITY_DISPATCH.get(source)

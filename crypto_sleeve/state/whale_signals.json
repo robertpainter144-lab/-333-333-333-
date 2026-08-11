@@ -1,6 +1,6 @@
 {
-  "asof": "2026-08-11T07:19:04+00:00",
-  "risk_on": 0.5559,
+  "asof": "2026-08-11T08:21:59+00:00",
+  "risk_on": 0.5553,
   "leg_weights": {
     "hyperliquid": 1.0,
     "dune": 1.0,
@@ -11,140 +11,140 @@
   },
   "signal_trades": 537,
   "distinct_wallets": 19,
-  "signal_usd": 346739899,
+  "signal_usd": 347189838,
   "rows": 537,
   "legs": {
     "hyperliquid": {
       "source": "hyperliquid_top_traders",
-      "asof": "2026-08-11T07:16:17+00:00",
+      "asof": "2026-08-11T08:19:13+00:00",
       "risk_on": 0.2312,
       "signal_trades": 67,
       "distinct_wallets": 15,
-      "signal_usd": 330351568,
-      "long_usd": 76369940,
-      "short_usd": 253981628,
+      "signal_usd": 330801507,
+      "long_usd": 76478946,
+      "short_usd": 254322561,
       "coin_bias": {
         "BTC": {
-          "long_usd": 49538922,
-          "short_usd": 103568220,
+          "long_usd": 49612152,
+          "short_usd": 103497067,
           "traders_long": 6,
           "traders_short": 5,
-          "net_long_ratio": 0.3236
+          "net_long_ratio": 0.324
         },
         "ETH": {
-          "long_usd": 22035885,
-          "short_usd": 122198393,
+          "long_usd": 22071199,
+          "short_usd": 122468344,
           "traders_long": 2,
           "traders_short": 10,
-          "net_long_ratio": 0.1528
+          "net_long_ratio": 0.1527
         },
         "SOL": {
-          "long_usd": 62546,
-          "short_usd": 19457342,
+          "long_usd": 62583,
+          "short_usd": 19598461,
           "traders_long": 1,
           "traders_short": 8,
           "net_long_ratio": 0.0032
         },
         "XRP": {
-          "long_usd": 2046399,
-          "short_usd": 1221387,
+          "long_usd": 2042599,
+          "short_usd": 1219146,
           "traders_long": 2,
           "traders_short": 3,
           "net_long_ratio": 0.6262
         },
         "SUI": {
-          "long_usd": 349220,
-          "short_usd": 549522,
+          "long_usd": 349444,
+          "short_usd": 549876,
           "traders_long": 2,
           "traders_short": 2,
           "net_long_ratio": 0.3886
         },
         "LINK": {
           "long_usd": 0,
-          "short_usd": 2962326,
+          "short_usd": 2972691,
           "traders_long": 0,
           "traders_short": 4,
           "net_long_ratio": 0.0
         },
         "AVAX": {
-          "long_usd": 488486,
-          "short_usd": 63943,
+          "long_usd": 493082,
+          "short_usd": 63944,
           "traders_long": 2,
           "traders_short": 1,
-          "net_long_ratio": 0.8843
+          "net_long_ratio": 0.8852
         },
         "DOGE": {
-          "long_usd": 69845,
-          "short_usd": 585849,
+          "long_usd": 69884,
+          "short_usd": 586290,
           "traders_long": 1,
           "traders_short": 2,
           "net_long_ratio": 0.1065
         },
         "CRV": {
           "long_usd": 0,
-          "short_usd": 69719,
+          "short_usd": 69393,
           "traders_long": 0,
           "traders_short": 1,
           "net_long_ratio": 0.0
         },
         "ONDO": {
           "long_usd": 0,
-          "short_usd": 90885,
+          "short_usd": 90825,
           "traders_long": 0,
           "traders_short": 2,
           "net_long_ratio": 0.0
         },
         "PENGU": {
           "long_usd": 0,
-          "short_usd": 44559,
+          "short_usd": 44545,
           "traders_long": 0,
           "traders_short": 1,
           "net_long_ratio": 0.0
         },
         "VVV": {
           "long_usd": 0,
-          "short_usd": 1422019,
+          "short_usd": 1417927,
           "traders_long": 0,
           "traders_short": 3,
           "net_long_ratio": 0.0
         },
         "kPEPE": {
           "long_usd": 0,
-          "short_usd": 1192980,
+          "short_usd": 1188392,
           "traders_long": 0,
           "traders_short": 2,
           "net_long_ratio": 0.0
         },
         "LTC": {
           "long_usd": 0,
-          "short_usd": 123504,
+          "short_usd": 123759,
           "traders_long": 0,
           "traders_short": 1,
           "net_long_ratio": 0.0
         },
         "AAVE": {
           "long_usd": 0,
-          "short_usd": 430979,
+          "short_usd": 431901,
           "traders_long": 0,
           "traders_short": 1,
           "net_long_ratio": 0.0
         },
         "DOT": {
-          "long_usd": 43866,
+          "long_usd": 44076,
           "short_usd": 0,
           "traders_long": 1,
           "traders_short": 0,
           "net_long_ratio": 1.0
         },
         "ADA": {
-          "long_usd": 1607286,
+          "long_usd": 1606945,
           "short_usd": 0,
           "traders_long": 2,
           "traders_short": 0,
           "net_long_ratio": 1.0
         },
         "XLM": {
-          "long_usd": 127484,
+          "long_usd": 126983,
           "short_usd": 0,
           "traders_long": 2,
           "traders_short": 0,
@@ -212,24 +212,24 @@
     },
     "social": {
       "source": "social_sentiment",
-      "asof": "2026-08-11T07:18:51+00:00",
-      "risk_on": 0.5292,
+      "asof": "2026-08-11T08:21:47+00:00",
+      "risk_on": 0.5267,
       "signal_trades": 0,
       "distinct_wallets": 0,
       "signal_usd": 0,
       "detail": {
         "fear_greed": 29,
-        "reddit_bull": 73,
+        "reddit_bull": 71,
         "reddit_bear": 22,
         "reddit_buzz": {
-          "SOL": 116,
-          "ETH": 49,
-          "BTC": 24,
+          "SOL": 121,
+          "ETH": 47,
+          "BTC": 22,
           "LINK": 4
         },
         "reddit_subs": {
           "CryptoCurrency": {
-            "bull": 42,
+            "bull": 40,
             "bear": 18,
             "posts": 60
           },
@@ -246,52 +246,52 @@
         },
         "trending": [
           "DOS",
-          "CYS",
           "PUMP",
+          "XRP",
+          "CYS",
           "CASHCAT",
-          "PENGU",
           "LINK",
-          "RVN"
+          "PENGU"
         ]
       }
     },
     "stocktwits": {
       "source": "stocktwits_sentiment",
-      "asof": "2026-08-11T07:19:03+00:00",
-      "risk_on": 0.7719,
+      "asof": "2026-08-11T08:21:59+00:00",
+      "risk_on": 0.764,
       "signal_trades": 0,
       "distinct_wallets": 0,
       "signal_usd": 0,
       "detail": {
-        "bullish": 203,
-        "bearish": 60,
+        "bullish": 204,
+        "bearish": 63,
         "per_coin": {
           "BTC": {
-            "bullish": 6,
-            "bearish": 6
+            "bullish": 8,
+            "bearish": 5
           },
           "ETH": {
             "bullish": 3,
             "bearish": 3
           },
           "SOL": {
-            "bullish": 17,
+            "bullish": 19,
             "bearish": 3
           },
           "XRP": {
-            "bullish": 5,
-            "bearish": 4
+            "bullish": 2,
+            "bearish": 7
           },
           "DOGE": {
             "bullish": 20,
             "bearish": 4
           },
           "ADA": {
-            "bullish": 24,
-            "bearish": 4
+            "bullish": 22,
+            "bearish": 5
           },
           "LINK": {
-            "bullish": 8,
+            "bullish": 10,
             "bearish": 1
           },
           "AVAX": {
@@ -331,8 +331,8 @@
     },
     "derivatives": {
       "source": "hyperliquid_derivatives",
-      "asof": "2026-08-11T07:19:04+00:00",
-      "risk_on": 0.9799,
+      "asof": "2026-08-11T08:21:59+00:00",
+      "risk_on": 0.9921,
       "signal_trades": 0,
       "distinct_wallets": 0,
       "signal_usd": 0,
@@ -341,162 +341,162 @@
           "BTC": {
             "funding_8h_pct": 0.01,
             "funding_apr_pct": 10.95,
-            "oi_usd": 2481622431,
-            "vol24_usd": 1460487692,
-            "chg24_pct": -2.03,
-            "mark_px": 63913.0
+            "oi_usd": 2488600515,
+            "vol24_usd": 1450499316,
+            "chg24_pct": -1.88,
+            "mark_px": 64038.0
           },
           "ETH": {
-            "funding_8h_pct": 0.01,
-            "funding_apr_pct": 10.95,
-            "oi_usd": 1554616407,
-            "vol24_usd": 754920411,
-            "chg24_pct": -2.87,
-            "mark_px": 1870.91
+            "funding_8h_pct": 0.00685,
+            "funding_apr_pct": 7.5,
+            "oi_usd": 1574086330,
+            "vol24_usd": 776762534,
+            "chg24_pct": -2.67,
+            "mark_px": 1875.7
           },
           "SOL": {
             "funding_8h_pct": 0.01,
             "funding_apr_pct": 10.95,
-            "oi_usd": 380061687,
-            "vol24_usd": 85023583,
-            "chg24_pct": -1.84,
-            "mark_px": 75.453
+            "oi_usd": 379574364,
+            "vol24_usd": 85918425,
+            "chg24_pct": -1.73,
+            "mark_px": 75.653
           },
           "AVAX": {
-            "funding_8h_pct": 0.01,
-            "funding_apr_pct": 10.95,
-            "oi_usd": 11684331,
-            "vol24_usd": 1421362,
-            "chg24_pct": -0.75,
-            "mark_px": 6.4728
+            "funding_8h_pct": 0.00819,
+            "funding_apr_pct": 8.97,
+            "oi_usd": 11753687,
+            "vol24_usd": 1480030,
+            "chg24_pct": -0.72,
+            "mark_px": 6.4771
           },
           "LTC": {
             "funding_8h_pct": 0.01,
             "funding_apr_pct": 10.95,
-            "oi_usd": 10745994,
-            "vol24_usd": 1092286,
-            "chg24_pct": -0.99,
-            "mark_px": 45.024
+            "oi_usd": 10767521,
+            "vol24_usd": 1086945,
+            "chg24_pct": -0.77,
+            "mark_px": 45.137
           },
           "DOGE": {
             "funding_8h_pct": 0.01,
             "funding_apr_pct": 10.95,
-            "oi_usd": 28652361,
-            "vol24_usd": 3490638,
-            "chg24_pct": 0.05,
-            "mark_px": 0.070056
+            "oi_usd": 28734338,
+            "vol24_usd": 3534876,
+            "chg24_pct": 0.33,
+            "mark_px": 0.070112
           },
           "SUI": {
             "funding_8h_pct": 0.01,
             "funding_apr_pct": 10.95,
-            "oi_usd": 25430939,
-            "vol24_usd": 4733168,
-            "chg24_pct": -1.62,
-            "mark_px": 0.68531
+            "oi_usd": 25503350,
+            "vol24_usd": 4613699,
+            "chg24_pct": -1.09,
+            "mark_px": 0.6874
           },
           "kPEPE": {
             "funding_8h_pct": 0.01,
             "funding_apr_pct": 10.95,
-            "oi_usd": 18819465,
-            "vol24_usd": 3658212,
-            "chg24_pct": -1.31,
-            "mark_px": 0.002858
+            "oi_usd": 19012264,
+            "vol24_usd": 3760387,
+            "chg24_pct": -1.45,
+            "mark_px": 0.002853
           },
           "CRV": {
             "funding_8h_pct": 0.01,
             "funding_apr_pct": 10.95,
-            "oi_usd": 9575899,
-            "vol24_usd": 9331107,
-            "chg24_pct": 9.41,
-            "mark_px": 0.26054
+            "oi_usd": 9569042,
+            "vol24_usd": 9712557,
+            "chg24_pct": 8.71,
+            "mark_px": 0.25999
           },
           "LINK": {
             "funding_8h_pct": 0.01,
             "funding_apr_pct": 10.95,
-            "oi_usd": 39232836,
-            "vol24_usd": 5944237,
-            "chg24_pct": 2.38,
-            "mark_px": 8.4232
+            "oi_usd": 39429340,
+            "vol24_usd": 6126965,
+            "chg24_pct": 2.74,
+            "mark_px": 8.4483
           },
           "XRP": {
-            "funding_8h_pct": 0.01,
-            "funding_apr_pct": 10.95,
-            "oi_usd": 109950303,
-            "vol24_usd": 37723134,
-            "chg24_pct": -3.1,
-            "mark_px": 1.00495
+            "funding_8h_pct": 0.00288,
+            "funding_apr_pct": 3.16,
+            "oi_usd": 104358222,
+            "vol24_usd": 42449661,
+            "chg24_pct": -3.18,
+            "mark_px": 1.0029
           },
           "AAVE": {
-            "funding_8h_pct": -0.00692,
-            "funding_apr_pct": -7.58,
-            "oi_usd": 58739098,
-            "vol24_usd": 4422155,
-            "chg24_pct": -4.57,
-            "mark_px": 88.332
+            "funding_8h_pct": 0.00554,
+            "funding_apr_pct": 6.07,
+            "oi_usd": 58930705,
+            "vol24_usd": 4380596,
+            "chg24_pct": -3.92,
+            "mark_px": 88.589
           },
           "DOT": {
             "funding_8h_pct": 0.01,
             "funding_apr_pct": 10.95,
-            "oi_usd": 4540800,
-            "vol24_usd": 1782289,
-            "chg24_pct": -0.85,
-            "mark_px": 0.80289
+            "oi_usd": 4579413,
+            "vol24_usd": 1677078,
+            "chg24_pct": -0.39,
+            "mark_px": 0.80711
           },
           "ADA": {
-            "funding_8h_pct": -0.0264,
-            "funding_apr_pct": -28.9,
-            "oi_usd": 32697490,
-            "vol24_usd": 5671177,
-            "chg24_pct": -5.03,
-            "mark_px": 0.18851
+            "funding_8h_pct": -0.01982,
+            "funding_apr_pct": -21.71,
+            "oi_usd": 32663651,
+            "vol24_usd": 5729210,
+            "chg24_pct": -4.2,
+            "mark_px": 0.18862
           },
           "ONDO": {
             "funding_8h_pct": 0.01,
             "funding_apr_pct": 10.95,
-            "oi_usd": 10788039,
-            "vol24_usd": 3863070,
-            "chg24_pct": -4.42,
-            "mark_px": 0.33761
+            "oi_usd": 10837485,
+            "vol24_usd": 3801088,
+            "chg24_pct": -4.06,
+            "mark_px": 0.33838
           },
           "XLM": {
-            "funding_8h_pct": 0.00418,
-            "funding_apr_pct": 4.58,
-            "oi_usd": 6892340,
-            "vol24_usd": 637695,
-            "chg24_pct": -3.02,
-            "mark_px": 0.16059
+            "funding_8h_pct": 0.01,
+            "funding_apr_pct": 10.95,
+            "oi_usd": 6904296,
+            "vol24_usd": 643666,
+            "chg24_pct": -2.27,
+            "mark_px": 0.16088
           },
           "PENGU": {
-            "funding_8h_pct": -0.00763,
-            "funding_apr_pct": -8.35,
-            "oi_usd": 5315615,
-            "vol24_usd": 2499618,
-            "chg24_pct": -5.26,
-            "mark_px": 0.006359
+            "funding_8h_pct": -0.00302,
+            "funding_apr_pct": -3.31,
+            "oi_usd": 5340996,
+            "vol24_usd": 2247010,
+            "chg24_pct": -4.54,
+            "mark_px": 0.006375
           },
           "VVV": {
-            "funding_8h_pct": 0.05811,
-            "funding_apr_pct": 63.63,
-            "oi_usd": 16081254,
-            "vol24_usd": 1913189,
-            "chg24_pct": -1.63,
-            "mark_px": 11.814
+            "funding_8h_pct": 0.0408,
+            "funding_apr_pct": 44.67,
+            "oi_usd": 16050038,
+            "vol24_usd": 1856084,
+            "chg24_pct": -2.55,
+            "mark_px": 11.779
           }
         },
-        "oi_total_usd": 4805447290
+        "oi_total_usd": 4826695556
       }
     },
     "market": {
       "source": "coingecko_global",
-      "asof": "2026-08-11T07:19:04+00:00",
-      "risk_on": 0.3406,
+      "asof": "2026-08-11T08:21:59+00:00",
+      "risk_on": 0.3464,
       "signal_trades": 0,
       "distinct_wallets": 0,
       "signal_usd": 0,
       "detail": {
-        "mcap_chg24_pct": -1.59,
-        "total_mcap_usd": 2269407020916,
-        "total_vol24_usd": 51115714866,
+        "mcap_chg24_pct": -1.54,
+        "total_mcap_usd": 2271840518376,
+        "total_vol24_usd": 51402273939,
         "btc_dominance_pct": 56.5,
         "eth_dominance_pct": 10.0
       }
@@ -504,126 +504,126 @@
   },
   "coin_bias": {
     "BTC": {
-      "long_usd": 49538922,
-      "short_usd": 103568220,
+      "long_usd": 49612152,
+      "short_usd": 103497067,
       "traders_long": 6,
       "traders_short": 5,
-      "net_long_ratio": 0.3236
+      "net_long_ratio": 0.324
     },
     "ETH": {
-      "long_usd": 22035885,
-      "short_usd": 122198393,
+      "long_usd": 22071199,
+      "short_usd": 122468344,
       "traders_long": 2,
       "traders_short": 10,
-      "net_long_ratio": 0.1528
+      "net_long_ratio": 0.1527
     },
     "SOL": {
-      "long_usd": 62546,
-      "short_usd": 19457342,
+      "long_usd": 62583,
+      "short_usd": 19598461,
       "traders_long": 1,
       "traders_short": 8,
       "net_long_ratio": 0.0032
     },
     "XRP": {
-      "long_usd": 2046399,
-      "short_usd": 1221387,
+      "long_usd": 2042599,
+      "short_usd": 1219146,
       "traders_long": 2,
       "traders_short": 3,
       "net_long_ratio": 0.6262
     },
     "SUI": {
-      "long_usd": 349220,
-      "short_usd": 549522,
+      "long_usd": 349444,
+      "short_usd": 549876,
       "traders_long": 2,
       "traders_short": 2,
       "net_long_ratio": 0.3886
     },
     "LINK": {
       "long_usd": 0,
-      "short_usd": 2962326,
+      "short_usd": 2972691,
       "traders_long": 0,
       "traders_short": 4,
       "net_long_ratio": 0.0
     },
     "AVAX": {
-      "long_usd": 488486,
-      "short_usd": 63943,
+      "long_usd": 493082,
+      "short_usd": 63944,
       "traders_long": 2,
       "traders_short": 1,
-      "net_long_ratio": 0.8843
+      "net_long_ratio": 0.8852
     },
     "DOGE": {
-      "long_usd": 69845,
-      "short_usd": 585849,
+      "long_usd": 69884,
+      "short_usd": 586290,
       "traders_long": 1,
       "traders_short": 2,
       "net_long_ratio": 0.1065
     },
     "CRV": {
       "long_usd": 0,
-      "short_usd": 69719,
+      "short_usd": 69393,
       "traders_long": 0,
       "traders_short": 1,
       "net_long_ratio": 0.0
     },
     "ONDO": {
       "long_usd": 0,
-      "short_usd": 90885,
+      "short_usd": 90825,
       "traders_long": 0,
       "traders_short": 2,
       "net_long_ratio": 0.0
     },
     "PENGU": {
       "long_usd": 0,
-      "short_usd": 44559,
+      "short_usd": 44545,
       "traders_long": 0,
       "traders_short": 1,
       "net_long_ratio": 0.0
     },
     "VVV": {
       "long_usd": 0,
-      "short_usd": 1422019,
+      "short_usd": 1417927,
       "traders_long": 0,
       "traders_short": 3,
       "net_long_ratio": 0.0
     },
     "kPEPE": {
       "long_usd": 0,
-      "short_usd": 1192980,
+      "short_usd": 1188392,
       "traders_long": 0,
       "traders_short": 2,
       "net_long_ratio": 0.0
     },
     "LTC": {
       "long_usd": 0,
-      "short_usd": 123504,
+      "short_usd": 123759,
       "traders_long": 0,
       "traders_short": 1,
       "net_long_ratio": 0.0
     },
     "AAVE": {
       "long_usd": 0,
-      "short_usd": 430979,
+      "short_usd": 431901,
       "traders_long": 0,
       "traders_short": 1,
       "net_long_ratio": 0.0
     },
     "DOT": {
-      "long_usd": 43866,
+      "long_usd": 44076,
       "short_usd": 0,
       "traders_long": 1,
       "traders_short": 0,
       "net_long_ratio": 1.0
     },
     "ADA": {
-      "long_usd": 1607286,
+      "long_usd": 1606945,
       "short_usd": 0,
       "traders_long": 2,
       "traders_short": 0,
       "net_long_ratio": 1.0
     },
     "XLM": {
-      "long_usd": 127484,
+      "long_usd": 126983,
       "short_usd": 0,
       "traders_long": 2,
       "traders_short": 0,

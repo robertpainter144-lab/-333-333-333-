@@ -5,16 +5,16 @@
       "notional": 5.7741,
       "opened": "2026-08-10T13:49:43+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.57)",
-      "mv": 5.69,
-      "cur": 0.3373
+      "mv": 5.67,
+      "cur": 0.3357
     },
     "CRV/USD": {
       "entry_price": 0.24108,
       "notional": 6.0,
       "opened": "2026-08-10T16:09:13+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.59)",
-      "mv": 6.62,
-      "cur": 0.26733
+      "mv": 6.71,
+      "cur": 0.27097
     },
     "LINK/USD": {
       "entry_price": 8.29595,
@@ -22,15 +22,15 @@
       "opened": "2026-08-11T00:01:02+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.57)",
       "mv": 6.05,
-      "cur": 8.40483
+      "cur": 8.41231
     },
     "VVV/USD": {
       "entry_price": 11.843,
       "notional": 6.0,
       "opened": "2026-08-11T02:51:23+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.57)",
-      "mv": 5.97,
-      "cur": 11.852
+      "mv": 5.99,
+      "cur": 11.884
     }
   },
   "frozen": false,
@@ -45,6 +45,6 @@
     "LINK/USD": 6.0,
     "WLD/USD": 5.77
   },
-  "targets_ts": "2026-08-11T03:06:45+00:00",
+  "targets_ts": "2026-08-11T03:22:06+00:00",
   "targets_gate": "whale-confirmed (risk_on=0.57)"
 }

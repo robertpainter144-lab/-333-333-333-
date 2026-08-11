@@ -381,3 +381,21 @@ Last full revision: 2026-07-29.
   unchanged for any strategy built on it).
   CHECK: quarki-intel.timer active on VM; intel_engine/state/intel.json
   asof < 2h old; /api/crypto/intel 403s guest keys.
+
+- **D42 — Breakeven Ratchet on the live book (2026-08-11).** From Robert's
+  marked-up chart ("if you had actually taken profit at those points"):
+  when alpaca_live equity recovers to contributed capital − $0.25, the
+  rebalancer banks the WHOLE book to cash and stays flat until the sold
+  basket is 0.5% cheaper (dip-triggered rebuy — validated on the 8/4–8/11
+  5-min replay: +$5 vs staying invested; time-triggered rebuy lost money),
+  with a max-5-trading-day fallback re-entry and ≥1 trading day between
+  cycles (cash-account GFV guard). Never evaluated while the D21 breaker is
+  frozen. contributed_usd lives in state/risk_config.json breakeven_ratchet
+  and MUST be updated on any deposit/withdrawal.
+  Same session: fixed a latent D21 violation — orphan liquidation had no
+  `frozen` guard, so a breaker day would have dumped every position at the
+  low; sells are now suppressed while frozen.
+  CHECK: risk_config.json breakeven_ratchet.mode == "live" and
+  contributed_usd within $1 of Σ deposits−withdrawals from
+  /api/transfers/alpaca_live; combined_mirror orphan-liquidation block
+  contains `not frozen`.

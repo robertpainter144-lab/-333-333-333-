@@ -12,6 +12,10 @@ git-credentials
 build/
 .gradle/
 dist/
+# exception: the BUILT Terminal SPA ships via the repo so the GCP
+# e2-micro (too small to run vite) serves current UI after a plain pull
+!trading-gui/dist/
+!trading-gui/dist/**
 node_modules/
 .venv/
 venv/

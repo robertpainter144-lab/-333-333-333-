@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <rect width="128" height="128" fill="#0d1117"/>
+  <polyline points="32,82 46,68 58,75 72,54 84,62 96,42" fill="none" stroke="#ffd60a" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="64" y="104" font-family="ui-monospace,Menlo,monospace" font-size="20" font-weight="700" fill="#e6edf3" text-anchor="middle">QT</text>
+</svg>

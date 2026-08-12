@@ -1,12 +1,10 @@
 {
   "positions": {
-    "LINK/USD": {
-      "entry_price": 8.29595,
+    "CRV/USD": {
+      "entry_price": 0.2668,
       "notional": 6.0,
-      "opened": "2026-08-11T00:01:02+00:00",
-      "signal_mode": "whale-confirmed (risk_on=0.57)",
-      "mv": 6.3,
-      "cur": 8.74936
+      "opened": "2026-08-12T21:13:44+00:00",
+      "signal_mode": "whale-confirmed (risk_on=0.64)"
     }
   },
   "frozen": false,
@@ -16,8 +14,8 @@
   },
   "seen_active": true,
   "targets": {
-    "LINK/USD": 6.0
+    "CRV/USD": 6.0
   },
-  "targets_ts": "2026-08-12T20:58:06+00:00",
+  "targets_ts": "2026-08-12T21:13:42+00:00",
   "targets_gate": "whale-confirmed (risk_on=0.64)"
 }

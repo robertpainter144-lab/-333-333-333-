@@ -1,6 +1,10 @@
-/* Quarki333 Terminal — owner-private TraderGrader tab.
- * Adds a "Grader" nav button (mobile bottom nav + desktop rail, same mount
- * idiom as owner_catalog.js) opening an overlay with two sections:
+/* Quarki333 Terminal — owner-private TraderGrader card (Catalog tab).
+ * Companion to owner_catalog.js, same pattern as owner_crypto_intel.js: it
+ * does NOT own a tab or nav button. It polls for the #qtcat-overlay pane
+ * that owner_catalog.js mounts when the Catalog tab is opened and inserts
+ * one card right below the catalog header — re-inserting whenever the
+ * catalog's own render() wipes and rebuilds that pane.
+ * Card sections:
  *   1. Auto-graded @tradergrader callouts (Sniper of the Day / Trade of the
  *      Week) — forward returns vs SPY at 1d/20d per rec, account rollups.
  *      Honest framing: his posts are retrospective recaps, so the grades
@@ -15,12 +19,15 @@
 (function () {
   "use strict";
 
-  var POLL_MS = 120000;
-  var open = false, data = null, err = null, timer = null;
+  var CONTAINER_ID = "qtcat-overlay";   // owned by owner_catalog.js — read-only
+  var CARD_ID = "qttg-card";
+  var STYLE_ID = "qttg-style";
+  var MOUNT_POLL_MS = 1000;
+  var FETCH_POLL_MS = 120000;
+
+  var data = null, err = null, cardEl = null, fetchTimer = null, wasMounted = false;
 
   var css = [
-    ".qttg-overlay{position:fixed;inset:0;z-index:60;overflow-y:auto;background:var(--bg,#0d1117);",
-    "padding:12px 12px 84px}",
     ".qttg-card{border:1px solid var(--bd);background:var(--panel);border-radius:8px;",
     "padding:12px;margin:0 auto 10px;max-width:72rem}",
     ".qttg-num{font-family:ui-monospace,SFMono-Regular,Menlo,Roboto Mono,monospace;",
@@ -29,6 +36,7 @@
     ".qttg-pos{color:#3fb950}.qttg-neg{color:#f85149}.qttg-amber{color:#d29922}",
     ".qttg-h{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}",
     ".qttg-row{display:flex;align-items:baseline;justify-content:space-between;gap:8px;flex-wrap:wrap}",
+    ".qttg-sec{margin-top:12px;border-top:1px solid var(--bd);padding-top:10px}",
     ".qttg-stats{display:flex;gap:14px;flex-wrap:wrap;font-size:11px}",
     ".qttg-stats b{display:block;font-size:13px;font-weight:600}",
     ".qttg-table{width:100%;border-collapse:collapse;font-size:11px}",
@@ -37,20 +45,13 @@
     ".qttg-table th{font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);border-top:0}",
     ".qttg-note td{border-top:0;padding-top:0;text-align:left;font-size:10px;color:var(--faint,#6e7681)}",
     ".qttg-pill{display:inline-block;border:1px solid currentColor;border-radius:9999px;",
-    "padding:1px 8px;font-size:9px;font-weight:700;letter-spacing:.08em}",
-    ".qttg-navbtn-active{color:var(--fg)!important;font-weight:600}"
+    "padding:1px 8px;font-size:9px;font-weight:700;letter-spacing:.08em}"
   ].join("");
 
   function esc(s) {
     return String(s).replace(/[&<>"]/g, function (c) {
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
     });
-  }
-  function el(tag, cls, html) {
-    var e = document.createElement(tag);
-    if (cls) e.className = cls;
-    if (html != null) e.innerHTML = html;
-    return e;
   }
   function pctCell(h) {
     if (!h || h.ret_pct == null)
@@ -75,7 +76,7 @@
     return d.toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
   }
 
-  function gradesCard(acct, title, blurb) {
+  function gradesHtml(acct, title, blurb) {
     var html = '<div class="qttg-h">' + title + "</div>";
     if (!acct || !acct.n) {
       return html + '<div class="qttg-muted" style="font-size:11px">' +
@@ -108,7 +109,7 @@
     return html;
   }
 
-  function boardCard(lb) {
+  function boardHtml(lb) {
     var html = '<div class="qttg-h">🏆 His leaderboard — traders he medals most</div>';
     var traders = (lb && lb.traders) || {};
     var keys = Object.keys(traders);
@@ -131,12 +132,9 @@
   }
 
   function render() {
-    var ov = document.getElementById("qttg-overlay");
-    if (!ov) return;
-    ov.innerHTML = "";
+    if (!cardEl) return;
     var lb = (data || {}).leaderboard || {};
-    var hdr = el("div", "qttg-card",
-      '<div class="qttg-row"><div><b>🎯 TRADERGRADER</b> ' +
+    var body = '<div class="qttg-row"><div><b>🎯 TRADERGRADER</b> ' +
       '<span class="qttg-muted" style="font-size:11px">@tradergrader on X — grades other options traders</span></div>' +
       (lb.ts ? "<span class='qttg-num qttg-muted' style='font-size:10px'>as of " + esc(shortTs(lb.ts)) + "</span>" : "") +
       "</div>" +
@@ -144,22 +142,23 @@
       (lb.n_posts != null ? lb.n_posts + " posts tracked · " : "") +
       "auto-ingested daily 15:35 MT · his posts are retrospective recaps, so grades below test " +
       "<b>following</b> the highlight the day it lands, not his entry timing · " +
-      '<span class="qttg-pill qttg-amber">ADVISORY — no live weight without D7</span></div>');
-    ov.appendChild(hdr);
-    if (err) { ov.appendChild(el("div", "qttg-card qttg-neg", "fetch failed: " + esc(err))); return; }
-    if (!data) { ov.appendChild(el("div", "qttg-card qttg-muted", "loading…")); return; }
-    var accts = ((data.grades || {}).accounts) || {};
-    ov.appendChild(el("div", "qttg-card", gradesCard(accts.tradergrader_auto,
-      "📊 Auto-graded callouts — follow-the-highlight vs SPY",
-      "Callouts are parsed from Sniper-of-the-Day / Trade-of-the-Week posts as they land.")));
-    var man = accts.tradergrader;
-    if (man && man.n)
-      ov.appendChild(el("div", "qttg-card", gradesCard(man,
-        "✍️ Hand-pasted recs (tracked_accounts.json)", "")));
-    ov.appendChild(el("div", "qttg-card", boardCard(lb)));
-    ov.appendChild(el("div", null,
-      "<div class='qttg-muted' style='font-size:10px;text-align:center;padding:4px 0 8px'>" +
-      "source: equity_social.py x_fetch/grade · owner-private</div>"));
+      '<span class="qttg-pill qttg-amber">ADVISORY — no live weight without D7</span></div>';
+    if (err) {
+      body += '<div class="qttg-sec qttg-neg" style="font-size:11px">fetch failed: ' + esc(err) + "</div>";
+    } else if (!data) {
+      body += '<div class="qttg-sec qttg-muted" style="font-size:11px">loading…</div>';
+    } else {
+      var accts = ((data.grades || {}).accounts) || {};
+      body += '<div class="qttg-sec">' + gradesHtml(accts.tradergrader_auto,
+        "📊 Auto-graded callouts — follow-the-highlight vs SPY",
+        "Callouts are parsed from Sniper-of-the-Day / Trade-of-the-Week posts as they land.") + "</div>";
+      var man = accts.tradergrader;
+      if (man && man.n)
+        body += '<div class="qttg-sec">' + gradesHtml(man,
+          "✍️ Hand-pasted recs (tracked_accounts.json)", "") + "</div>";
+      body += '<div class="qttg-sec">' + boardHtml(lb) + "</div>";
+    }
+    cardEl.innerHTML = body;
   }
 
   function fetchData() {
@@ -174,63 +173,45 @@
       .catch(function (e) { err = e.message; render(); });
   }
 
-  function setOpen(v) {
-    open = v;
-    var ov = document.getElementById("qttg-overlay");
-    if (open) {
-      if (!ov) {
-        ov = el("div", "qttg-overlay");
-        ov.id = "qttg-overlay";
-        document.body.appendChild(ov);
+  /* Poll for the catalog pane and (re-)insert our card right below the
+   * catalog header (first child) so it isn't buried under 20+ pilot cards.
+   * The network fetch loop only runs while the pane exists. */
+  function ensureMounted() {
+    var ov = document.getElementById(CONTAINER_ID);
+    if (!ov) {
+      if (wasMounted) {
+        wasMounted = false;
+        cardEl = null;
+        if (fetchTimer) { clearInterval(fetchTimer); fetchTimer = null; }
       }
+      return;
+    }
+    var existing = document.getElementById(CARD_ID);
+    if (!existing || existing.parentNode !== ov) {
+      cardEl = document.createElement("div");
+      cardEl.id = CARD_ID;
+      cardEl.className = "qttg-card";
+      ov.insertBefore(cardEl, ov.children[1] || null);
       render();
+    } else {
+      cardEl = existing;
+    }
+    if (!wasMounted) {
+      wasMounted = true;
       fetchData();
-      if (!timer) timer = setInterval(fetchData, POLL_MS);
-    } else {
-      if (ov) ov.remove();
-      if (timer) { clearInterval(timer); timer = null; }
+      fetchTimer = setInterval(fetchData, FETCH_POLL_MS);
     }
-    document.querySelectorAll(".qttg-navbtn").forEach(function (b) {
-      b.classList.toggle("qttg-navbtn-active", open);
-    });
-  }
-
-  function makeBtn(mobile) {
-    var b = el("button", "qttg-navbtn");
-    if (mobile) {
-      b.style.cssText = "flex:1 1 0%;display:flex;flex-direction:column;align-items:center;" +
-        "gap:2px;padding:8px 0;font-size:10px;background:none;border:0;color:var(--muted)";
-      b.innerHTML = "<span style='font-size:16px;line-height:1'>🎯</span>Grader";
-    } else {
-      b.style.cssText = "display:flex;align-items:center;gap:8px;border-radius:4px;" +
-        "padding:8px 12px;font-size:14px;background:none;border:0;color:var(--muted);" +
-        "text-align:left;width:100%;cursor:pointer";
-      b.innerHTML = "<span>🎯</span> Grader";
-    }
-    b.addEventListener("click", function () { setOpen(!open); });
-    return b;
-  }
-
-  function mount() {
-    var mobileNav = document.querySelector("nav.fixed.inset-x-0.bottom-0");
-    if (mobileNav && !mobileNav.querySelector(".qttg-navbtn"))
-      mobileNav.appendChild(makeBtn(true));
-    var rail = document.querySelector("nav.hidden .flex-1.flex-col, nav .flex.flex-1.flex-col");
-    if (rail && !rail.querySelector(".qttg-navbtn"))
-      rail.appendChild(makeBtn(false));
   }
 
   function init() {
-    var st = document.createElement("style");
-    st.textContent = css;
-    document.head.appendChild(st);
-    document.addEventListener("click", function (ev) {
-      if (!open) return;
-      var a = ev.target && ev.target.closest && ev.target.closest("a");
-      if (a) setOpen(false);
-    }, true);
-    mount();
-    setInterval(mount, 2000);
+    if (!document.getElementById(STYLE_ID)) {
+      var st = document.createElement("style");
+      st.id = STYLE_ID;
+      st.textContent = css;
+      document.head.appendChild(st);
+    }
+    ensureMounted();
+    setInterval(ensureMounted, MOUNT_POLL_MS);
   }
 
   if (document.readyState === "loading")

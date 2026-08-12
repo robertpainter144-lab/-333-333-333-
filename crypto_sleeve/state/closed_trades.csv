@@ -39,3 +39,5 @@ closed_at,symbol,entry_time,entry_price,exit_price,notional,realized_pl,pl_pct,r
 2026-08-12T17:24:21+00:00,WLD/USD,2026-08-12T17:19:09+00:00,0.3364,0.3344,6.00,-0.0655,-0.0109,momentum_flip,whale-confirmed (risk_on=0.53)
 2026-08-12T19:03:05+00:00,WLD/USD,2026-08-12T17:35:10+00:00,0.3348,0.3349,6.00,-0.0282,-0.0047,momentum_flip,whale-confirmed (risk_on=0.53)
 2026-08-12T19:18:47+00:00,VVV/USD,2026-08-12T17:03:38+00:00,11.6710,11.5440,6.00,-0.0950,-0.0158,momentum_flip,whale-confirmed (risk_on=0.53)
+2026-08-12T19:44:49+00:00,ETH/USD,2026-08-12T13:39:02+00:00,1902.4500,1877.3400,6.00,-0.1088,-0.0181,momentum_flip,whale-confirmed (risk_on=0.67)
+2026-08-12T19:44:49+00:00,CRV/USD,2026-08-12T19:08:34+00:00,0.2681,0.2667,6.00,-0.0623,-0.0104,momentum_flip,whale-confirmed (risk_on=0.52)

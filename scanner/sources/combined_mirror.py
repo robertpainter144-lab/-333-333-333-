@@ -149,6 +149,17 @@ def _guard_cfg() -> dict:
     return d
 
 
+def _tb_cfg() -> dict:
+    # D43 turnover budget (2026-08-12, from the sandbox-harness finding that
+    # costs are the binding constraint: 104x/yr turnover = instant death, and
+    # this live book measured 150-230x). Caps how much notional the mirror
+    # may trade per day; largest drifts fill first. Risk-REDUCING orders
+    # (full exits, ratchet/PT sells) are never budget-blocked.
+    d = {"mode": "off", "daily_notional_pct": 20.0}
+    d.update(_risk_cfg().get("turnover_budget") or {})
+    return d
+
+
 def _ratchet_cfg() -> dict:
     # D42 breakeven ratchet (2026-08-11). contributed_usd must be updated by
     # hand on any new deposit/withdrawal — the D15 auditor cross-checks it
@@ -837,10 +848,32 @@ def tick() -> None:
     actions = []
     buy_budget = settled_bp  # None in paper mode → unconstrained
     skipped_buys = []
-    for sym, want in desired.items():
+    # ── D43 turnover budget: cap the day's traded notional; biggest drifts
+    # fill first (the loop below iterates by |delta| desc), and only
+    # DISCRETIONARY flow is gated — full exits (want<=0) and ratchet/PT
+    # sells always pass, so risk can always come off. ──
+    tb = _tb_cfg()
+    tb_state = dict(state_prev.get("turnover") or {})
+    _today_key = time.strftime("%Y-%m-%d")
+    if tb_state.get("day") != _today_key:
+        tb_state = {"day": _today_key, "spent": 0.0, "skipped": 0}
+    tb_cap = (total_book * float(tb.get("daily_notional_pct", 20.0)) / 100.0
+              if tb.get("mode") == "live" and ALPACA_MODE == "live" else None)
+    for sym, want in sorted(desired.items(),
+                            key=lambda kv: -abs(kv[1] - positions.get(kv[0], {}).get("mv", 0.0))):
         cur = positions.get(sym, {}).get("mv", 0.0)
         delta = want - cur
         if abs(delta) < REBALANCE_THRESHOLD_USD:
+            continue
+        # budget gate: discretionary buys AND partial trims; never full
+        # exits, never ratchet/PT-claimed sells
+        _discretionary = (delta > 0) or (delta < 0 and want > 0)
+        if (tb_cap is not None and _discretionary and sym not in pt_reason
+                and tb_state["spent"] + abs(delta) > tb_cap):
+            tb_state["skipped"] = tb_state.get("skipped", 0) + 1
+            log_tick("combined_mirror",
+                     f"[turnover budget] {sym} ${delta:+.2f} deferred — "
+                     f"${tb_state['spent']:.0f}/${tb_cap:.0f} spent today")
             continue
         if delta > 0 and delta >= MIN_ORDER_USD:
             blocked_by = []
@@ -910,6 +943,7 @@ def tick() -> None:
                                     f"governor target {targets.get(sym, 0)*100:.1f}% "
                                     f"(blend: {driver})"),
                             "result": res.get("id", res.get("error", "skipped"))[:16]})
+            tb_state["spent"] += abs(delta)
         elif delta < 0 and abs(delta) >= MIN_ORDER_USD:
             if want <= 0.0:
                 # Minimum-dwell guard: don't full-exit a GREEN position
@@ -950,6 +984,7 @@ def tick() -> None:
                                       f"governor target {targets.get(sym, 0)*100:.1f}% "
                                       f"(blend: {driver})"))),
                             "result": res.get("id", res.get("error", "skipped"))[:80]})
+            tb_state["spent"] += abs(delta)
     if skipped_buys:
         log_tick("combined_mirror", "buys deferred: " + ",".join(skipped_buys))
 
@@ -1023,6 +1058,7 @@ def tick() -> None:
         "elig_hist": elig_hist,
         "elig_logged": elig_logged,
         "ratchet": rstate,
+        "turnover": tb_state,
     }, indent=2, default=float))
     os.replace(_state_tmp, STATE)
     if actions:

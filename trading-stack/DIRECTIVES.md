@@ -399,3 +399,16 @@ Last full revision: 2026-07-29.
   contributed_usd within $1 of Σ deposits−withdrawals from
   /api/transfers/alpaca_live; combined_mirror orphan-liquidation block
   contains `not frozen`.
+
+- **D43 — Daily turnover budget on the live book (2026-08-12).** From the
+  sandbox-harness finding Robert shared (costs are the binding constraint:
+  104x/yr turnover = instant death even with 32% gross alpha) and this
+  book's own measurement (150-230x annualized on 8/10-8/12): the mirror may
+  trade at most daily_notional_pct (20%) of the book per day in
+  DISCRETIONARY flow — largest target-drifts fill first; full exits and
+  ratchet/PT sells are never budget-blocked, so risk can always come off.
+  Config: risk_config.json turnover_budget (hot-read); per-day spend in
+  combined_mirror_state.turnover. 20%/day ≈ 50x/yr ≈ 1.5-2.5%/yr spread
+  drag at large-cap spreads — the harness's survivable zone.
+  CHECK: turnover_budget.mode == "live"; combined_mirror_state.turnover.day
+  == today on trading days; ledger daily |delta_usd| sum ≤ 1.3× the cap.

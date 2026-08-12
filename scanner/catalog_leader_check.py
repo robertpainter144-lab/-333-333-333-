@@ -9,7 +9,8 @@ explicit via promote_pilot.py; D21: no rotation without persistence).
 
 Mondays: refreshes Crenshaw_Tracker from House Clerk PTRs first.
 
-Benchmarks (HFND_Benchmark, QIS_Cautionary) are excluded as challengers.
+Benchmarks (HFND_Benchmark, QIS_Cautionary, DipBuyer_SPYQQQ) are excluded
+as challengers — display-only rows never enter the promotion rotation.
 """
 import json, os, subprocess, datetime as dt
 from pathlib import Path
@@ -20,7 +21,7 @@ HOLDINGS = ST / "autopilot_holdings.json"
 STATE = ST / "leader_check_state.json"
 CONFIG = ST / "leader_check_config.json"   # {"mode": "auto"|"suggest"}, hot-read
 SWAP_COOLDOWN_DAYS = 5
-EXCLUDE = {"HFND_Benchmark", "QIS_Cautionary"}
+EXCLUDE = {"HFND_Benchmark", "QIS_Cautionary", "DipBuyer_SPYQQQ"}
 LEAD_MARGIN = 0.02   # 30d lead required
 STREAK_DAYS = 3
 MIN_MARKS = 5
@@ -78,6 +79,10 @@ def main():
     promoted = [p for p in promoted if p in curves]
     if not promoted:
         print("no active catalog promotion; nothing to compare")
+        state = load(STATE, {})
+        state["last_run"] = dt.date.today().isoformat()
+        state["skip"] = "no active promotion"
+        STATE.write_text(json.dumps(state, indent=2))
         return
 
     def curve_ok(name):
@@ -85,6 +90,10 @@ def main():
 
     if not all(curve_ok(p) for p in promoted):
         print("promoted lane curve(s) too young (<5 marks); skipping")
+        state = load(STATE, {})
+        state["last_run"] = dt.date.today().isoformat()
+        state["skip"] = "promoted curve too young"
+        STATE.write_text(json.dumps(state, indent=2))
         return
 
     def ret(names, days):

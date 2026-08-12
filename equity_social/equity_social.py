@@ -59,10 +59,13 @@ import json
 import os
 import re
 import statistics
+import subprocess
+import sys
 import time
 import xml.etree.ElementTree as ET
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import requests
 
@@ -102,9 +105,20 @@ TOP_OVERSOLD_N = 10          # how many sp400 oversold names to add to the unive
 MIN_PRICE = 5.0               # same liquidity floor as midcap_lane.py's scan()
 MIN_DOLLAR_VOL = 5_000_000.0  # ditto — keeps the oversold leg to tradeable names
 
-REDDIT_SUBS = ("stocks", "wallstreetbets", "investing")
+REDDIT_SUBS = ("stocks", "wallstreetbets", "investing", "StockMarket", "options")
 NEWS_CHUNK = 10                # symbols per Alpaca news request
 _ATOM_NS = {"a": "http://www.w3.org/2005/Atom"}
+
+# ── intraday additions (2026-08-12) ─────────────────────────────────────
+HISTORY_FILE = SCANNER_STATE / "equity_social_history.jsonl"
+HISTORY_MAX_LINES = 2500
+HISTORY_KEEP_LINES = 2000
+ALERT_STATE = ROOT / "alert_state.json"
+SPIKE_Z_THRESHOLD = 2.5
+STOCKTWITS_TRENDING_URL = "https://api.stocktwits.com/api/2/trending/symbols.json"
+MARKET_TZ = ZoneInfo("America/Denver")
+MARKET_GUARD_START = (6, 55)   # 06:55 America/Denver
+MARKET_GUARD_END = (14, 40)    # 14:40 America/Denver
 
 
 def now_iso() -> str:
@@ -364,8 +378,220 @@ def _alpaca_news(universe: list[str]) -> dict[str, list[dict]]:
     return raw
 
 
+# ── Google News RSS leg ──────────────────────────────────────────────────
+# Keyless — Google's own RSS search surface, no API key needed. RSS 2.0
+# (channel/item, not Atom) so this parses differently from the reddit leg.
+def _google_news_symbol(sym: str) -> dict | None:
+    url = (f"https://news.google.com/rss/search?q=%22{sym}%22%20stock"
+           "&hl=en-US&gl=US&ceid=US:en")
+    try:
+        r = requests.get(url, headers=UA, timeout=TIMEOUT)
+        r.raise_for_status()
+        root = ET.fromstring(r.text)
+    except Exception as e:
+        print(f"google news {sym} failed: {e!r}")
+        return None
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+    rows = []
+    count_24h = 0
+    for item in root.findall("./channel/item"):
+        title = item.findtext("title") or ""
+        pub = item.findtext("pubDate") or ""
+        try:
+            ts = email.utils.parsedate_to_datetime(pub)
+            ts = ts.astimezone(timezone.utc) if ts.tzinfo else ts.replace(tzinfo=timezone.utc)
+        except Exception:
+            continue
+        if ts >= cutoff:
+            count_24h += 1
+        if title:
+            rows.append((ts, title))
+    rows.sort(key=lambda t: t[0], reverse=True)
+    return {"count_24h": count_24h, "titles": [t for _, t in rows[:3]]}
+
+
+def _google_news_leg(universe: list[str], per_symbol: dict) -> None:
+    """Adds to the existing news_24h count (Alpaca + Google combined signal)
+    and populates the new news_titles field. Whole leg try/except-wrapped —
+    a dead Google endpoint should never kill the run."""
+    for i, sym in enumerate(universe):
+        gn = None
+        try:
+            gn = _google_news_symbol(sym)
+        except Exception as e:
+            print(f"google news {sym} unexpected failure: {e!r}")
+        if gn:
+            per_symbol[sym]["news_24h"] = per_symbol[sym].get("news_24h", 0) + gn["count_24h"]
+            per_symbol[sym]["news_titles"] = gn["titles"]
+        if i < len(universe) - 1:
+            time.sleep(0.5)
+
+
+# ── StockTwits trending leg ──────────────────────────────────────────────
+def _stocktwits_trending() -> set[str]:
+    r = requests.get(STOCKTWITS_TRENDING_URL, headers=UA, timeout=TIMEOUT)
+    r.raise_for_status()
+    data = r.json()
+    return {(s.get("symbol") or "").upper() for s in (data.get("symbols") or [])}
+
+
+# ── history store + composite spike score ───────────────────────────────
+def _load_history() -> list[dict]:
+    try:
+        lines = HISTORY_FILE.read_text().splitlines()
+    except FileNotFoundError:
+        return []
+    except Exception as e:
+        print(f"history read failed: {e!r}")
+        return []
+    out = []
+    for line in lines:
+        if line.strip():
+            try:
+                out.append(json.loads(line))
+            except Exception:
+                pass
+    return out
+
+
+def _append_history(per_symbol: dict) -> None:
+    try:
+        HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
+        syms = {s: {"rate": d.get("st_msg_rate_hr", 0.0),
+                    "reddit": d.get("reddit_mentions", 0),
+                    "news": d.get("news_24h", 0)} for s, d in per_symbol.items()}
+        row = json.dumps({"ts": now_iso(), "syms": syms})
+        with HISTORY_FILE.open("a") as f:
+            f.write(row + "\n")
+        lines = HISTORY_FILE.read_text().splitlines()
+        if len(lines) > HISTORY_MAX_LINES:
+            keep = lines[-HISTORY_KEEP_LINES:]
+            tmp = HISTORY_FILE.with_suffix(".tmp")
+            tmp.write_text("\n".join(keep) + "\n")
+            tmp.replace(HISTORY_FILE)
+    except Exception as e:
+        print(f"history store append failed: {e!r}")
+
+
+def _zscore(current: float, history_vals: list[float]) -> float:
+    if len(history_vals) < 5:
+        return 0.0
+    mean = statistics.mean(history_vals)
+    std = statistics.pstdev(history_vals)
+    if std == 0:
+        return 0.0
+    return (current - mean) / std
+
+
+def _compute_buzz_z(per_symbol: dict, history: list[dict]) -> None:
+    for sym, d in per_symbol.items():
+        rates, reddits, news = [], [], []
+        for row in history:
+            s = (row.get("syms") or {}).get(sym)
+            if s:
+                rates.append(s.get("rate", 0.0))
+                reddits.append(s.get("reddit", 0))
+                news.append(s.get("news", 0))
+        zs = []
+        if len(rates) >= 5:
+            zs.append(_zscore(d.get("st_msg_rate_hr", 0.0), rates))
+        if len(reddits) >= 5:
+            zs.append(_zscore(d.get("reddit_mentions", 0), reddits))
+        if len(news) >= 5:
+            zs.append(_zscore(d.get("news_24h", 0), news))
+        d["buzz_z"] = round(sum(zs) / len(zs), 3) if zs else 0.0
+
+
+# ── spike alerts (D28 plain-English, 24h repeat-suppressed) ─────────────
+def _load_alert_state() -> dict:
+    try:
+        return json.loads(ALERT_STATE.read_text())
+    except Exception:
+        return {}
+
+
+def _should_alert(prev: dict | None, z: float, now: datetime) -> bool:
+    if not prev:
+        return True
+    try:
+        last_ts = datetime.fromisoformat(prev.get("last_ts", ""))
+        elapsed_h = (now - last_ts).total_seconds() / 3600
+    except Exception:
+        elapsed_h = 999.0
+    last_z = prev.get("last_z", 0.0)
+    return elapsed_h >= 24 or z >= last_z + 1.0
+
+
+def _send_spike_alert(sym: str, z: float, d: dict) -> None:
+    reasons = []
+    if d.get("st_msgs", 0) >= 10:
+        reasons.append(f"{d['st_msgs']} StockTwits messages")
+    if d.get("reddit_mentions", 0) >= 3:
+        reasons.append(f"{d['reddit_mentions']} Reddit mentions")
+    if d.get("news_24h", 0) >= 3:
+        reasons.append(f"{d['news_24h']} news items in the last 24h")
+    why = "; ".join(reasons) if reasons else "elevated chatter"
+    title = f"Buzz spike on {sym} (you hold it)"
+    message = (f"{sym} social/news buzz is {z:.1f} standard deviations above its "
+               f"normal baseline ({why}). You currently hold this position — "
+               f"worth a quick look at what's driving it before it moves the price.")
+    try:
+        subprocess.run([sys.executable, str(HOME / "bin" / "quarki_notify.py"),
+                        "--priority", "4", "--title", title, "--message", message],
+                       timeout=20)
+    except Exception as e:
+        print(f"spike alert push failed for {sym}: {e!r}")
+
+
+def _spike_scoring_and_alerts(per_symbol: dict) -> list[dict]:
+    spikes: list[dict] = []
+    history = _load_history()
+    _compute_buzz_z(per_symbol, history)
+    held = set(_book_positions())
+    alert_state = _load_alert_state()
+    changed = False
+    now = datetime.now(timezone.utc)
+    for sym, d in per_symbol.items():
+        z = d.get("buzz_z", 0.0)
+        if z < SPIKE_Z_THRESHOLD:
+            continue
+        is_held = sym in held
+        spikes.append({"sym": sym, "z": z, "held": is_held})
+        if not is_held:
+            continue
+        if not (d.get("st_msgs", 0) >= 10 or d.get("reddit_mentions", 0) >= 3
+                or d.get("news_24h", 0) >= 3):
+            continue
+        if _should_alert(alert_state.get(sym), z, now):
+            _send_spike_alert(sym, z, d)
+            alert_state[sym] = {"last_ts": now.isoformat(timespec="seconds"), "last_z": z}
+            changed = True
+    if changed:
+        _atomic_write(ALERT_STATE, alert_state)
+    return spikes
+
+
+# ── market-hours guard ────────────────────────────────────────────────────
+def _within_market_hours(force: bool) -> bool:
+    if force:
+        return True
+    now = datetime.now(MARKET_TZ)
+    if now.weekday() >= 5:   # Sat=5, Sun=6
+        return False
+    start = now.replace(hour=MARKET_GUARD_START[0], minute=MARKET_GUARD_START[1],
+                        second=0, microsecond=0)
+    end = now.replace(hour=MARKET_GUARD_END[0], minute=MARKET_GUARD_END[1],
+                      second=0, microsecond=0)
+    return start <= now <= end
+
+
 # ── collect ──────────────────────────────────────────────────────────────
-def collect() -> None:
+def collect(force: bool = False) -> None:
+    if not _within_market_hours(force):
+        now = datetime.now(MARKET_TZ)
+        print(f"collect: outside market-hours guard (06:55-14:40 America/Denver, "
+              f"Mon-Fri) and --force not set — skipping. now={now.isoformat()}")
+        return
     universe = build_universe()
     print(f"universe: {len(universe)} symbols -> {universe}")
 
@@ -385,6 +611,9 @@ def collect() -> None:
             "reddit_mentions": 0,
             "news_24h": 0,
             "headlines": [],
+            "news_titles": [],
+            "st_trending": False,
+            "buzz_z": 0.0,
         }
         if st:
             rate_lookup[sym] = st["rate_hr"]
@@ -405,6 +634,18 @@ def collect() -> None:
     except Exception as e:
         print(f"alpaca news leg failed entirely: {e!r}")
 
+    try:
+        _google_news_leg(universe, per_symbol)
+    except Exception as e:
+        print(f"google news leg failed entirely: {e!r}")
+
+    try:
+        trending = _stocktwits_trending()
+        for sym in universe:
+            per_symbol[sym]["st_trending"] = sym in trending
+    except Exception as e:
+        print(f"stocktwits trending leg failed entirely: {e!r}")
+
     top_buzz: list[dict] = []
     try:
         if len(rate_lookup) >= 2:
@@ -420,10 +661,21 @@ def collect() -> None:
     except Exception as e:
         print(f"top_buzz compute failed: {e!r}")
 
-    out = {"ts": now_iso(), "per_symbol": per_symbol, "top_buzz": top_buzz}
+    spikes: list[dict] = []
+    try:
+        spikes = _spike_scoring_and_alerts(per_symbol)
+    except Exception as e:
+        print(f"spike scoring/alerts failed entirely: {e!r}")
+
+    try:
+        _append_history(per_symbol)
+    except Exception as e:
+        print(f"history store failed entirely: {e!r}")
+
+    out = {"ts": now_iso(), "per_symbol": per_symbol, "top_buzz": top_buzz, "spikes": spikes}
     _atomic_write(OUT_SOCIAL, out)
     print(f"wrote {OUT_SOCIAL} symbols={len(universe)} "
-          f"top_buzz={[b['sym'] for b in top_buzz]}")
+          f"top_buzz={[b['sym'] for b in top_buzz]} spikes={[s['sym'] for s in spikes]}")
 
 
 # ── x_fetch: @tradergrader timeline ingest ───────────────────────────────
@@ -766,9 +1018,11 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--leg", choices=["collect", "grade", "x_fetch"], required=True)
+    ap.add_argument("--force", action="store_true",
+                    help="bypass the market-hours guard on --leg collect")
     args = ap.parse_args()
     if args.leg == "collect":
-        collect()
+        collect(force=args.force)
     elif args.leg == "x_fetch":
         x_fetch()
     else:

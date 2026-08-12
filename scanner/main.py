@@ -32,6 +32,8 @@ _SOURCE_SPECS = [
     ("strategy_governor","strategy_governor", "tick", 15 * 60),
     ("edge_ledger",      "edge_ledger",       "tick", 15 * 60),
     ("value_screen",     "value_screen",      "tick", 6 * 3600),
+    ("autopilot_catalog", "autopilot_catalog", "tick", 6 * 3600),
+    ("dip_buyer",         "dip_buyer",         "tick", 6 * 3600),
     ("context_watcher",  "context_watcher",   "tick", 30 * 60),
     ("hyperliquid",      "hyperliquid",       "tick", 2 * 60),
     ("solana",           "solana",            "tick", 5 * 60),

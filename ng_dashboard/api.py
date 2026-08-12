@@ -1494,7 +1494,8 @@ def mount(fastapi_app, main_module) -> None:
                           '<script defer src="/owner/crypto-intel.js"></script>'
                           '<script defer src="/owner/zoom.js"></script>'
                           '<script defer src="/owner/crypto-account.js"></script>'
-                          '<script defer src="/owner/tradergrader.js"></script>')
+                          '<script defer src="/owner/tradergrader.js"></script>'
+                          '<script defer src="/owner/explain.js"></script>')
                 if _owner_ok:
                     # Via the funnel, the browser's <script> loads of the
                     # /owner/*.js bundles ALSO hit the XFF key-gate (they can't
@@ -1512,6 +1513,8 @@ def mount(fastapi_app, main_module) -> None:
                               '<script defer src="/owner/crypto-account.js?key='
                               + _qkey + '"></script>'
                               '<script defer src="/owner/tradergrader.js?key='
+                              + _qkey + '"></script>'
+                              '<script defer src="/owner/explain.js?key='
                               + _qkey + '"></script>')
                     inject = ('<script>try{localStorage.setItem("qt.apiKey",'
                               + json.dumps(_qkey) +
@@ -1647,6 +1650,20 @@ def mount(fastapi_app, main_module) -> None:
             if "x-forwarded-for" in request.headers and key != _keys.get("owner"):
                 raise HTTPException(status_code=403)
             resp = FileResponse(str(_owner_tg_js),
+                                media_type="application/javascript")
+            resp.headers["cache-control"] = "no-cache"
+            return resp
+
+    # Book-page explain add-on (holdings why-dropdowns + trade history card)
+    # — same owner-key gate.
+    _owner_explain_js = _private_dir / "owner_explain.js"
+    if _owner_explain_js.exists():
+        @fastapi_app.get("/owner/explain.js", include_in_schema=False)
+        def _owner_explain_route(request: Request):
+            key = request.headers.get("x-api-key") or request.query_params.get("key")
+            if "x-forwarded-for" in request.headers and key != _keys.get("owner"):
+                raise HTTPException(status_code=403)
+            resp = FileResponse(str(_owner_explain_js),
                                 media_type="application/javascript")
             resp.headers["cache-control"] = "no-cache"
             return resp

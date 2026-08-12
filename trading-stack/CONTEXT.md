@@ -1676,3 +1676,39 @@ layer. Pushed to lab repo app-333.
   card directly under the Catalog header (re-inserts on catalog re-renders).
   Deployed Mac + GCP, both dashboards restarted; adb-verified on the Flip4
   (nav back to 7 tabs, card renders first in Catalog). Synced to lab mirror.
+- 2026-08-12 16:33 — UNKNOWN STATE FILE detected: `equity_social_history.jsonl` (add to CONTEXT.md)
+- 2026-08-12 16:33 — UNKNOWN STATE FILE detected: `dip_buyer_state.json` (add to CONTEXT.md)
+- 2026-08-12 ~16:35 — **Big evening ship (ultracode): Book-page explanations
+  on the PHONE, robust scanner, dip-buyer benchmark, GCP repairs, meter
+  recal.** (1) owner_explain.js (new owner bundle, both hosts): holdings
+  rows on the Terminal Book page tap-expand a why-panel (activity_detail
+  mode=holding), plus a TRADE HISTORY card below the holdings table
+  (/api/activity, 25 fills, per-row caret expands reason+context) — anchor
+  [data-qt-slot="book-alloc-top"] w/ header-text table fallback for older
+  dists; adb-verified end-to-end on the Flip4 (screenshots: RDY holding
+  panel, VTRS fill panel). (2) Robust scanner: equity_social collect leg
+  gained Google News RSS, StockTwits trending, r/StockMarket+r/options,
+  per-symbol trailing-history jsonl (2500/2000 rotation), composite buzz_z,
+  HELD-symbol spike alerts (z≥2.5 + floors, P4 plain-English, 24h/z+1
+  suppression, alert_state.json), market-hours guard + --force;
+  com.quarki3.equity-social-intraday launchd every 30min 07:00-14:30 MT
+  weekdays; live forced run verified (28 syms, spikes=[]). (3) DipBuyer_
+  SPYQQQ catalog benchmark (Robert's ask; prior 8/3 backtest caveat in its
+  blurb): ~/scanner/sources/dip_buyer.py virtual $10k SPY+QQQ, 25%-of-cash
+  tranches on >10% dips from peak, never sells; scanner _SOURCE_SPECS 6h
+  tick; excluded from catalog_leader_check; guest-invisible (mode
+  benchmark); scanner kickstarted. (4) GCP repairs for the phone (app =
+  ts.net → GCP): activities endpoint fixed (SDK had no
+  get_account_activities → raw REST w/ quarki.env fallback), /Users shim
+  confirmed, live-story preference patches (combined_mirror_ledger_live
+  .jsonl / _state_live.json / governor_weights_live.json synced from Mac,
+  endpoints prefer them for alpaca_live), catalog state pushed (pilots were
+  empty), owner_catalog.js x-api-key fix both hosts (fixed phone Catalog
+  403). Daily equity-social timer now scp's ledger+state+weights to GCP.
+  (5) TraderGrader Catalog card now collapsed pilot-size, tap-expands
+  (missing click handler fixed). (6) consumption_manager recalibrated:
+  Robert's real /usage 5h was 45% when meter said 93% → five_hour budget
+  117M→240M (calibration_note in config.json); memory: meter is not
+  authoritative, only real 429s throttle explicit asks. Mega-review
+  workflow (9 find dims → 3-vote verify → fixers) ran same evening — see
+  next entry.

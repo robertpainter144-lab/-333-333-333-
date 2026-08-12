@@ -504,7 +504,9 @@
   }
 
   function fetchData() {
-    fetch("/api/catalog", { headers: { accept: "application/json" } })
+    var hdrs = { accept: "application/json" };
+    try { var k = localStorage.getItem("qt.apiKey"); if (k) hdrs["x-api-key"] = k; } catch (e) { /* noop */ }
+    fetch("/api/catalog", { headers: hdrs })
       .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
       .then(function (d) { data = d; err = null; render(); })
       .catch(function (e) { err = e.message; render(); });

@@ -26,6 +26,7 @@
   var FETCH_POLL_MS = 120000;
 
   var data = null, err = null, cardEl = null, fetchTimer = null, wasMounted = false;
+  var open = false;   // collapsed by default — Robert: pilot-card-sized until tapped
 
   var css = [
     ".qttg-card{border:1px solid var(--bd);background:var(--panel);border-radius:8px;",
@@ -134,29 +135,42 @@
   function render() {
     if (!cardEl) return;
     var lb = (data || {}).leaderboard || {};
-    var body = '<div class="qttg-row"><div><b>🎯 TRADERGRADER</b> ' +
-      '<span class="qttg-muted" style="font-size:11px">@tradergrader on X — grades other options traders</span></div>' +
-      (lb.ts ? "<span class='qttg-num qttg-muted' style='font-size:10px'>as of " + esc(shortTs(lb.ts)) + "</span>" : "") +
-      "</div>" +
-      '<div class="qttg-faint" style="font-size:10px;margin-top:6px">' +
-      (lb.n_posts != null ? lb.n_posts + " posts tracked · " : "") +
-      "auto-ingested daily 15:35 MT · his posts are retrospective recaps, so grades below test " +
-      "<b>following</b> the highlight the day it lands, not his entry timing · " +
-      '<span class="qttg-pill qttg-amber">ADVISORY — no live weight without D7</span></div>';
-    if (err) {
-      body += '<div class="qttg-sec qttg-neg" style="font-size:11px">fetch failed: ' + esc(err) + "</div>";
-    } else if (!data) {
-      body += '<div class="qttg-sec qttg-muted" style="font-size:11px">loading…</div>';
-    } else {
-      var accts = ((data.grades || {}).accounts) || {};
-      body += '<div class="qttg-sec">' + gradesHtml(accts.tradergrader_auto,
-        "📊 Auto-graded callouts — follow-the-highlight vs SPY",
-        "Callouts are parsed from Sniper-of-the-Day / Trade-of-the-Week posts as they land.") + "</div>";
-      var man = accts.tradergrader;
-      if (man && man.n)
-        body += '<div class="qttg-sec">' + gradesHtml(man,
-          "✍️ Hand-pasted recs (tracked_accounts.json)", "") + "</div>";
-      body += '<div class="qttg-sec">' + boardHtml(lb) + "</div>";
+    var accts = ((data || {}).grades || {}).accounts || {};
+    var auto = accts.tradergrader_auto || {};
+    // Collapsed: one pilot-card-sized header row; tap to expand everything.
+    var chips = err ? '<span class="qttg-neg" style="font-size:10px">fetch failed</span>'
+      : !data ? '<span class="qttg-muted" style="font-size:10px">loading…</span>'
+      : '<span class="qttg-num qttg-muted" style="font-size:10px">' +
+        (auto.n || 0) + " recs · 1d win " + rate(auto.win_rate_1d) +
+        " · 20d vs SPY " + exc(auto.avg_excess_20d) + "</span>";
+    var body = '<div class="qttg-hdr qttg-row" style="cursor:pointer">' +
+      '<div><b>🎯 TRADERGRADER</b> ' +
+      '<span class="qttg-muted" style="font-size:11px">@tradergrader — grades options traders</span></div>' +
+      '<div style="display:flex;align-items:baseline;gap:8px">' + chips +
+      '<span class="qttg-muted" style="font-size:12px">' + (open ? "▾" : "▸") + "</span></div></div>";
+    if (open) {
+      body += '<div class="qttg-body">' +
+        '<div class="qttg-faint" style="font-size:10px;margin-top:6px">' +
+        (lb.n_posts != null ? lb.n_posts + " posts tracked · " : "") +
+        (lb.ts ? "as of " + esc(shortTs(lb.ts)) + " · " : "") +
+        "auto-ingested daily 15:35 MT · his posts are retrospective recaps, so grades below test " +
+        "<b>following</b> the highlight the day it lands, not his entry timing · " +
+        '<span class="qttg-pill qttg-amber">ADVISORY — no live weight without D7</span></div>';
+      if (err) {
+        body += '<div class="qttg-sec qttg-neg" style="font-size:11px">fetch failed: ' + esc(err) + "</div>";
+      } else if (!data) {
+        body += '<div class="qttg-sec qttg-muted" style="font-size:11px">loading…</div>';
+      } else {
+        body += '<div class="qttg-sec">' + gradesHtml(accts.tradergrader_auto,
+          "📊 Auto-graded callouts — follow-the-highlight vs SPY",
+          "Callouts are parsed from Sniper-of-the-Day / Trade-of-the-Week posts as they land.") + "</div>";
+        var man = accts.tradergrader;
+        if (man && man.n)
+          body += '<div class="qttg-sec">' + gradesHtml(man,
+            "✍️ Hand-pasted recs (tracked_accounts.json)", "") + "</div>";
+        body += '<div class="qttg-sec">' + boardHtml(lb) + "</div>";
+      }
+      body += "</div>";
     }
     cardEl.innerHTML = body;
   }
@@ -191,6 +205,11 @@
       cardEl = document.createElement("div");
       cardEl.id = CARD_ID;
       cardEl.className = "qttg-card";
+      cardEl.addEventListener("click", function (ev) {
+        if (ev.target && ev.target.closest && ev.target.closest(".qttg-body")) return;
+        open = !open;
+        render();
+      });
       ov.insertBefore(cardEl, ov.children[1] || null);
       render();
     } else {

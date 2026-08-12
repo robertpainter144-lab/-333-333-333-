@@ -2610,15 +2610,16 @@ def mount(fastapi_app, main_module) -> None:
                         "either an exit is pending on a coming rebalance tick, "
                         "or this name is held by a sleeve outside the mirror.")
             since = (cm.get("pos_since") or {}).get(sym)
+            _mt = ZoneInfo("America/Denver")
             if since:
                 try:
                     line += (" Held since "
-                             f"{datetime.fromtimestamp(float(since)).strftime('%Y-%m-%d')}.")
+                             f"{datetime.fromtimestamp(float(since), tz=_mt).strftime('%Y-%m-%d')}.")
                 except Exception:
                     pass
             how.append(line)
+            last = None
             try:
-                last = None
                 ledger = S / "combined_mirror_ledger.jsonl"
                 for ln in ledger.read_text().splitlines()[-600:]:
                     try:
@@ -2627,17 +2628,17 @@ def mount(fastapi_app, main_module) -> None:
                         continue
                     if row.get("sym") == sym and row.get("why"):
                         last = row
-                if last:
-                    when = datetime.fromtimestamp(last["ts"]).strftime("%Y-%m-%d %H:%M")
-                    how.append(f"Last recorded action: {last['side']} "
-                               f"${abs(last.get('delta_usd') or 0):.2f} on {when} — "
-                               f"\"{last['why']}\"")
-                else:
-                    how.append("No per-order reason is on record for this name yet — "
-                               "reason recording began 2026-08-11, so older fills "
-                               "are bare in the ledger.")
             except Exception:
                 pass
+            if last:
+                when = datetime.fromtimestamp(last["ts"], tz=_mt).strftime("%Y-%m-%d %H:%M")
+                how.append(f"Last recorded action: {last['side']} "
+                           f"${abs(last.get('delta_usd') or 0):.2f} on {when} — "
+                           f"\"{last['why']}\"")
+            else:
+                how.append("No per-order reason is on record for this name yet — "
+                           "reason recording began 2026-08-11, so older fills "
+                           "are bare in the ledger.")
         elif reason:
             how.append(
                 f"Recorded at the moment the order was placed: \"{reason}\". "

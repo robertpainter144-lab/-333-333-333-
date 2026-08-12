@@ -537,7 +537,7 @@ def _send_spike_alert(sym: str, z: float, d: dict) -> None:
                f"worth a quick look at what's driving it before it moves the price.")
     try:
         subprocess.run([sys.executable, str(HOME / "bin" / "quarki_notify.py"),
-                        "--priority", "4", "--title", title, "--message", message],
+                        "action", title, message],
                        timeout=20)
     except Exception as e:
         print(f"spike alert push failed for {sym}: {e!r}")
@@ -757,6 +757,14 @@ _ROI_RE = re.compile(r"Potential ROI:\s*\+?([\d,]+(?:\.\d+)?)\s*%")
 _SNIPER_RE = re.compile(r"Sniper of the Day\s*@?(\w+)")
 _TOTW_RE = re.compile(r"Trade of the Week[^@]{0,60}@(\w+)")
 _MEDAL_RE = re.compile(r"(🥇|🥈|🥉)\s*@?(\w+)\s*[—–-]+\s*\+?(-?[\d,]+(?:\.\d+)?)\s*%")
+# TraderGrader's own retraction/correction language ("we found an anomaly
+# in this trade's performance, updating our database"). These posts
+# re-quote the original callout text verbatim, so without this check
+# _TRADE_RE/_ROI_RE would happily re-ingest the disowned figures as a
+# fresh, normal callout.
+_RETRACTION_RE = re.compile(
+    r"\b(anomaly|investigated|updating our database|correction|retract)\w*",
+    re.IGNORECASE)
 
 
 def _rec_from_post(p: dict) -> dict | None:
@@ -764,10 +772,20 @@ def _rec_from_post(p: dict) -> dict | None:
     the option's direction (call=long, put=short) applied to the underlying
     (index symbols mapped to their ETF proxy)."""
     text = p["text"]
+    if _RETRACTION_RE.search(text):
+        # A self-flagged correction/anomaly notice, not a genuine callout —
+        # skip it rather than re-ingesting the disowned/original figures.
+        return None
     trader = None
     m = _SNIPER_RE.search(text) or _TOTW_RE.search(text)
     if m:
         trader = m.group(1)
+    if trader is None:
+        # Not an actual Sniper-of-the-Day / Trade-of-the-Week callout —
+        # bail before _TRADE_RE gets a chance to match an unrelated
+        # "Trade:" substring inside recap text about other traders
+        # (e.g. "Most Profitable Trade: $CVNA 130p 9/9").
+        return None
     tm = _TRADE_RE.search(text)
     if not tm:
         return None
@@ -935,7 +953,12 @@ def _grade_one_rec(rec: dict, spy_cache: dict) -> dict:
     spy_bars = spy_cache[fetch_start]
 
     idx = _anchor_idx(bars, rec_date)
-    spy_idx = _anchor_idx(spy_bars, rec_date)
+    # If the rec's underlying (after INDEX_PROXY mapping) is itself SPY —
+    # the exact instrument used as the market benchmark below — comparing
+    # it to "SPY" would be self-referential (excess_pct always 0 for longs,
+    # always -2x the raw move for shorts). Only SPX/SPXW/XSP/ES map to SPY;
+    # NDX/RUT/DJX map to QQQ/IWM/DIA and stay independently benchmarkable.
+    spy_idx = None if sym == "SPY" else _anchor_idx(spy_bars, rec_date)
 
     px_given = rec.get("px_at_rec")
     px_at_rec = px_given if px_given is not None else (bars[idx]["c"] if idx is not None else None)

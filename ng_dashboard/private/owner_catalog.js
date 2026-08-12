@@ -408,7 +408,7 @@
     return root;
   }
 
-  function pilotCard(p, curveInfo, isQC, meta) {
+  function pilotCard(p, curveInfo, isQC, meta, isWinner) {
     meta = meta || {};
     var name = p.name.replace(/^autopilot_cat:/, "").replace(/_/g, " ");
     var card = el("div", "qtcat-card" + (isQC ? " qtcat-qc" : ""));
@@ -418,6 +418,7 @@
     var head = el("div", "qtcat-row");
     head.appendChild(el("div", null,
       (isQC ? '<span class="qtcat-gold">★</span> ' : "") +
+      (isWinner ? '<span class="qtcat-pill" style="color:#3fb950;border-color:#3fb950">🏆 WINNER</span> ' : "") +
       "<b>" + esc(name) + "</b> " +
       '<span class="qtcat-pill ' + verdictCls(p.verdict) + '">' + esc(p.verdict || "?") + "</span>" +
       (meta.source ? ' <span class="qtcat-pill qtcat-muted">' + esc(meta.source) + "</span>" : "") +
@@ -491,9 +492,9 @@
     var pilots = (data.pilots || []).slice().sort(function (a, b) {
       return yrPerf(b) - yrPerf(a);
     });
-    pilots.forEach(function (p) {
+    pilots.forEach(function (p, pi) {
       var short = p.name.replace(/^autopilot_cat:/, "");
-      ov.appendChild(pilotCard(p, (data.curves || {})[short], false, (data.meta || {})[short]));
+      ov.appendChild(pilotCard(p, (data.curves || {})[short], false, (data.meta || {})[short], pi === 0));
     });
     if (!pilots.length)
       ov.appendChild(el("div", "qtcat-card qtcat-muted",

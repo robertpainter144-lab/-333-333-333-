@@ -62,11 +62,19 @@ Last full revision: 2026-07-29.
   nothing; sync Mac copies after VM edits. Never create `/opt/trading` on the
   VM (flips TRADING_DATA_DIR off ~/trading-data).
   CHECK: `/opt/trading` does not exist.
+  **SUPERSEDED 2026-08-12 (per D15):** the Oracle VM (129.153.96.201) was
+  abandoned ~2026-08-09 and is now unreachable. The **Mac is the PRIMARY host**
+  (stack under /Users/quarki3, run via launchd com.* jobs); GCP quarki-stack
+  (34.66.251.16) is the Mac-off failover. Mac /Users is canonical — there is no
+  live VM to sync to. Audits/CHECKs must target the Mac + GCP, not Oracle.
 - **D14 — Core services stay up.** CHECK: quarki-scanner, quarki-dashboard,
   quarki-qc, quarki-poc10, quarki-soxl active; autopush +
   watchdog timers active.
   (quarki-paper-arm retired 2026-08-02 — superseded by D23 live-eligible winners;
   it was a hung, redundant research feeder well below the n>=30 promotion gate.)
+  **2026-08-12:** on the Mac these run as launchd jobs, not systemd — e.g.
+  com.trading.qc / com.qcportfolio.ibkr (qc), com.quarki3.* (scanner/dashboard).
+  Restart with `launchctl kickstart -k gui/$(id -u)/<label>`, never kill -9.
 - **D15 — Cross-session consistency (2026-07-29).** Claude must keep memory,
   CONTEXT.md, and this ledger in sync with Robert's actual instructions; the
   auditor's daily LLM pass reviews the week's raw requests for anything
@@ -161,11 +169,18 @@ Last full revision: 2026-07-29.
   cooldown, ntfy on every swap — real weight still requires the D7 gate;
   (b) weekly cloud routine weekly-mirror-sweep (Mon 12:07 UTC) delta-sweeps
   the web and commits to private repo Quarki33/mirror-sweeps — review its
-  report in-session each week; (c) Crenshaw_Tracker (House) and Mullin_Tracker
-  (Senate) both auto-refresh from official PTR filings each Monday
-  (2026-08-04: Senate eFD wired via congress_feed_senate.py — efdsearch.senate.gov
-  agreement+AJAX search+HTML table parse, same public-disclosure category as
-  the House Clerk feed; catalog rows only, D4 money-proof).
+  report in-session each week; (c) Crenshaw_Tracker (House) auto-refreshes
+  from official PTR filings each Monday via `fetch_congress_pilot.py`.
+  Mullin_Tracker (Senate) is STILL IDLE/UNWIRED as of 2026-08-10 — a prior
+  entry here claimed "Senate eFD wired via congress_feed_senate.py" on
+  2026-08-04, but that file never existed on disk and the catalog's own
+  Mullin_Tracker row says "wiring pending" (root-caused as the same
+  claimed-but-never-landed pattern as D41's clobber; corrected 2026-08-10
+  by improvement_bot after live-verifying the fetch path against
+  efdsearch.senate.gov — see BACKLOG.md item 3 for the working recipe:
+  agreement POST + DataTables AJAX search + per-PTR HTML table parse,
+  actually simpler than the House PDF pipeline; catalog rows only, D4
+  money-proof, not yet built).
   CHECK: quarki-leadercheck.timer active; leader_check_state.json last_run
   within 4 days.
 - **D22a — Round-2 addendum (2026-08-02).** Hard stops (MAE exits, any basis
@@ -382,6 +397,31 @@ Last full revision: 2026-07-29.
   CHECK: quarki-intel.timer active on VM; intel_engine/state/intel.json
   asof < 2h old; /api/crypto/intel 403s guest keys.
 
+- **D41 — Crypto sleeve graduation ladder (2026-08-09).** Adopted when
+  Robert floated moving $250 Alpaca→Kraken "to really test which side makes
+  money faster" and agreed to a ledger-gated version instead of a discretionary
+  jump. The D39 crypto sleeve cap moves only through these stages, judged
+  ONLY on `~/crypto_sleeve/state/closed_trades.csv`:
+  - Stage 0 (now): $50 cap / −$15 freeze.
+  - Gate #1 (≥30 closed trades, mean ≥ +0.05%/trade, Sharpe ≥ 1, no freeze
+    hit) → $110 cap, freeze −$33 (30% of cap).
+  - Gate #2 (≥60 trades, metrics holding, DD inside rail) → 35% of combined
+    live equity (≈$185 at the time of adoption) — the D34 unproven-lane cap.
+  - Beyond 35% requires Robert explicitly amending D34 in writing — never by
+    default, never via a single-session override.
+  Any session asked to raise the sleeve cap or move Alpaca→Kraken money must
+  check the ledger against the gate first and cite the stage reached.
+  Scoring = % return on deployed capital net of fees over the same calendar
+  window for both books. (This directive was verbally adopted 2026-08-09 but
+  dropped from this file by a concurrent edit that evening — restored
+  2026-08-10 by the improvement bot after cross-checking
+  `~/crypto_sleeve/config.json` still showed the un-gated $50 Stage-0 cap and
+  Robert's parked Alpaca→Kraken decision was still open.)
+  CHECK: `~/crypto_sleeve/config.json` cap_total_usd matches the highest
+  gate `~/crypto_sleeve/state/closed_trades.csv` has actually earned (50 /
+  110 / 35%-of-equity); never higher without a dated Robert override noted
+  here.
+
 - **D42 — Breakeven Ratchet on the live book (2026-08-11).** From Robert's
   marked-up chart ("if you had actually taken profit at those points"):
   when alpaca_live equity recovers to contributed capital − $0.25, the
@@ -412,3 +452,14 @@ Last full revision: 2026-07-29.
   drag at large-cap spreads — the harness's survivable zone.
   CHECK: turnover_budget.mode == "live"; combined_mirror_state.turnover.day
   == today on trading days; ledger daily |delta_usd| sum ≤ 1.3× the cap.
+
+- **D44 — TraderGrader X-ingest exception (2026-08-12).** The house
+  no-X-scraping rule has ONE scope-limited exception, granted by Robert
+  verbally ("add tradergrader to the social media scans"): read-only,
+  keyless ingestion of the single handle @tradergrader (nitter RSS +
+  X's public syndication/embed endpoint), max once daily via
+  com.quarki3.equity-social, no login, no crawling beyond that handle.
+  Any additional handle or higher frequency needs Robert's explicit go.
+  CHECK: equity_social.py's NITTER/SYNDICATION fetches reference only
+  X_HANDLE="tradergrader"; the daily plist is the only timer calling
+  --leg x_fetch.

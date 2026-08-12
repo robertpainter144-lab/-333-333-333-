@@ -1730,3 +1730,28 @@ layer. Pushed to lab repo app-333.
   owner_tradergrader.js injection REMOVED from both hosts (bundle+endpoint
   kept, unused); catalog+curves in the daily GCP scp. adb-verified: card
   chrome identical to Burry/Point72 on the Flip4.
+- 2026-08-12 ~17:00 — **Mega-review (72 agents) verdict + fixes.** 20 raw
+  findings → 18 confirmed by 3-vote panels → 4 auto-fixed in
+  equity_social.py (CRITICAL: quarki_notify called with bogus
+  --priority/--title flags — its real CLI is positional `level title msg`,
+  levels critical/action/info/routine; HIGH: _TRADE_RE gated on
+  Sniper/TOTW match so recap posts can't misparse; HIGH: SPX→SPY-proxied
+  recs no longer benchmark against SPY itself (excess=None); MED:
+  retraction/anomaly posts skipped). Main-session fixes applied same hour:
+  daily plist collect leg got --force (15:35 run was silently no-op'd by
+  the new market-hours guard); GCP scp legs now log failures instead of
+  2>/dev/null; api.py mode=holding dates now America/Denver tz-aware +
+  missing-ledger fallback line restored (both hosts, one batched restart).
+  NOTE: today's earlier "P2" ship pushes were garbled by the same notify
+  misuse (titled "2") — future calls must be positional. Catalog top card
+  now wears a 🏆 WINNER pill (owner_catalog.js both hosts). Report-only
+  debt logged: GCP scanner/trading-gui tree frozen at the 8/9 migration
+  snapshot (missing all Mac safety fixes since — biggest open risk);
+  peak-capture shadow only ticks 1x/day at close so it can't see intraday
+  give-backs; six auto-flagged UNKNOWN STATE FILE entries (today's new
+  state files: dip_buyer_state, equity_social_history, alert_state,
+  x_posts_tradergrader, tradergrader_leaderboard, governor_config) are
+  hereby documented as known/intentional. D44 added to DIRECTIVES.md
+  (tradergrader X-ingest exception). Review fixer for bundles was
+  safety-blocked before touching anything (wanted to consider deleting a
+  GCP tree — nothing deleted); one verify agent hit its retry cap.

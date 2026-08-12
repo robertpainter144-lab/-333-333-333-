@@ -138,6 +138,54 @@ def append_alert(row: dict) -> None:
         f.write(json.dumps(row) + "\n")
 
 
+GOVERNOR_CONFIG = STATEDIR / "governor_config.json"
+
+
+def _load_governor_config() -> dict:
+    """D34 unproven-lane cap config (re-fix 2026-08-12; the 2026-08-04
+    original was a VM-only edit lost in the back-migration). Hot-reloadable.
+    Missing/corrupt file = fail-SAFE default (cap enforced, nothing
+    pre-proven), not fail-open."""
+    try:
+        d = json.loads(GOVERNOR_CONFIG.read_text())
+        cap = float(d.get("unproven_cap", 0.35))
+        # Range-validate: a fat-fingered "35" (meaning 0.35) would otherwise
+        # silently no-op the whole mechanism (review finding) — fail SAFE.
+        if not (0.0 < cap <= 1.0):
+            cap = 0.35
+        lanes = d.get("proven_lanes", [])
+        # A bare string would set()-explode per character ("qc" → {'q','c'});
+        # only a real list/tuple of lane names counts (review finding).
+        proven = set(lanes) if isinstance(lanes, (list, tuple)) else set()
+        return {"unproven_cap": cap, "proven_lanes": proven}
+    except Exception:
+        return {"unproven_cap": 0.35, "proven_lanes": set()}
+
+
+def _cap_weights(weights: dict[str, float], cap: float,
+                 proven: set[str]) -> dict[str, float]:
+    """Cap any non-proven lane's weight at `cap`, redistributing the excess
+    pro-rata to lanes still under their own cap (iterative water-filling —
+    same pattern as combined_mirror.py's single-name cap). Lanes in
+    `proven_lanes` (D7 gate passed) are uncapped per D34."""
+    w = dict(weights)
+    for _ in range(6):
+        capped_at = {s: (cap if s not in proven else 1.0) for s in w}
+        over = {s: v for s, v in w.items() if v > capped_at[s] + 1e-9}
+        if not over:
+            break
+        excess = sum(v - capped_at[s] for s, v in over.items())
+        for s in over:
+            w[s] = capped_at[s]
+        under = {s: v for s, v in w.items() if v < capped_at[s] - 1e-9}
+        pool = sum(under.values())
+        if pool <= 0:
+            break
+        for s in under:
+            w[s] += excess * (w[s] / pool)
+    return w
+
+
 def tick() -> None:
     now = int(time.time())
     snap = snapshot()
@@ -291,6 +339,13 @@ def tick() -> None:
                 raw[s] += STICKY_BONUS * prev.get(s, 0.0)
             total = sum(raw.values()) or 1.0
             new_weights = {s: round(raw[s] / total, 4) for s in source_names}
+            # D34: no unproven lane may exceed the cap, whatever the edge
+            # math says — capped BEFORE hysteresis so the L1 gate compares
+            # what would actually be published.
+            gov_cfg = _load_governor_config()
+            new_weights = {s: round(v, 4) for s, v in
+                           _cap_weights(new_weights, gov_cfg["unproven_cap"],
+                                        gov_cfg["proven_lanes"]).items()}
 
             # Hysteresis: only publish if L1 change from previous > threshold
             l1_change = sum(abs(new_weights[s] - prev.get(s, 0.20)) for s in source_names)
@@ -310,6 +365,11 @@ def tick() -> None:
                 # Weights stable under hysteresis — republish prev with a fresh
                 # ts, otherwise combined_mirror's 4h staleness guard discards a
                 # still-current recommendation and reverts to the equal blend.
+                # D34: prev may predate the cap (or the config may have been
+                # tightened) — enforce on every republish, not just publishes.
+                prev = {s: round(v, 4) for s, v in
+                        _cap_weights(prev, gov_cfg["unproven_cap"],
+                                     gov_cfg["proven_lanes"]).items()}
                 WEIGHTS_FILE.write_text(json.dumps({
                     "ts": now,
                     "weights": prev,

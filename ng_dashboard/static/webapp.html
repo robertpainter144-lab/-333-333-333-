@@ -163,7 +163,7 @@
     transition: max-height 220ms ease-out;
     padding: 0 12px;
   }
-  .pos.expanded .chart-wrap { max-height: 180px; padding: 8px 12px 10px; }
+  .pos.expanded .chart-wrap { max-height: 560px; padding: 8px 12px 10px; }
   .pos svg.mini { width: 100%; height: 90px; display: block; }
   .pos .mini-meta { display: flex; align-items: center; gap: 8px; margin-top: 4px; font-size: 10px; color: var(--fg2); }
 
@@ -215,6 +215,25 @@
   .fill-row .sym  { font-size: 13px; font-weight: 700; color: var(--fg); }
   .fill-row .meta { font-size: 10px; color: var(--fg2); }
   .fill-row .ts   { margin-left: auto; font-size: 10px; color: var(--fg2); }
+
+  /* ══ Expandable why-panel (activity rows + position rows) ══ */
+  .act .fill-row { cursor: pointer; }
+  .fill-row .caret2 { color: var(--accent); font-size: 10px; transition: transform 150ms; }
+  .act.expanded .caret2 { transform: rotate(90deg); }
+  .act .why-wrap { max-height: 0; overflow: hidden; transition: max-height 240ms ease-out; }
+  .act.expanded .why-wrap { max-height: 560px; }
+  .why {
+    background: var(--bg2); border-left: 3px solid var(--accent);
+    border-radius: 0 10px 10px 0; padding: 8px 12px; margin: 2px 4px 6px 14px;
+  }
+  .why p { font-size: 11px; line-height: 1.5; color: var(--fg); margin: 0 0 6px; }
+  .why p:last-child { margin-bottom: 0; }
+  .why .why-h {
+    font-size: 9px; letter-spacing: 1px; text-transform: uppercase;
+    color: var(--fg2); font-weight: 700; margin: 8px 0 3px;
+  }
+  .why .why-h:first-child { margin-top: 0; }
+  .pos .why { margin: 8px 0 4px; }
 
   /* ══ SystemCard (Lab) — Common.kt style, BG2 + BDR border, r12 ══ */
   .syscard {
@@ -334,6 +353,8 @@ let currentBook   = "alpaca_live";
 let equityPeriod  = "1D";
 let expandedPositions = {};
 let chartCollapsed    = {};
+let expandedActs      = {};   // per-book: which activity rows are expanded
+const whyCache        = {};   // memoized /api/activity_detail promises
 
 // ══════════════════════════════════════════════════════════════════
 // Utilities
@@ -564,6 +585,7 @@ function renderPositionRow(pos, portEquity) {
           h("span", {class: "chart-pct"}, ""),
           h("span", {class: "mla"}, "double-tap → Finviz"),
         ),
+        h("div", {class: "why-slot"}),
       ),
     ),
   );
@@ -578,11 +600,18 @@ function renderPositionRow(pos, portEquity) {
       tapTimer = null;
       expandedPositions[currentBook][pos.symbol] = !expanded;
       row.classList.toggle("expanded", !expanded);
-      if (!expanded) fetchAndDrawMini(pos.symbol, row);
+      if (!expanded) { fetchAndDrawMini(pos.symbol, row); fetchAndDrawWhy(pos.symbol, row); }
     }, 220);
   });
-  if (expanded) fetchAndDrawMini(pos.symbol, row);
+  if (expanded) { fetchAndDrawMini(pos.symbol, row); fetchAndDrawWhy(pos.symbol, row); }
   return row;
+}
+
+async function fetchAndDrawWhy(symbol, rowEl) {
+  const slot = $(".why-slot", rowEl);
+  if (!slot || slot.dataset.loaded) return;
+  slot.dataset.loaded = "1";
+  slot.appendChild(renderWhyPanel(await fetchWhy(symbol, "HOLD", "", "holding")));
 }
 
 async function fetchAndDrawMini(symbol, rowEl) {
@@ -739,13 +768,42 @@ function renderQcMirrorBlock(qc) {
   );
 }
 
+function fetchWhy(symbol, side, reason, mode) {
+  const key = [currentBook, symbol, side, mode, reason].join("|");
+  if (!whyCache[key]) {
+    const q = new URLSearchParams({symbol, side: side || "", reason: reason || "",
+                                   mode: mode || ""});
+    whyCache[key] = j(`/api/activity_detail/${currentBook}?` + q).catch(() => null);
+  }
+  return whyCache[key];
+}
+
+function renderWhyPanel(d) {
+  const box = h("div", {class: "why"});
+  if (!d) {
+    box.appendChild(h("p", {class: "fg2"},
+      "No decision detail available here — this explanation is an owner-mode " +
+      "surface, or the server has no record for this entry."));
+    return box;
+  }
+  const sec = (title, arr) => {
+    if (!arr || !arr.length) return;
+    box.appendChild(h("div", {class: "why-h"}, title));
+    for (const s of arr) box.appendChild(h("p", {}, s));
+  };
+  sec("What fired", d.how);
+  sec("Why it's in the book", d.picked_by);
+  sec("Regime right now", d.regime);
+  return box;
+}
+
 function renderRecentActivity(acts) {
   const rows = Array.isArray(acts) ? acts.slice(0, 15) : [];
   const block = h("div", {class: "subblock"},
     h("div", {class: "hdr"},
       h("span", {class: "emoji"}, "💵"),
       h("span", {class: "name"}, "RECENT ACTIVITY"),
-      h("span", {class: "desc"}, "auto-recorded from broker"),
+      h("span", {class: "desc"}, "tap a fill for the why"),
     ),
   );
   if (rows.length === 0) {
@@ -754,17 +812,35 @@ function renderRecentActivity(acts) {
     ));
     return block;
   }
+  expandedActs[currentBook] ||= {};
   for (const a of rows) {
     const side = (a.side || "").toUpperCase();
     const sideCol = side.startsWith("SELL") ? "warn" : side.startsWith("BUY") ? "good" : "fg2";
     const statCol = (a.status || "").toLowerCase() === "filled" ? "good" : "fg2";
-    block.appendChild(h("div", {class: "fill-row"},
+    const key = `${a.ts}|${a.symbol}|${side}`;
+    const isExp = !!expandedActs[currentBook][key];
+    const fill = h("div", {class: "fill-row"},
+      h("span", {class: "caret2"}, "▸"),
       h("span", {class: `side ${sideCol}`}, side.slice(0, 4)),
       h("span", {class: "sym"}, a.symbol || "?"),
       h("span", {class: "meta"}, `${(+a.qty || 0).toFixed(2)} @ ${money(a.price)}`),
       h("span", {class: `meta ${statCol}`}, a.status || ""),
       h("span", {class: "ts"}, (a.ts || "").slice(0, 19).replace("T", " ")),
-    ));
+    );
+    const wrap = h("div", {class: "act" + (isExp ? " expanded" : "")},
+      fill, h("div", {class: "why-wrap"}));
+    const fillWhy = () => fetchWhy(a.symbol, side, a.reason || "", "").then(d => {
+      const wy = $(".why-wrap", wrap);
+      if (wy && !wy.firstChild) wy.appendChild(renderWhyPanel(d));
+    });
+    if (isExp) fillWhy();
+    fill.addEventListener("click", () => {
+      const on = !expandedActs[currentBook][key];
+      expandedActs[currentBook][key] = on;
+      wrap.classList.toggle("expanded", on);
+      if (on) fillWhy();
+    });
+    block.appendChild(wrap);
   }
   return block;
 }

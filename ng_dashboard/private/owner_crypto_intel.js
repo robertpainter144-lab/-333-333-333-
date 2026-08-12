@@ -8,8 +8,11 @@
  * Data: GET /api/crypto/intel — the composite whale/social signal consumed
  * by crypto_sleeve's whale_gate (source: crypto_sleeve/state/whale_signals.json).
  * Legs: hyperliquid (top-trader perp positioning — real $ evidence), dune
- * (smart-money DEX flows — real $ evidence + token_flows), social (Reddit +
- * Fear&Greed — mood only, zero evidence weight), stocktwits (mood only).
+ * (smart-money DEX flows — real $ evidence + token_flows), social (multi-sub
+ * Reddit + Fear&Greed — mood only, zero evidence weight), stocktwits (mood
+ * only), derivatives (HL funding/OI — display only), market (CoinGecko
+ * global breadth — display only). Plus GET /api/whales — the multi-chain
+ * scanner's whale alerts (Hyperliquid/Solana/EVM/CEX), owner view.
  * The gate's own minimum-evidence floors: n>=5 trades, >=3 wallets, >=$50k —
  * mirrored here as an ARMED/ADVISORY line so the phone view matches what the
  * sleeve is actually gating on.
@@ -30,6 +33,7 @@
   var GREEN = "#3fb950", RED = "#f85149", AMBER = "#d29922";
 
   var data = null, err = null, cardEl = null, fetchTimer = null, wasMounted = false;
+  var whales = null;   // /api/whales — multi-chain scanner alerts (owner view)
 
   var css = [
     ".qtwi-card{border:1px solid var(--bd);background:var(--panel);border-radius:8px;",
@@ -181,6 +185,15 @@
       statHtml("reddit bull", det.reddit_bull != null ? det.reddit_bull : "—", "qtwi-pos") +
       statHtml("reddit bear", det.reddit_bear != null ? det.reddit_bear : "—", "qtwi-neg") +
       "</div>";
+    var subs = det.reddit_subs || {};
+    var subNames = Object.keys(subs);
+    if (subNames.length)
+      html += '<div class="qtwi-faint" style="font-size:10px;margin-top:6px">' +
+        subNames.map(function (s) {
+          var p = subs[s] || {};
+          return "r/" + esc(s) + ' <span class="qtwi-pos">' + (p.bull || 0) +
+            '↑</span>/<span class="qtwi-neg">' + (p.bear || 0) + "↓</span>";
+        }).join(" · ") + "</div>";
     var buzz = det.reddit_buzz || {};
     var bsyms = Object.keys(buzz).sort(function (a, b) { return (buzz[b] || 0) - (buzz[a] || 0); });
     if (bsyms.length) {
@@ -226,6 +239,84 @@
     return html;
   }
 
+  function renderMarket(leg) {
+    if (!leg) return '<div class="qtwi-h">🌐 Market breadth</div>' +
+      '<div class="qtwi-muted" style="font-size:11px">No market data.</div>';
+    var det = leg.detail || {};
+    var chg = det.mcap_chg24_pct;
+    var html = '<div class="qtwi-h">🌐 Market breadth (CoinGecko global)</div>' +
+      '<div class="qtwi-stats">' +
+      statHtml("mcap 24h", chg != null ? (chg >= 0 ? "+" : "") + chg + "%" : "—",
+        chg != null && chg >= 0 ? "qtwi-pos" : "qtwi-neg") +
+      statHtml("total mcap", esc(fmtUsd(det.total_mcap_usd))) +
+      statHtml("24h vol", esc(fmtUsd(det.total_vol24_usd))) +
+      statHtml("BTC dom", det.btc_dominance_pct != null ? det.btc_dominance_pct + "%" : "—") +
+      statHtml("ETH dom", det.eth_dominance_pct != null ? det.eth_dominance_pct + "%" : "—") +
+      "</div>";
+    if (leg.asof)
+      html += '<div class="qtwi-faint" style="font-size:9px;margin-top:6px">as of ' + esc(shortTs(leg.asof)) + "</div>";
+    return html;
+  }
+
+  function renderDerivs(leg) {
+    if (!leg) return '<div class="qtwi-h">📈 Derivatives — funding &amp; open interest</div>' +
+      '<div class="qtwi-muted" style="font-size:11px">No derivatives data.</div>';
+    var det = leg.detail || {};
+    var per = det.per_coin || {};
+    var syms = Object.keys(per).sort(function (a, b) {
+      return (per[b].oi_usd || 0) - (per[a].oi_usd || 0);
+    }).slice(0, 8);
+    var rows = syms.map(function (s) {
+      var c = per[s] || {};
+      var f = c.funding_8h_pct;
+      var fCls = f != null ? (f >= 0 ? "qtwi-pos" : "qtwi-neg") : "qtwi-muted";
+      var chg = c.chg24_pct;
+      var chgCls = chg != null ? (chg >= 0 ? "qtwi-pos" : "qtwi-neg") : "qtwi-muted";
+      return "<tr><td><b>" + esc(s) + "</b></td>" +
+        '<td class="qtwi-num ' + chgCls + '">' + (chg != null ? (chg >= 0 ? "+" : "") + chg + "%" : "—") + "</td>" +
+        '<td class="qtwi-num ' + fCls + '">' + (f != null ? f.toFixed(4) + "%" : "—") + "</td>" +
+        '<td class="qtwi-num">' + esc(fmtUsd(c.oi_usd)) + "</td>" +
+        '<td class="qtwi-num">' + esc(fmtUsd(c.vol24_usd)) + "</td></tr>";
+    }).join("");
+    var html = '<div class="qtwi-h">📈 Derivatives — funding &amp; open interest (Hyperliquid)</div>' +
+      '<div class="qtwi-stats">' +
+      statHtml("crowd-long (OI-wtd)", pctStr(leg.risk_on), riskCls(leg.risk_on)) +
+      statHtml("tracked OI", esc(fmtUsd(det.oi_total_usd))) +
+      "</div>";
+    if (rows)
+      html += '<table class="qtwi-table" style="margin-top:8px"><tr><th>Coin</th><th>24h</th>' +
+        "<th>Fund/8h</th><th>OI $</th><th>Vol $</th></tr>" + rows + "</table>";
+    html += '<div class="qtwi-faint" style="font-size:9px;margin-top:6px">positive funding = longs pay shorts (crowded-long)' +
+      (leg.asof ? " · as of " + esc(shortTs(leg.asof)) : "") + "</div>";
+    return html;
+  }
+
+  function renderScanner(w) {
+    var head = '<div class="qtwi-h">📡 Multi-chain scanner — whale alerts</div>';
+    if (!w) return head + '<div class="qtwi-muted" style="font-size:11px">loading…</div>';
+    var alerts = (w.alerts || []).slice(-8).reverse();
+    var html = head + '<div class="qtwi-stats">' +
+      statHtml("wallets tracked", w.seen_count != null ? w.seen_count : "—") +
+      statHtml("whale P&amp;L", w.pnl_pct != null ? w.pnl_pct + "%" :
+        "—", w.pnl_pct != null ? (w.pnl_pct >= 0 ? "qtwi-pos" : "qtwi-neg") : "") +
+      statHtml("last tick", w.last_tick ? esc(shortTs(w.last_tick)) : "—") +
+      "</div>";
+    if (alerts.length) {
+      var rows = alerts.map(function (a) {
+        return "<tr><td><b>" + esc(a.symbol || "?") + "</b></td>" +
+          "<td>" + esc(a.chain || "?") + "</td>" +
+          '<td class="qtwi-num">' + (a.wallets != null ? a.wallets : "—") + "</td>" +
+          '<td class="qtwi-num">' + esc(fmtUsd(a.agg_usd)) + "</td>" +
+          '<td class="qtwi-num qtwi-faint">' + esc(a.ts || "") + "</td></tr>";
+      }).join("");
+      html += '<table class="qtwi-table" style="margin-top:8px"><tr><th>Sym</th><th>Chain</th>' +
+        "<th>#Wallets</th><th>Agg $</th><th>When</th></tr>" + rows + "</table>";
+    } else {
+      html += '<div class="qtwi-muted" style="font-size:11px;margin-top:6px">No recent alerts — scanner quiet.</div>';
+    }
+    return html;
+  }
+
   function render() {
     if (!cardEl) return;
     var body;
@@ -238,8 +329,11 @@
     } else {
       var legs = data.legs || {};
       body = renderComposite(data) +
+        '<div class="qtwi-sec">' + renderMarket(legs.market) + "</div>" +
         '<div class="qtwi-sec">' + renderHyperliquid(legs.hyperliquid, data.coin_bias) + "</div>" +
+        '<div class="qtwi-sec">' + renderDerivs(legs.derivatives) + "</div>" +
         '<div class="qtwi-sec">' + renderDune(legs.dune, data.token_flows) + "</div>" +
+        '<div class="qtwi-sec">' + renderScanner(whales) + "</div>" +
         '<div class="qtwi-sec">' + renderSocial(legs.social) + "</div>" +
         '<div class="qtwi-sec">' + renderStocktwits(legs.stocktwits) + "</div>";
     }
@@ -256,6 +350,10 @@
       .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
       .then(function (d) { data = d; err = null; render(); })
       .catch(function (e) { err = e.message; render(); });
+    fetch("/api/whales", { headers: headers })
+      .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then(function (d) { whales = d; render(); })
+      .catch(function () { /* scanner section shows loading/quiet on failure */ });
   }
 
   function buildCardShell() {

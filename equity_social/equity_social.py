@@ -16,12 +16,30 @@ try/except-per-leg discipline, ported to equities. Two independent CLI legs:
   ~/scanner/state/equity_social.json. This feeds NO gate and places NO
   orders — sentiment/buzz/headlines only.
 
-  --leg grade  Tracked-accounts recommendation grader. Manual ingest only:
-  X/Twitter scraping is banned (ToS + house rule, same D4 pattern as the
-  rest of the stack) — Robert pastes recs into tracked_accounts.json by
-  hand. For every rec, computes forward returns vs SPY over the same
-  window at +5d/+20d/+60d (Alpaca daily bars, feed=iex) and writes
+  --leg grade  Tracked-accounts recommendation grader. Two ingest paths:
+  manual (Robert pastes recs into tracked_accounts.json by hand) and the
+  x_fetch leg's auto-parsed @tradergrader callouts (merged in as the
+  synthetic account "tradergrader_auto"). For every rec, computes forward
+  returns vs SPY over the same window at +1d/+5d/+20d/+60d (Alpaca daily
+  bars, feed=iex) and writes
   ~/scanner/state/tracked_accounts_grades.json with per-account rollups.
+
+  --leg x_fetch  @tradergrader X-timeline ingester. The original manual-only
+  rule was lifted by Robert on 2026-08-12 ("add tradergrader to the social
+  media scans"); this stays deliberately low-impact: one handle, read-only,
+  once-a-day timer, no login, no crawling. Two keyless sources, each
+  try/except-isolated: nitter RSS (instance list with fallback) and X's own
+  public embed/syndication widget endpoint (which also provides ~100 posts
+  of history for the past-trades backtest). Raw posts dedup into
+  x_posts_tradergrader.jsonl by tweet id; the full store is then re-parsed
+  every run into (a) x_auto_recs.json — structured trade callouts (Sniper
+  of the Day / Trade of the Week: option contract, trader, claimed ROI,
+  side inferred from C/P, index underlyings mapped to tradeable ETF
+  proxies) — and (b) ~/scanner/state/tradergrader_leaderboard.json — per-
+  trader rollups of his daily Top Performers / $100-Budget medal lists.
+  NOTE: his posts are retrospective recaps (the ROI already happened), so
+  the grade leg is honestly testing the FOLLOW-the-highlight strategy:
+  forward returns of the implied direction starting at the callout date.
 
 Both legs: requests with 15s timeouts, every external fetch wrapped in its
 own try/except so one dead leg (a rate-limited subreddit, a missing Alpaca
@@ -35,6 +53,8 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import email.utils
+import html as html_mod
 import json
 import os
 import re
@@ -56,6 +76,23 @@ TRACKED = ROOT / "tracked_accounts.json"
 
 OUT_SOCIAL = SCANNER_STATE / "equity_social.json"
 OUT_GRADES = SCANNER_STATE / "tracked_accounts_grades.json"
+OUT_LEADERBOARD = SCANNER_STATE / "tradergrader_leaderboard.json"
+
+X_POSTS = ROOT / "x_posts_tradergrader.jsonl"
+X_AUTO_RECS = ROOT / "x_auto_recs.json"
+X_HANDLE = "tradergrader"
+# Public nitter mirrors, tried in order until one returns valid RSS.
+# nitter.net verified live 2026-08-12; the rest are best-effort fallbacks.
+NITTER_INSTANCES = ("nitter.net", "nitter.privacyredirect.com",
+                    "nitter.tiekoetter.com", "lightbrd.com")
+SYNDICATION_URL = ("https://syndication.twitter.com/srv/timeline-profile/"
+                   f"screen-name/{X_HANDLE}")
+BROWSER_UA = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"}
+# His callouts are options on index products; grade the directional call on
+# the liquid ETF proxy instead (daily-bar grading only — strikes untouched).
+INDEX_PROXY = {"SPX": "SPY", "SPXW": "SPY", "XSP": "SPY", "ES": "SPY",
+               "NDX": "QQQ", "NQ": "QQQ", "RUT": "IWM", "DJX": "DIA"}
+UNGRADEABLE = {"VIX"}   # no clean 1x ETF proxy — recorded but left ungraded
 
 DATA_BASE = "https://data.alpaca.markets"
 TIMEOUT = 15
@@ -389,6 +426,193 @@ def collect() -> None:
           f"top_buzz={[b['sym'] for b in top_buzz]}")
 
 
+# ── x_fetch: @tradergrader timeline ingest ───────────────────────────────
+def _strip_html(s: str) -> str:
+    return re.sub(r"\s+", " ", html_mod.unescape(re.sub(r"<[^>]+>", " ", s))).strip()
+
+
+def _nitter_posts() -> list[dict]:
+    """Latest ~20 posts via nitter RSS. Skips retweets (dc:creator differs
+    from the tracked handle). Raises only if every instance fails."""
+    last_err: Exception | None = None
+    for inst in NITTER_INSTANCES:
+        try:
+            r = requests.get(f"https://{inst}/{X_HANDLE}/rss",
+                             headers=BROWSER_UA, timeout=TIMEOUT)
+            r.raise_for_status()
+            root = ET.fromstring(r.text)
+        except Exception as e:
+            last_err = e
+            print(f"nitter {inst} failed: {e!r}")
+            continue
+        posts = []
+        for it in root.findall(".//item"):
+            creator = (it.findtext("{http://purl.org/dc/elements/1.1/}creator")
+                       or "").lstrip("@").lower()
+            if creator != X_HANDLE:
+                continue
+            tid = (it.findtext("guid") or "").rsplit("/", 1)[-1].split("#")[0]
+            if not tid.isdigit():
+                continue
+            try:
+                ts = email.utils.parsedate_to_datetime(
+                    it.findtext("pubDate") or "").astimezone(timezone.utc)
+            except Exception:
+                continue
+            posts.append({"id": tid, "ts": ts.isoformat(timespec="seconds"),
+                          "text": _strip_html(it.findtext("description") or "")})
+        if posts:
+            print(f"nitter {inst}: {len(posts)} posts")
+            return posts
+    if last_err:
+        raise last_err
+    return []
+
+
+def _syndication_posts() -> list[dict]:
+    """X's own public embed/syndication widget endpoint — keyless, and the
+    only route with real history (~100 entries). Verified live 2026-08-12."""
+    r = requests.get(SYNDICATION_URL, headers=BROWSER_UA, timeout=TIMEOUT)
+    r.raise_for_status()
+    m = re.search(r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>',
+                  r.text, re.S)
+    if not m:
+        raise RuntimeError("syndication page had no __NEXT_DATA__ blob")
+    entries = (json.loads(m.group(1))["props"]["pageProps"]
+               .get("timeline", {}).get("entries", []))
+    posts = []
+    for e in entries:
+        tw = (e.get("content") or {}).get("tweet") or {}
+        if ((tw.get("user") or {}).get("screen_name") or "").lower() != X_HANDLE:
+            continue
+        tid = tw.get("id_str") or ""
+        text = tw.get("full_text") or tw.get("text") or ""
+        try:
+            ts = datetime.strptime(tw.get("created_at", ""),
+                                   "%a %b %d %H:%M:%S %z %Y").astimezone(timezone.utc)
+        except Exception:
+            continue
+        if tid.isdigit() and text:
+            posts.append({"id": tid, "ts": ts.isoformat(timespec="seconds"),
+                          "text": _strip_html(text)})
+    print(f"syndication: {len(posts)} posts")
+    return posts
+
+
+_TRADE_RE = re.compile(r"Trade:\s*\$?([A-Za-z]{1,6})\s+(\d+(?:\.\d+)?)\s*([CPcp])\b"
+                       r"(?:\s+(\d{1,2}/\d{1,2}))?")
+_ROI_RE = re.compile(r"Potential ROI:\s*\+?([\d,]+(?:\.\d+)?)\s*%")
+_SNIPER_RE = re.compile(r"Sniper of the Day\s*@?(\w+)")
+_TOTW_RE = re.compile(r"Trade of the Week[^@]{0,60}@(\w+)")
+_MEDAL_RE = re.compile(r"(🥇|🥈|🥉)\s*@?(\w+)\s*[—–-]+\s*\+?(-?[\d,]+(?:\.\d+)?)\s*%")
+
+
+def _rec_from_post(p: dict) -> dict | None:
+    """Sniper-of-the-Day / Trade-of-the-Week callout → grader rec. Side is
+    the option's direction (call=long, put=short) applied to the underlying
+    (index symbols mapped to their ETF proxy)."""
+    text = p["text"]
+    trader = None
+    m = _SNIPER_RE.search(text) or _TOTW_RE.search(text)
+    if m:
+        trader = m.group(1)
+    tm = _TRADE_RE.search(text)
+    if not tm:
+        return None
+    raw_sym, strike, cp, mmdd = tm.group(1).upper(), tm.group(2), tm.group(3).upper(), tm.group(4)
+    post_date = date.fromisoformat(p["ts"][:10])
+    rec_date = post_date
+    if mmdd:   # the callout names the trade date; the post lands the same evening
+        try:
+            mth, dy = (int(x) for x in mmdd.split("/"))
+            cand = date(post_date.year, mth, dy)
+            if cand > post_date:   # e.g. a January post recapping December
+                cand = date(post_date.year - 1, mth, dy)
+            rec_date = cand
+        except ValueError:
+            pass
+    sym = INDEX_PROXY.get(raw_sym, raw_sym)
+    if raw_sym in UNGRADEABLE:
+        return None
+    rm = _ROI_RE.search(text)
+    roi = rm.group(1).replace(",", "") if rm else None
+    kind = "sniper" if _SNIPER_RE.search(text) else \
+           ("trade_of_week" if _TOTW_RE.search(text) else "callout")
+    note = f"{kind} @{trader or '?'}: ${raw_sym} {strike}{cp}" \
+           + (f" {mmdd}" if mmdd else "") \
+           + (f", claimed ROI {roi}%" if roi else "") \
+           + (f" (graded on {sym} proxy)" if sym != raw_sym else "")
+    return {"ts": rec_date.isoformat(), "sym": sym,
+            "side": "long" if cp == "C" else "short",
+            "note": note, "src_id": p["id"], "px_at_rec": None}
+
+
+def _parse_posts(posts: list[dict]) -> tuple[list[dict], dict]:
+    recs: dict[str, dict] = {}
+    board: dict[str, dict] = {}
+    for p in sorted(posts, key=lambda x: x["ts"]):
+        rec = None
+        try:
+            rec = _rec_from_post(p)
+        except Exception as e:
+            print(f"rec parse failed id={p['id']}: {e!r}")
+        if rec:
+            recs[rec["src_id"]] = rec
+        for medal, handle, roi in _MEDAL_RE.findall(p["text"]):
+            h = handle.lower()
+            row = board.setdefault(h, {"handle": handle, "medals": 0, "golds": 0,
+                                       "claimed_rois": [], "last_seen": p["ts"]})
+            row["medals"] += 1
+            row["golds"] += int(medal == "🥇")
+            try:
+                row["claimed_rois"].append(float(roi.replace(",", "")))
+            except ValueError:
+                pass
+            row["last_seen"] = max(row["last_seen"], p["ts"])
+    for row in board.values():
+        rois = row.pop("claimed_rois")
+        row["avg_claimed_roi"] = round(sum(rois) / len(rois), 1) if rois else None
+    ranked = dict(sorted(board.items(),
+                         key=lambda kv: (kv[1]["golds"], kv[1]["medals"]), reverse=True))
+    return list(recs.values()), ranked
+
+
+def _load_posts() -> dict[str, dict]:
+    posts: dict[str, dict] = {}
+    try:
+        for line in X_POSTS.read_text().splitlines():
+            if line.strip():
+                p = json.loads(line)
+                posts[p["id"]] = p
+    except FileNotFoundError:
+        pass
+    except Exception as e:
+        print(f"x posts store read failed: {e!r}")
+    return posts
+
+
+def x_fetch() -> None:
+    posts = _load_posts()
+    before = len(posts)
+    for fetcher in (_nitter_posts, _syndication_posts):
+        try:
+            for p in fetcher():
+                posts.setdefault(p["id"], p)
+        except Exception as e:
+            print(f"{fetcher.__name__} failed entirely: {e!r}")
+    ordered = sorted(posts.values(), key=lambda p: p["ts"])
+    tmp = X_POSTS.with_suffix(".tmp")
+    tmp.write_text("".join(json.dumps(p) + "\n" for p in ordered))
+    tmp.replace(X_POSTS)
+
+    recs, board = _parse_posts(ordered)
+    _atomic_write(X_AUTO_RECS, {"ts": now_iso(), "handle": X_HANDLE, "recs": recs})
+    _atomic_write(OUT_LEADERBOARD, {"ts": now_iso(), "handle": X_HANDLE,
+                                    "n_posts": len(ordered), "traders": board})
+    print(f"x_fetch: posts {before} -> {len(ordered)} (+{len(ordered) - before}), "
+          f"recs={len(recs)}, leaderboard traders={len(board)}")
+
+
 # ── grade ────────────────────────────────────────────────────────────────
 def _load_tracked() -> dict:
     try:
@@ -465,13 +689,25 @@ def _grade_one_rec(rec: dict, spy_cache: dict) -> dict:
     px_at_rec = px_given if px_given is not None else (bars[idx]["c"] if idx is not None else None)
 
     row = {"ts": ts, "sym": sym, "side": side, "note": rec.get("note"), "px_at_rec": px_at_rec}
-    for h, key in ((5, "h5"), (20, "h20"), (60, "h60")):
+    for h, key in ((1, "h1"), (5, "h5"), (20, "h20"), (60, "h60")):
         row[key] = _horizon(bars, idx, px_at_rec, spy_bars, spy_idx, h, side)
     return row
 
 
 def grade() -> None:
     tracked = _load_tracked()
+    # x_fetch's auto-parsed callouts join the manual accounts as their own
+    # synthetic account so hand-pasted recs and auto recs never mix.
+    try:
+        auto = json.loads(X_AUTO_RECS.read_text())
+        if auto.get("recs"):
+            tracked["tradergrader_auto"] = {
+                "source": "x", "handle": auto.get("handle", X_HANDLE),
+                "ingest": "auto", "recs": auto["recs"]}
+    except FileNotFoundError:
+        pass
+    except Exception as e:
+        print(f"x_auto_recs read failed: {e!r}")
     spy_cache: dict[str, list[dict]] = {}
     accounts_out: dict[str, dict] = {}
 
@@ -483,6 +719,13 @@ def grade() -> None:
                 rec_rows.append(_grade_one_rec(rec, spy_cache))
             except Exception as e:
                 print(f"grade rec failed acct={acct_name} rec={rec}: {e!r}")
+
+        resolved_1d = [r for r in rec_rows if r.get("h1", {}).get("win") is not None]
+        win_rate_1d = round(sum(1 for r in resolved_1d if r["h1"]["win"]) / len(resolved_1d), 4) \
+            if resolved_1d else None
+        excess_1d = [r["h1"]["excess_pct"] for r in resolved_1d
+                     if r["h1"].get("excess_pct") is not None]
+        avg_excess_1d = round(sum(excess_1d) / len(excess_1d), 3) if excess_1d else None
 
         resolved = [r for r in rec_rows if r.get("h20", {}).get("win") is not None]
         win_rate_20d = round(sum(1 for r in resolved if r["h20"]["win"]) / len(resolved), 4) \
@@ -503,6 +746,8 @@ def grade() -> None:
             "source": acct.get("source"), "handle": acct.get("handle"),
             "ingest": acct.get("ingest"),
             "n": len(recs), "n_resolved_20d": len(resolved),
+            "n_resolved_1d": len(resolved_1d),
+            "win_rate_1d": win_rate_1d, "avg_excess_1d": avg_excess_1d,
             "win_rate_20d": win_rate_20d, "avg_excess_20d": avg_excess_20d,
             "best": best, "worst": worst,
             "recs": rec_rows,
@@ -512,17 +757,20 @@ def grade() -> None:
     _atomic_write(OUT_GRADES, out)
     print(f"wrote {OUT_GRADES} accounts={list(accounts_out)}")
     for name, a in accounts_out.items():
-        print(f"  {name}: n={a['n']} resolved_20d={a['n_resolved_20d']} "
+        print(f"  {name}: n={a['n']} resolved_1d={a['n_resolved_1d']} "
+              f"win_rate_1d={a['win_rate_1d']} resolved_20d={a['n_resolved_20d']} "
               f"win_rate_20d={a['win_rate_20d']} avg_excess_20d={a['avg_excess_20d']}")
 
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--leg", choices=["collect", "grade"], required=True)
+    ap.add_argument("--leg", choices=["collect", "grade", "x_fetch"], required=True)
     args = ap.parse_args()
     if args.leg == "collect":
         collect()
+    elif args.leg == "x_fetch":
+        x_fetch()
     else:
         grade()
 

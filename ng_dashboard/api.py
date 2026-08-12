@@ -1493,7 +1493,8 @@ def mount(fastapi_app, main_module) -> None:
                           '<script defer src="/owner/crypto.js"></script>'
                           '<script defer src="/owner/crypto-intel.js"></script>'
                           '<script defer src="/owner/zoom.js"></script>'
-                          '<script defer src="/owner/crypto-account.js"></script>')
+                          '<script defer src="/owner/crypto-account.js"></script>'
+                          '<script defer src="/owner/tradergrader.js"></script>')
                 if _owner_ok:
                     # Via the funnel, the browser's <script> loads of the
                     # /owner/*.js bundles ALSO hit the XFF key-gate (they can't
@@ -1509,6 +1510,8 @@ def mount(fastapi_app, main_module) -> None:
                               '<script defer src="/owner/zoom.js?key='
                               + _qkey + '"></script>'
                               '<script defer src="/owner/crypto-account.js?key='
+                              + _qkey + '"></script>'
+                              '<script defer src="/owner/tradergrader.js?key='
                               + _qkey + '"></script>')
                     inject = ('<script>try{localStorage.setItem("qt.apiKey",'
                               + json.dumps(_qkey) +
@@ -1634,6 +1637,38 @@ def mount(fastapi_app, main_module) -> None:
                                 media_type="application/javascript")
             resp.headers["cache-control"] = "no-cache"
             return resp
+
+    # TraderGrader leaderboard + graded-recs card — same owner-key gate.
+    _owner_tg_js = _private_dir / "owner_tradergrader.js"
+    if _owner_tg_js.exists():
+        @fastapi_app.get("/owner/tradergrader.js", include_in_schema=False)
+        def _owner_tradergrader_route(request: Request):
+            key = request.headers.get("x-api-key") or request.query_params.get("key")
+            if "x-forwarded-for" in request.headers and key != _keys.get("owner"):
+                raise HTTPException(status_code=403)
+            resp = FileResponse(str(_owner_tg_js),
+                                media_type="application/javascript")
+            resp.headers["cache-control"] = "no-cache"
+            return resp
+
+    @fastapi_app.get("/api/tradergrader", include_in_schema=False)
+    def _tradergrader():
+        """@tradergrader leaderboard rollups + graded-recs for the owner
+        Grader card. Deliberately NOT in _GUEST_PATHS (post-Linus boundary —
+        it names the accounts we track and how we score them)."""
+        S = Path.home() / "scanner" / "state"
+        out: dict[str, Any] = {"leaderboard": {}, "grades": {}}
+        try:
+            out["leaderboard"] = json.loads(
+                (S / "tradergrader_leaderboard.json").read_text())
+        except Exception:
+            pass
+        try:
+            out["grades"] = json.loads(
+                (S / "tracked_accounts_grades.json").read_text())
+        except Exception:
+            pass
+        return out
 
     # ── D39 crypto sleeve data (owner-only). Deliberately NOT in
     # _GUEST_PATHS: real-money Kraken book + post-Linus privacy boundary, so
@@ -2469,12 +2504,16 @@ def mount(fastapi_app, main_module) -> None:
         return rows[: limit * 2]
 
     @fastapi_app.get("/api/activity_detail/{source}")
-    def activity_detail(source: str, symbol: str, side: str = "", reason: str = ""):
+    def activity_detail(source: str, symbol: str, side: str = "", reason: str = "",
+                        mode: str = ""):
         """Per-trade decision blurb for the Book activity list (owner surface;
         deliberately NOT in _GUEST_PATHS — it names live sources and weights).
         Composes: the at-the-time reason recorded on the fill, each strategy
         source's CURRENT rationale for holding the symbol, and the regime the
-        governor is running right now. Plain sentences per D28."""
+        governor is running right now. Plain sentences per D28.
+        mode=holding swaps the fill-specific 'how' text for a holding story:
+        current governor-blend target, held-since date, and the last ledger
+        action recorded for the symbol with a why-string."""
         S = Path.home() / "scanner" / "state"
 
         def _j(name):
@@ -2544,7 +2583,48 @@ def mount(fastapi_app, main_module) -> None:
             "drawdown ≥3% of contributed capital forces a review (D6).")
 
         how = []
-        if reason:
+        if mode == "holding":
+            cm = _j("combined_mirror_state.json")
+            tgt = (cm.get("targets") or {}).get(sym)
+            if tgt is not None:
+                line = (f"The governor blend currently targets {sym} at "
+                        f"{float(tgt):.1f}% of the book — the rebalancer only "
+                        "buys or sells to close the gap between held weight and "
+                        "that number, never on discretion.")
+            else:
+                line = (f"{sym} is not in the current governor-blend target — "
+                        "either an exit is pending on a coming rebalance tick, "
+                        "or this name is held by a sleeve outside the mirror.")
+            since = (cm.get("pos_since") or {}).get(sym)
+            if since:
+                try:
+                    line += (" Held since "
+                             f"{datetime.fromtimestamp(float(since)).strftime('%Y-%m-%d')}.")
+                except Exception:
+                    pass
+            how.append(line)
+            try:
+                last = None
+                ledger = S / "combined_mirror_ledger.jsonl"
+                for ln in ledger.read_text().splitlines()[-600:]:
+                    try:
+                        row = json.loads(ln)
+                    except Exception:
+                        continue
+                    if row.get("sym") == sym and row.get("why"):
+                        last = row
+                if last:
+                    when = datetime.fromtimestamp(last["ts"]).strftime("%Y-%m-%d %H:%M")
+                    how.append(f"Last recorded action: {last['side']} "
+                               f"${abs(last.get('delta_usd') or 0):.2f} on {when} — "
+                               f"\"{last['why']}\"")
+                else:
+                    how.append("No per-order reason is on record for this name yet — "
+                               "reason recording began 2026-08-11, so older fills "
+                               "are bare in the ledger.")
+            except Exception:
+                pass
+        elif reason:
             how.append(
                 f"Recorded at the moment the order was placed: \"{reason}\". "
                 "That is the rebalancer's actual arithmetic — the governor-blend "

@@ -1,0 +1,54 @@
+{
+  "ts": "2026-08-12T21:35:05+00:00",
+  "handle": "tradergrader",
+  "recs": [
+    {
+      "ts": "2024-09-09",
+      "sym": "CVNA",
+      "side": "short",
+      "note": "callout @?: $CVNA 130P 9/9",
+      "src_id": "1835835463837343976",
+      "px_at_rec": null
+    },
+    {
+      "ts": "2026-08-05",
+      "sym": "SPY",
+      "side": "short",
+      "note": "sniper @itskevintr: $SPX 7735P 08/05, claimed ROI 5313.22% (graded on SPY proxy)",
+      "src_id": "2085761131721920908",
+      "px_at_rec": null
+    },
+    {
+      "ts": "2026-08-07",
+      "sym": "SPCX",
+      "side": "long",
+      "note": "sniper @Prophitcy: $SPCX 125C 08/07, claimed ROI 938.27%",
+      "src_id": "2085830723412636014",
+      "px_at_rec": null
+    },
+    {
+      "ts": "2026-08-04",
+      "sym": "SPY",
+      "side": "long",
+      "note": "trade_of_week @ElonMothz: $SPX 7725C 08/04, claimed ROI 2918.18% (graded on SPY proxy)",
+      "src_id": "2086576996482724258",
+      "px_at_rec": null
+    },
+    {
+      "ts": "2026-08-11",
+      "sym": "QQQ",
+      "side": "short",
+      "note": "sniper @em5mil: $QQQ 716P 08/11, claimed ROI 550.0%",
+      "src_id": "2087305014243180621",
+      "px_at_rec": null
+    },
+    {
+      "ts": "2026-08-12",
+      "sym": "SPY",
+      "side": "short",
+      "note": "sniper @VantaSignals: $SPX 7745P 08/12, claimed ROI 495.74% (graded on SPY proxy)",
+      "src_id": "2087644900829577447",
+      "px_at_rec": null
+    }
+  ]
+}

@@ -5,32 +5,32 @@
       "notional": 6.0,
       "opened": "2026-08-11T00:01:02+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.57)",
-      "mv": 6.28,
-      "cur": 8.73341
+      "mv": 6.29,
+      "cur": 8.74094
     },
     "DOGE/USD": {
       "entry_price": 0.0700736,
       "notional": 6.0,
       "opened": "2026-08-11T08:01:34+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.56)",
-      "mv": 6.09,
-      "cur": 0.0715288
+      "mv": 6.1,
+      "cur": 0.0716006
     },
     "SOL/USD": {
       "entry_price": 76.25,
       "notional": 6.0,
       "opened": "2026-08-12T01:33:31+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.65)",
-      "mv": 5.94,
-      "cur": 75.93
+      "mv": 5.96,
+      "cur": 76.15
     },
     "SUI/USD": {
       "entry_price": 0.6888,
       "notional": 6.0,
       "opened": "2026-08-12T06:15:26+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.69)",
-      "mv": 5.97,
-      "cur": 0.6889
+      "mv": 5.98,
+      "cur": 0.6894
     }
   },
   "frozen": false,
@@ -49,6 +49,6 @@
     "VVV/USD": 6.0,
     "WLD/USD": 6.0
   },
-  "targets_ts": "2026-08-12T07:42:15+00:00",
+  "targets_ts": "2026-08-12T07:57:35+00:00",
   "targets_gate": "whale-confirmed (risk_on=0.64)"
 }

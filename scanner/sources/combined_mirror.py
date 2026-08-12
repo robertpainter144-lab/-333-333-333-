@@ -54,6 +54,51 @@ def _append_equity_history(ts: int, equity: float) -> None:
     except Exception:
         pass
 
+
+def _first_equity_ts() -> float | None:
+    """Epoch of the EARLIEST equity snapshot — the moment the P/L baseline
+    was captured. Backfills baseline_captured_at once for state written
+    before that field existed (pre-2026-08-12 re-fix). Full min() scan, not
+    row 0: the CSV is not strictly chronological (a 2026-07-14 backfill
+    appended earlier bars after the first live tick — review finding)."""
+    try:
+        best = None
+        with EQUITY_CSV.open() as f:
+            next(f)  # header
+            for line in f:
+                try:
+                    t = float(line.split(",", 1)[0])
+                except ValueError:
+                    continue
+                if best is None or t < best:
+                    best = t
+        return best
+    except Exception:
+        return None
+
+
+def _net_deposits_since(after_epoch: float) -> float | None:
+    """Sum CSD/CSW cash-transfer activities after `after_epoch` so deposits/
+    withdrawals count as contributed capital, not P/L (re-fix 2026-08-12;
+    the 2026-08-04 original was a VM-only edit lost in the back-migration).
+    Sign-robust to Alpaca's net_amount convention (CSW may report either
+    sign). Returns None on API failure — caller falls back to the last
+    persisted value rather than snapping the baseline back to $50."""
+    try:
+        after = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(after_epoch))
+        r = requests.get(f"{ALPACA_BASE}/v2/account/activities",
+                         headers=_headers(),
+                         params={"activity_types": "CSD,CSW", "after": after},
+                         timeout=10)
+        r.raise_for_status()
+        total = 0.0
+        for a in r.json():
+            amt = abs(float(a.get("net_amount", 0) or 0))
+            total += -amt if a.get("activity_type") == "CSW" else amt
+        return total
+    except Exception:
+        return None
+
 WEIGHT_PER_SOURCE = 0.25       # default equal blend (used if governor hasn't published)
 
 # Auto-switch integration: the strategy governor may publish recommended
@@ -1014,13 +1059,26 @@ def tick() -> None:
         # Persist first-seen equity as our baseline so all subsequent P/L is
         # measured against the same anchor (the account's first observed state).
         baseline = state_prev.get("baseline_equity") or account_equity
-        pnl_pct = round((account_equity - baseline) / baseline * 100, 3) if baseline else 0.0
-        total_unreal = round(account_equity - baseline, 4)
+        # Deposit-aware baseline: cash moved INTO the account since the
+        # baseline was captured is contributed capital, not profit — without
+        # this the $50-seed baseline turns Robert's $450 deposit into "+891%".
+        # Anchor bootstraps from the first equity snapshot for state that
+        # predates the baseline_captured_at field.
+        baseline_captured_at = (state_prev.get("baseline_captured_at")
+                                or _first_equity_ts() or now)
+        net_deposits = _net_deposits_since(baseline_captured_at)
+        if net_deposits is None:
+            net_deposits = float(state_prev.get("net_deposits", 0.0) or 0.0)
+        adj_baseline = baseline + net_deposits
+        pnl_pct = round((account_equity - adj_baseline) / adj_baseline * 100, 3) if adj_baseline else 0.0
+        total_unreal = round(account_equity - adj_baseline, 4)
     else:
         # Paper mode: fall back to positions-based unreal for consistency.
         total_unreal = sum(p.get("unrealized_pl", 0) for p in positions.values())
         pnl_pct = round(total_unreal / max(invested, 1) * 100, 3) if invested else 0.0
         baseline = PAPER_BANKROLL_USD
+        baseline_captured_at = state_prev.get("baseline_captured_at")
+        net_deposits = float(state_prev.get("net_deposits", 0.0) or 0.0)
 
     # Snapshot equity to the chart CSV so /api/equity/alpaca_live has data
     if account_equity is not None:
@@ -1034,6 +1092,8 @@ def tick() -> None:
         "mode": ALPACA_MODE,
         "bankroll": round(total_book, 2),
         "baseline_equity": round(baseline, 2),
+        "baseline_captured_at": baseline_captured_at,
+        "net_deposits": round(net_deposits, 2),
         "account_equity": round(account_equity, 4) if account_equity is not None else None,
         "targets": {t: round(v * 100, 2) for t, v in targets.items()},
         "positions": positions,

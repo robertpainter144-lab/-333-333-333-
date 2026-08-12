@@ -1755,3 +1755,18 @@ layer. Pushed to lab repo app-333.
   (tradergrader X-ingest exception). Review fixer for bundles was
   safety-blocked before touching anything (wanted to consider deleting a
   GCP tree — nothing deleted); one verify agent hit its retry cap.
+- 2026-08-12 ~17:58 — **TraderGrader: wayback backfill running + paper lane
+  live (Robert's go; deep-history verdict was NEGATIVE — n=3, 33% 1d win,
+  100% leaderboard churn, one self-retracted ROI; all three judge lenses
+  said don't allocate).** (1) ~/equity_social/wayback_backfill.py: nohup
+  PID 73996, 3,899 archived tweets via web.archive.org snapshot JSONs
+  (4 threads, ~14h ETA, checkpointed/resumable at wayback_checkpoint.json,
+  log trading-data/logs/wayback-backfill.log; re-parses + regrades on
+  completion — the catalog row and grades will re-state themselves from
+  the full 2024-2026 history). (2) tradergrader_paper.py: virtual $50
+  follow-the-highlight legs (1-day hold at closes) per new callout →
+  D7-scoreable ~/scanner/state/tradergrader_paper_ledger.jsonl (midcap
+  schema, theme tradergrader_follow); first run opened 4 / closed 3 legs.
+  PROMOTION RULES UNCHANGED per Robert: zero live/governor weight, same D7
+  bar (n≥30, mean≥0.05%, Sharpe≥1, late≥0.02%), D34 cap applies, catalog
+  row stays display-only. Wired into the daily 15:35 chain after grade.

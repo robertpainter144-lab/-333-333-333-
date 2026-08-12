@@ -6,7 +6,7 @@
       "opened": "2026-08-11T00:01:02+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.57)",
       "mv": 6.3,
-      "cur": 8.7515
+      "cur": 8.74863
     },
     "ETH/USD": {
       "entry_price": 1902.45,
@@ -14,7 +14,7 @@
       "opened": "2026-08-12T13:39:02+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.67)",
       "mv": 5.91,
-      "cur": 1884.31
+      "cur": 1882.99
     },
     "VVV/USD": {
       "entry_price": 11.671,
@@ -22,15 +22,15 @@
       "opened": "2026-08-12T17:03:38+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.53)",
       "mv": 5.92,
-      "cur": 11.583
+      "cur": 11.569
     },
-    "WLD/USD": {
-      "entry_price": 0.3348,
+    "CRV/USD": {
+      "entry_price": 0.26813,
       "notional": 6.0,
-      "opened": "2026-08-12T17:35:10+00:00",
-      "signal_mode": "whale-confirmed (risk_on=0.53)",
-      "mv": 5.97,
-      "cur": 0.3349
+      "opened": "2026-08-12T19:08:34+00:00",
+      "signal_mode": "whale-confirmed (risk_on=0.52)",
+      "mv": 5.98,
+      "cur": 0.26838
     }
   },
   "frozen": false,
@@ -41,11 +41,10 @@
   "seen_active": true,
   "targets": {
     "ETH/USD": 6.0,
+    "CRV/USD": 6.0,
     "VVV/USD": 6.0,
-    "LINK/USD": 6.0,
-    "WLD/USD": 6.0,
-    "CRV/USD": 6.0
+    "LINK/USD": 6.0
   },
-  "targets_ts": "2026-08-12T18:58:01+00:00",
+  "targets_ts": "2026-08-12T19:13:43+00:00",
   "targets_gate": "whale-confirmed (risk_on=0.52)"
 }

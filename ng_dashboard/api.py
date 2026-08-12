@@ -278,18 +278,29 @@ def _alpaca_live_equity_history(limit: int = 5000) -> list[dict]:
 
 def _alpaca_live_transactions(limit: int = 100) -> list[dict]:
     """Fetch fills from Alpaca live account activities. Empty on missing keys."""
-    client = _alpaca_live_client()
-    if client is None:
+    key = os.environ.get("ALPACA_LIVE_KEY")
+    sec = os.environ.get("ALPACA_LIVE_SECRET")
+    if not (key and sec):
         return []
+    # Raw REST — this alpaca-py TradingClient predates get_account_activities
+    # (same workaround as _alpaca_live_transfers).
     try:
-        from alpaca.trading.enums import ActivityType
-        acts = client.get_account_activities(activity_types=[ActivityType.FILL])
+        import requests
+        resp = requests.get(
+            "https://api.alpaca.markets/v2/account/activities",
+            params={"activity_types": "FILL", "direction": "desc",
+                    "page_size": min(limit, 100)},
+            headers={"APCA-API-KEY-ID": key, "APCA-API-SECRET-KEY": sec},
+            timeout=10)
+        resp.raise_for_status()
+        acts = resp.json()
     except Exception as e:
         print(f"[API] alpaca_live activities: {e}")
         return []
     rows: list[dict] = []
-    for a in acts[:limit]:
-        d = a.model_dump() if hasattr(a, "model_dump") else dict(a.__dict__)
+    for d in acts[:limit]:
+        if not isinstance(d, dict):
+            continue
         rows.append({
             "ts":       str(d.get("transaction_time") or d.get("date") or ""),
             "symbol":   d.get("symbol", "?"),
@@ -304,7 +315,7 @@ def _alpaca_live_transactions(limit: int = 100) -> list[dict]:
             "reason":   "",
             "source":   "alpaca_live",
         })
-    rows = rows[::-1]  # newest first
+    # direction=desc already returns newest first
     # Join each fill to the combined_mirror ledger's decision context so the
     # Book's Recent actions can say WHY a trade happened, not just what.
     try:
@@ -647,8 +658,7 @@ def _activity_shadow(main_mod, limit: int) -> list[dict]:
 _PERIOD_SECONDS = {
     "1H":  3600,
     "1D":  86_400,
-    "5D":  86_400 * 5,   # the webapp's period buttons send 5D; unmapped it
-    "1W":  86_400 * 7,   # silently meant "all history" for every source
+    "1W":  86_400 * 7,
     "1M":  86_400 * 31,
     "3M":  86_400 * 93,
     "1Y":  86_400 * 366,
@@ -832,9 +842,10 @@ def _alpaca_portfolio_history(period: str) -> list[dict]:
     # the medium views, SPLICE a fine-grained recent window (15Min, where the
     # deposit + recent volatility live) onto the daily older data, so the
     # busy recent stretch is smooth and only the quiet older weeks are daily.
-    splice = {"1M": "1W", "3M": "1W", "6M": "1W"}
+    splice = {"1M": "1W", "3M": "1W", "6M": "1W", "1Y": "1W", "5Y": "1W"}
     pmap = {"1D": ("1D", "5Min"), "1W": ("1W", "15Min"), "1M": ("1M", "1D"),
-            "3M": ("3M", "1D"), "6M": ("6M", "1D"), "1Y": ("1A", "1D")}
+            "3M": ("3M", "1D"), "6M": ("6M", "1D"), "1Y": ("1A", "1D"),
+            "5Y": ("5A", "1D")}
     per, tf = pmap.get(period, ("1M", "1D"))
     ck = f"{per}:{tf}:spliced"
     now = time.time()
@@ -845,9 +856,17 @@ def _alpaca_portfolio_history(period: str) -> list[dict]:
     def _fetch(p, t):
         try:
             import requests
+            # Continuous (24/7) reporting for intraday windows — matches
+            # Alpaca's own dashboard, which re-marks through nights and
+            # weekends. The legacy extended_hours flag returns NOTHING after
+            # Friday's close all weekend (verified 2026-08-09: 1D/5Min gave
+            # a stale Friday window vs a live rolling 24h with continuous).
+            params = {"period": p, "timeframe": t}
+            if t != "1D":
+                params["intraday_reporting"] = "continuous"
             resp = requests.get(
                 "https://api.alpaca.markets/v2/account/portfolio/history",
-                params={"period": p, "timeframe": t, "extended_hours": "true"},
+                params=params,
                 headers={"APCA-API-KEY-ID": key, "APCA-API-SECRET-KEY": sec},
                 timeout=12)
             resp.raise_for_status()
@@ -866,10 +885,20 @@ def _alpaca_portfolio_history(period: str) -> list[dict]:
         # Hourly (not 15Min) for the spliced recent window: enough resolution
         # to render the deposit step + trend smoothly, without the intraday
         # noise that makes a $500 book's 15-min marks look jagged/spiky.
-        fine = _fetch(fine_period, "1H")
+        # 15Min continuous to match Alpaca's own dashboard detail (Robert
+        # compared side-by-side 2026-08-09: their line shows intraday+overnight
+        # wiggles our hourly splice averaged away).
+        fine = _fetch(fine_period, "15Min")
         if fine:
             cut = fine[0]["ts"]
             rows = [r for r in rows if r["ts"] < cut] + fine
+        # Finest layer: the last 24h at 5Min (continuous) — the same
+        # resolution Alpaca's own dashboard renders, so the client's 1D zoom
+        # shows real overnight/weekend movement instead of hourly steps.
+        finest = _fetch("1D", "5Min")
+        if finest:
+            cut = finest[0]["ts"]
+            rows = [r for r in rows if r["ts"] < cut] + finest
     _PH_CACHE[ck] = {"ts": now, "rows": rows}
     return rows
 
@@ -924,38 +953,38 @@ def _process_running(name_fragments: list[str]) -> dict | None:
 
 
 def _bots_status() -> list[dict]:
-    """systemd truth on the Oracle VM (2026-07-28 rewrite). The old Mac-era
-    process scan listed hosts that no longer run anything post-migration."""
+    """launchd truth on the Mac (2026-08-09 rewrite: Oracle VM abandoned,
+    Mac is the primary host). `launchctl list <label>` exit 0 = loaded —
+    running now or waiting on its schedule, which is launchd's "active"."""
+    import re as _re
     import subprocess
 
-    units = [
-        ("quarki-scanner.service",   "Scanner (mirrors + feeds + governor)"),
-        ("quarki-dashboard.service", "Dashboard (this API)"),
-        ("quarki-qc.service",        "QC Portfolio Engine"),
-        ("quarki-paper-arm.service", "Alpaca Paper A/B Arm"),
-        ("quarki-poc10.service",     "PoC10 Reliability Bot"),
-        ("quarki-soxl.service",      "SOXL Regime Bot"),
-        ("quarki-watchdog.timer",    "Watchdog (1 min)"),
-        ("quarki-autopush.timer",    "Autopush (5 min)"),
-        ("quarki-mvy-watch.timer",   "MVYTraders Watcher (5 min)"),
+    jobs = [
+        ("com.quarki3.scanner",              "Scanner (mirrors + feeds + governor)"),
+        ("com.quarki3.ng-dashboard",         "Dashboard (this API)"),
+        ("com.trading.qc",                   "QC Portfolio Engine"),
+        ("com.quarki3.turbo-entry",          "Turbo Arm entries (10:15 ET)"),
+        ("com.quarki3.turbo-exits",          "Turbo Arm exits (3x daily)"),
+        ("com.quarki3.crypto-sleeve",        "Crypto Sleeve (Kraken, 5 min)"),
+        ("com.quarki3.stack-watchdog",       "Watchdog (5 min)"),
+        ("com.quarki3.leadercheck",          "Leader Check (daily)"),
+        ("com.quarki3.directive-audit-fast", "Directive Auditor (hourly)"),
+        ("com.quarki3.lab333-watch",         "Lab333 Leak Tripwire (hourly)"),
+        ("com.quarki3.mvy-watch",            "MVYTraders Watcher (15 min)"),
     ]
     out = []
-    for unit, name in units:
+    for label, name in jobs:
+        running, pid = False, None
         try:
-            r = subprocess.run(["systemctl", "is-active", unit],
+            r = subprocess.run(["launchctl", "list", label],
                                capture_output=True, text=True, timeout=5)
-            running = r.stdout.strip() == "active"
+            running = r.returncode == 0
+            if running:
+                m = _re.search(r'"PID"\s*=\s*(\d+)', r.stdout)
+                pid = int(m.group(1)) if m else None
         except Exception:
             running = False
-        pid = None
-        if running and unit.endswith(".service"):
-            try:
-                r = subprocess.run(["systemctl", "show", "-p", "MainPID", "--value", unit],
-                                   capture_output=True, text=True, timeout=5)
-                pid = int(r.stdout.strip()) or None
-            except Exception:
-                pid = None
-        out.append({"id": unit.rsplit(".", 1)[0], "name": name, "host": "oracle",
+        out.append({"id": label.rsplit(".", 1)[-1], "name": name, "host": "mac",
                     "running": running, "pid": pid})
     out.append({"id": "shadow", "name": "Shadow A/B Engine", "host": "in-process",
                 "running": True, "pid": None})
@@ -1102,34 +1131,6 @@ _ACTIVITY_DISPATCH = {
     "qcmirror":    lambda m, lim: _activity_qcmirror(lim),
 }
 
-def _crypto_sleeve_dir() -> Path | None:
-    """D39 crypto sleeve state — repo-relative first (VM runs from the lab
-    checkout), home fallback (Mac symlink). Owner-only territory (D1): none of
-    the crypto_sleeve endpoints are in _GUEST_PATHS."""
-    for cand in (Path(__file__).resolve().parent.parent / "crypto_sleeve",
-                 Path.home() / "crypto_sleeve"):
-        if (cand / "state").is_dir():
-            return cand
-    return None
-
-
-def _equity_crypto_sleeve(period: str) -> list[dict]:
-    root = _crypto_sleeve_dir()
-    if root is None or not (root / "state" / "equity.csv").exists():
-        return []
-    import csv as _csv
-    from datetime import datetime as _dt
-    pts = []
-    with (root / "state" / "equity.csv").open() as f:
-        for r in _csv.DictReader(f):
-            try:
-                pts.append({"ts": int(_dt.fromisoformat(r["ts"]).timestamp()),
-                            "equity": float(r["equity"])})
-            except (ValueError, KeyError):
-                continue
-    return _filter_by_period(pts, period)
-
-
 _EQUITY_DISPATCH = {
     "paper":       lambda m, p, tf: _equity_paper(m, p, tf),
     "broker":      lambda m, p, tf: _equity_broker(m, p, tf),
@@ -1137,7 +1138,6 @@ _EQUITY_DISPATCH = {
     "ibkr":        lambda m, p, tf: _equity_ibkr(p),
     "alpaca_live": lambda m, p, tf: _equity_alpaca_live(p),
     "qcmirror":    lambda m, p, tf: _equity_qcmirror(p),
-    "crypto_sleeve": lambda m, p, tf: _equity_crypto_sleeve(p),
 }
 
 
@@ -1201,7 +1201,7 @@ def mount(fastapi_app, main_module) -> None:
         r"|(portfolio|equity|activity)/(paper|broker|shadow|qcmirror)$"
         r"|sources$|bots$|version$|edge$|qc$|whales$|patent-cliff$|prop_desk/state$"
         r"|insider/(leaderboard|portfolio)$|governor$|market_pulse$|congress$"
-        r"|ticker/[^/]+$))"
+        r"|ticker/))"
     )
 
     # Per-endpoint guest scrubbing: guests get the Lab-only view of shared
@@ -1209,7 +1209,12 @@ def mount(fastapi_app, main_module) -> None:
     # private whale wallets. Server-side so the client can never opt out.
     _QC_PRIVATE = ("mirror_bankroll", "initial_equity", "peak_equity",
                    "session_open_pl", "session_peak_pl", "ratchet_floor",
-                   "ratchet_fired_today", "mirror_pnl_pct")
+                   "ratchet_fired_today", "mirror_pnl_pct",
+                   # 2026-08-11 D31 re-fix: these four regressed out of the
+                   # scrub in the VM→Mac migration — guests could pull the
+                   # live book's exact mode + target composition via /api/qc.
+                   "mirror_mode", "mirror_targets", "mirror_targets_raw",
+                   "mirror_targets_ts")
     # Edge-ledger rows a guest must NOT see: the live real-money ensemble and
     # the private discretionary / research strategies. Guests keep the paper
     # research rows (prop_desk, qc_*, mirrors, paper_arm). The Autopilot
@@ -1454,34 +1459,7 @@ def mount(fastapi_app, main_module) -> None:
     _webapp = _static_dir / "webapp.html"
     if _webapp.exists():
         @fastapi_app.get("/app", include_in_schema=False)
-        def _webapp_html(request: Request):
-            # Owner-mode injection (same rules as the Terminal shell): direct
-            # tailnet/localhost (no XFF) or correct owner ?key= gets the
-            # private crypto bundle injected server-side; everyone else gets
-            # the vanilla shell with zero trace of it (D1).
-            key = (request.headers.get("x-api-key")
-                   or request.query_params.get("key"))
-            owner_ok = key == _keys.get("owner")
-            if ("x-forwarded-for" not in request.headers) or owner_ok:
-                try:
-                    from starlette.responses import HTMLResponse
-                    html = _webapp.read_text()
-                    qs = f"?key={key}" if owner_ok and key else ""
-                    inject = (f'<script defer src="/owner/crypto.js{qs}"></script>'
-                              f'<script defer src="/owner/equity-intel.js{qs}"></script>')
-                    if owner_ok and key:
-                        # Seed the header-auth key so the intel card's 60s
-                        # polling never falls back to ?key= in request URLs
-                        # (keeps the owner key out of access/proxy logs).
-                        inject = ('<script>try{localStorage.setItem("qt.apiKey",'
-                                  + json.dumps(key) + ');}catch(e){}</script>'
-                                  + inject)
-                    html = html.replace("</body>", inject + "</body>")
-                    resp = HTMLResponse(html)
-                    resp.headers["cache-control"] = "no-cache"
-                    return resp
-                except Exception:
-                    pass
+        def _webapp_html():
             return FileResponse(str(_webapp), media_type="text/html")
 
     # New Quarki Terminal SPA (React, built in ~/trading-gui/dist). Served
@@ -1512,19 +1490,25 @@ def mount(fastapi_app, main_module) -> None:
                 except Exception:
                     return None
                 inject = ('<script defer src="/owner/catalog.js"></script>'
-                          '<script defer src="/owner/terminal-crypto.js"></script>'
-                          '<script defer src="/owner/zoom.js"></script>')
+                          '<script defer src="/owner/crypto.js"></script>'
+                          '<script defer src="/owner/crypto-intel.js"></script>'
+                          '<script defer src="/owner/zoom.js"></script>'
+                          '<script defer src="/owner/crypto-account.js"></script>')
                 if _owner_ok:
-                    # Via the funnel, the browser's <script> load of
-                    # /owner/catalog.js ALSO hits the XFF key-gate (it can't send
-                    # the header), so pass the key on that URL too — otherwise
-                    # the private catalog bundle 403s and the panel never loads.
+                    # Via the funnel, the browser's <script> loads of the
+                    # /owner/*.js bundles ALSO hit the XFF key-gate (they can't
+                    # send the header), so pass the key on those URLs too —
+                    # otherwise the private bundles 403 and never load.
                     # Then auto-login the SPA and scrub the query string.
                     inject = ('<script defer src="/owner/catalog.js?key='
                               + _qkey + '"></script>'
-                              '<script defer src="/owner/terminal-crypto.js?key='
+                              '<script defer src="/owner/crypto.js?key='
+                              + _qkey + '"></script>'
+                              '<script defer src="/owner/crypto-intel.js?key='
                               + _qkey + '"></script>'
                               '<script defer src="/owner/zoom.js?key='
+                              + _qkey + '"></script>'
+                              '<script defer src="/owner/crypto-account.js?key='
                               + _qkey + '"></script>')
                     inject = ('<script>try{localStorage.setItem("qt.apiKey",'
                               + json.dumps(_qkey) +
@@ -1597,16 +1581,30 @@ def mount(fastapi_app, main_module) -> None:
             resp.headers["cache-control"] = "no-cache"
             return resp
 
-    # Owner-private crypto tab for the Quarki333 Terminal SPA (same pattern
-    # as catalog.js — injected only into owner-mode shells, key-gated route).
-    _owner_term_crypto = _private_dir / "owner_terminal_crypto.js"
-    if _owner_term_crypto.exists():
-        @fastapi_app.get("/owner/terminal-crypto.js", include_in_schema=False)
-        def _owner_terminal_crypto_route(request: Request):
+    # Owner-private Crypto tab (D39 Kraken sleeve) — same serving rules as
+    # the catalog bundle: outside /static, owner-key-gated via /owner/*.
+    _owner_cy_js = _private_dir / "owner_crypto.js"
+    if _owner_cy_js.exists():
+        @fastapi_app.get("/owner/crypto.js", include_in_schema=False)
+        def _owner_crypto_js(request: Request):
             key = request.headers.get("x-api-key") or request.query_params.get("key")
             if "x-forwarded-for" in request.headers and key != _keys.get("owner"):
                 raise HTTPException(status_code=403)
-            resp = FileResponse(str(_owner_term_crypto),
+            resp = FileResponse(str(_owner_cy_js),
+                                media_type="application/javascript")
+            resp.headers["cache-control"] = "no-cache"
+            return resp
+
+    # Whale/social intel add-on card (separate bundle so parallel edits to
+    # owner_crypto.js never conflict) — same owner-key gate.
+    _owner_cyintel_js = _private_dir / "owner_crypto_intel.js"
+    if _owner_cyintel_js.exists():
+        @fastapi_app.get("/owner/crypto-intel.js", include_in_schema=False)
+        def _owner_crypto_intel_js(request: Request):
+            key = request.headers.get("x-api-key") or request.query_params.get("key")
+            if "x-forwarded-for" in request.headers and key != _keys.get("owner"):
+                raise HTTPException(status_code=403)
+            resp = FileResponse(str(_owner_cyintel_js),
                                 media_type="application/javascript")
             resp.headers["cache-control"] = "no-cache"
             return resp
@@ -1624,87 +1622,123 @@ def mount(fastapi_app, main_module) -> None:
             resp.headers["cache-control"] = "no-cache"
             return resp
 
-    # Owner-private crypto sleeve add-on for the /app webapp (same D1 pattern
-    # as the catalog bundle: private/ dir, key-gated route, never /static).
-    _owner_crypto_js = _private_dir / "owner_crypto.js"
-    if _owner_crypto_js.exists():
-        @fastapi_app.get("/owner/crypto.js", include_in_schema=False)
-        def _owner_crypto_js_route(request: Request):
+    # Crypto-sleeve account card (Book page hero twin) — same owner-key gate.
+    _owner_cyacct_js = _private_dir / "owner_crypto_account.js"
+    if _owner_cyacct_js.exists():
+        @fastapi_app.get("/owner/crypto-account.js", include_in_schema=False)
+        def _owner_crypto_account_route(request: Request):
             key = request.headers.get("x-api-key") or request.query_params.get("key")
             if "x-forwarded-for" in request.headers and key != _keys.get("owner"):
                 raise HTTPException(status_code=403)
-            resp = FileResponse(str(_owner_crypto_js),
+            resp = FileResponse(str(_owner_cyacct_js),
                                 media_type="application/javascript")
             resp.headers["cache-control"] = "no-cache"
             return resp
 
-    # Owner-private equities intel card for /app (D40 — same D1 pattern).
-    _owner_equity_intel = _private_dir / "owner_equity_intel.js"
-    if _owner_equity_intel.exists():
-        @fastapi_app.get("/owner/equity-intel.js", include_in_schema=False)
-        def _owner_equity_intel_route(request: Request):
-            key = request.headers.get("x-api-key") or request.query_params.get("key")
-            if "x-forwarded-for" in request.headers and key != _keys.get("owner"):
-                raise HTTPException(status_code=403)
-            resp = FileResponse(str(_owner_equity_intel),
-                                media_type="application/javascript")
-            resp.headers["cache-control"] = "no-cache"
-            return resp
-
-    # ── Intel engine (D40): persistent news/social/sentiment feeds ─────
-    # Collector: intel_engine/collect.py (quarki-intel.timer on the VM,
-    # Mac-off independent). Owner-only automatically: neither path matches
-    # _GUEST_PATHS, so the _public_gate middleware 403s funnel traffic
-    # without the owner key.
-    _intel_repo_root = Path(__file__).resolve().parent.parent
-    _whale_sig_file = _intel_repo_root / "crypto_sleeve" / "state" / "whale_signals.json"
-    _intel_file = _intel_repo_root / "intel_engine" / "state" / "intel.json"
-
-    def _read_json_file(p: Path):
-        try:
-            d = json.loads(p.read_text())
-            return d if isinstance(d, dict) else None
-        except Exception:
-            return None
+    # ── D39 crypto sleeve data (owner-only). Deliberately NOT in
+    # _GUEST_PATHS: real-money Kraken book + post-Linus privacy boundary, so
+    # the public gate 403s guest keys; tailnet/owner-key requests pass. ──
+    _CRYPTO_DIR = Path.home() / "crypto_sleeve"
 
     @fastapi_app.get("/api/crypto/intel", include_in_schema=False)
     def _crypto_intel():
-        doc = _read_json_file(_whale_sig_file) or {}
-        intel = _read_json_file(_intel_file)
-        if intel:
-            # Namespaced so the news collector can never clobber a whale
-            # composite field the Terminal card renders.
-            doc["news_intel"] = {"crypto": intel.get("crypto"),
-                                 "risk_on_social": intel.get("risk_on_social"),
-                                 "asof": intel.get("asof")}
-        if not doc:
-            return JSONResponse({"error": "no intel collected yet"},
-                                status_code=503)
-        return doc
-
-    @fastapi_app.get("/api/equity/intel", include_in_schema=False)
-    def _equity_intel():
-        intel = _read_json_file(_intel_file)
-        if not intel:
-            return JSONResponse({"error": "no intel collected yet"},
-                                status_code=503)
-        return {"asof": intel.get("asof"),
-                "risk_on_social": intel.get("risk_on_social"),
-                **(intel.get("equities") or {})}
-
-    @fastapi_app.get("/api/intel/history", include_in_schema=False)
-    def _intel_history(limit: int = 96):
-        hist = _intel_file.parent / "intel_history.jsonl"
-        rows = []
+        """Full whale/social composite (all legs + token_flows) for the intel
+        card. Owner-only via the same gate as the rest of /api/crypto/*."""
         try:
-            for line in hist.read_text().splitlines()[-max(0, min(limit, 500)):] if limit > 0 else []:
-                try:
-                    rows.append(json.loads(line))
-                except Exception:
-                    continue
+            return json.loads((_CRYPTO_DIR / "state" / "whale_signals.json").read_text())
+        except Exception:
+            return {"available": False}
+
+    @fastapi_app.get("/api/crypto/summary", include_in_schema=False)
+    def _crypto_summary():
+        out = {"ts": int(time.time()), "equity": []}
+        try:
+            lines = (_CRYPTO_DIR / "state" / "equity.csv").read_text().strip().splitlines()
+            for ln in lines[1:][-5000:]:
+                c = ln.split(",")
+                if len(c) >= 5:
+                    try:
+                        out["equity"].append({
+                            "ts": c[0], "equity": float(c[1]), "cash": float(c[2]),
+                            "positions_mv": float(c[3]), "realized": float(c[4])})
+                    except ValueError:
+                        pass
         except Exception:
             pass
-        return rows
+        for fname, key in (("sleeve_state.json", "state"),
+                           ("whale_signals.json", "whale")):
+            try:
+                out[key] = json.loads((_CRYPTO_DIR / "state" / fname).read_text())
+            except Exception:
+                out[key] = None
+        try:
+            cfg = json.loads((_CRYPTO_DIR / "config.json").read_text())
+            cfg.pop("kraken_env_file", None)
+            cfg.pop("env_file", None)
+            out["config"] = cfg
+        except Exception:
+            out["config"] = None
+        try:
+            out["log_tail"] = (_CRYPTO_DIR / "logs" / "sleeve.log").read_text() \
+                .strip().splitlines()[-12:]
+        except Exception:
+            out["log_tail"] = []
+        return out
+
+    # Live Kraken prices for the sleeve's whole universe — feeds the crypto
+    # page's universe-watch table (track prices WITHOUT holding dust). One
+    # upstream call cached 20s; owner-only via the default-deny guest gate.
+    _crypto_tick_cache: dict = {"ts": 0.0, "rows": {}}
+    _kraken_ws_by_key: dict = {}   # internal pair key -> wsname
+    _kraken_alt_by_ws: dict = {}   # wsname -> altname
+
+    @fastapi_app.get("/api/crypto/ticker", include_in_schema=False)
+    def _crypto_ticker():
+        import requests as _rq
+        now = time.time()
+        if now - _crypto_tick_cache["ts"] < 20 and _crypto_tick_cache["rows"]:
+            return {"ts": int(_crypto_tick_cache["ts"]),
+                    "rows": _crypto_tick_cache["rows"]}
+        try:
+            uni = json.loads((_CRYPTO_DIR / "config.json").read_text()) \
+                .get("universe") or []
+        except Exception:
+            uni = []
+        # Kraken wsnames rename a few bases (BTC->XBT, DOGE->XDG)
+        rename = {"BTC": "XBT", "DOGE": "XDG"}
+        want = {}
+        for pair in uni:
+            base = pair.split("/")[0]
+            want[f"{rename.get(base, base)}/USD"] = pair
+        try:
+            if not _kraken_ws_by_key:
+                ap = _rq.get("https://api.kraken.com/0/public/AssetPairs",
+                             timeout=10).json().get("result") or {}
+                for k, v in ap.items():
+                    _kraken_ws_by_key[k] = v.get("wsname", "")
+                    _kraken_alt_by_ws[v.get("wsname", "")] = v.get("altname", k)
+            alts = [_kraken_alt_by_ws[w] for w in want if w in _kraken_alt_by_ws]
+            res = _rq.get("https://api.kraken.com/0/public/Ticker",
+                          params={"pair": ",".join(alts)}, timeout=10) \
+                .json().get("result") or {}
+            rows = {}
+            for k, v in res.items():
+                pair = want.get(_kraken_ws_by_key.get(k, k))
+                if not pair:
+                    continue
+                try:
+                    last = float(v["c"][0])
+                    op = float(v.get("o") or 0)
+                    rows[pair] = {"price": last,
+                                  "chg_pct": (last / op - 1) * 100 if op else None}
+                except (KeyError, ValueError, TypeError):
+                    continue
+            if rows:
+                _crypto_tick_cache.update(ts=now, rows=rows)
+        except Exception as e:
+            print(f"[API] crypto ticker: {e}")
+        return {"ts": int(_crypto_tick_cache["ts"] or now),
+                "rows": _crypto_tick_cache["rows"]}
 
     # Consumer-facing guest view — stripped Book-only page, no strategy
     # internals. Public access requires the guest key (?key=... once, then
@@ -1933,10 +1967,15 @@ def mount(fastapi_app, main_module) -> None:
             "created_at":      _now_iso(),
         }
         (d / "config.json").write_text(json.dumps(cfg, indent=2))
-        # Launch via systemd template instance
+        # The systemd template instance died with the VM; on the Mac the
+        # runner discovers strategies from config.json presence alone.
         import subprocess
-        subprocess.run(["systemctl", "enable", "--now", f"qc-strategy@{name}.service"],
-                       capture_output=True)
+        try:
+            subprocess.run(["systemctl", "enable", "--now",
+                            f"qc-strategy@{name}.service"],
+                           capture_output=True, timeout=10)
+        except Exception:
+            pass
         return {"created": cfg}
 
     @fastapi_app.post("/api/strategies/{name}/config")
@@ -1958,8 +1997,12 @@ def mount(fastapi_app, main_module) -> None:
         if not d.exists():
             raise HTTPException(404, "no such strategy")
         import shutil, subprocess
-        subprocess.run(["systemctl", "disable", "--now", f"qc-strategy@{name}.service"],
-                       capture_output=True)
+        try:
+            subprocess.run(["systemctl", "disable", "--now",
+                            f"qc-strategy@{name}.service"],
+                           capture_output=True, timeout=10)
+        except Exception:
+            pass
         shutil.rmtree(d)
         return {"deleted": name}
 
@@ -2534,55 +2577,6 @@ def mount(fastapi_app, main_module) -> None:
         if not fn:
             raise HTTPException(404, f"unknown source: {source}")
         return fn(main_module, period, timeframe)
-
-    @fastapi_app.get("/api/crypto_sleeve")
-    def crypto_sleeve_status():
-        """D39 crypto sleeve live status. Owner-only through the public gate
-        (deliberately NOT in _GUEST_PATHS — real-money positions, D1/D31)."""
-        root = _crypto_sleeve_dir()
-        if root is None:
-            return {"available": False}
-        out = {"available": True, "positions": {}, "frozen": False,
-               "realized": 0.0, "gate": None, "config": {}}
-        try:
-            st = json.loads((root / "state" / "sleeve_state.json").read_text())
-            out["positions"] = st.get("positions", {})
-            out["frozen"] = bool(st.get("frozen"))
-        except Exception:
-            pass
-        try:
-            cfg = json.loads((root / "config.json").read_text())
-            out["config"] = {k: cfg.get(k) for k in
-                             ("broker", "universe", "cap_total_usd", "per_trade_usd",
-                              "stop_pct", "take_pct", "freeze_pnl_usd")}
-        except Exception:
-            pass
-        try:
-            out["gate"] = json.loads((root / "state" / "whale_signals.json").read_text())
-        except Exception:
-            pass
-        try:
-            import csv as _csv
-            with (root / "state" / "closed_trades.csv").open() as f:
-                raw = list(_csv.DictReader(f))
-            rows, realized = [], 0.0
-            for r in raw:            # one malformed row must not zero the ledger
-                try:
-                    realized += float(r["realized_pl"])
-                    rows.append(r)
-                except (ValueError, KeyError, TypeError):
-                    continue
-            out["realized"] = round(realized, 4)
-            out["closed_trades"] = rows[-20:]
-        except Exception:
-            out["closed_trades"] = []
-        try:
-            eq = _equity_crypto_sleeve("ALL")
-            if eq:
-                out["equity"] = eq[-1]["equity"]
-        except Exception:
-            pass
-        return out
 
     @fastapi_app.get("/api/transfers/{source}")
     def transfers(source: str):

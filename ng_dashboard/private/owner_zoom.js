@@ -2,6 +2,11 @@
 // Two-finger pinch over any chart card steps through its period buttons
 // (1D/1W/1M/...) like a ratchet: pinch OUT = zoom in = shorter period,
 // pinch IN = zoom out = longer period. Faster pinches cross detents faster.
+// TWO-TIER SENSITIVITY (Robert 2026-08-11): slow pinches are the chart's own
+// fluid zoom — they never advance the detents (sub-threshold frames bleed the
+// accumulator). Only deliberately QUICK pinches hop presets, the first hop
+// needs an extra-large sweep (ENGAGE), and each hop claims the gesture via
+// window.__qtDetentUntil so the chart's fluid zoom stands down while hopping.
 // Each detent click()s the real button (React handles the rest), fires a
 // short haptic tick (navigator.vibrate — needs VIBRATE in the APK, v3.3+),
 // and pulses the button. Hitting either end gives one longer "clunk" buzz.
@@ -22,8 +27,12 @@
   // more log-spread than synthetic tests, and sub-10ms buzzes are below what
   // the Flip4's motor renders. Detents ~0.55 log2 units => a full deliberate
   // pinch crosses ~3-4 levels; velocity gain reserved for genuinely fast flicks.
-  const DETENT = 0.55;        // log2 pinch-scale units per step
-  const SPEED_REF = 2.2;      // log2-units/sec where velocity boost kicks in
+  const DETENT = 0.55;        // log2 pinch-scale units per step (after the first)
+  const ENGAGE = 0.95;        // the FIRST hop of a gesture needs this much sweep
+  const SPEED_MIN = 1.15;     // log2-units/sec — slower pinches are the fluid-zoom
+                              // tier and never advance the detents
+  const DECAY = 0.7;          // slow frames bleed accumulated windup toward zero
+  const SPEED_REF = 2.6;      // velocity boost starts well above SPEED_MIN
   const GAIN_MAX = 2.0;       // fastest pinch crosses detents up to 3x faster
   const TICK_MS = 22, CLUNK_MS = 50, EDGE_COOLDOWN = 350;
   const MAX_HOPS = 10;
@@ -111,7 +120,7 @@
       idx: activeIndex(btns),
       id0: t0.identifier, id1: t1.identifier,
       lastD: dist2(t0, t1),
-      lastT: e.timeStamp, acc: 0, lastEdge: 0,
+      lastT: e.timeStamp, acc: 0, lastEdge: 0, engaged: false,
     };
     e.preventDefault();
   }
@@ -130,15 +139,19 @@
     const dt = Math.max(8, e.timeStamp - st.lastT);
     st.lastD = d; st.lastT = e.timeStamp;
     const speed = Math.abs(dl) * 1000 / dt;
+    // Slow tier: the chart's fluid zoom owns this motion. Bleed windup so a
+    // long fluid zoom can never "bank" distance toward an accidental hop.
+    if (speed < SPEED_MIN) { st.acc *= DECAY; return; }
     const gain = 1 + Math.min(GAIN_MAX, Math.max(0, speed / SPEED_REF - 1));
     st.acc += dl * gain;
     // fingers apart (dl>0) = zoom IN = step toward index 0 (shortest period)
+    const need = st.engaged ? DETENT : ENGAGE;
     let guard = 0;
-    while (st.acc >= DETENT && guard++ < 8) { st.acc -= DETENT; step(-1, e.timeStamp); }
-    while (st.acc <= -DETENT && guard++ < 8) { st.acc += DETENT; step(+1, e.timeStamp); }
+    while (st.acc >= need && guard++ < 8) { st.acc -= need; step(-1, e.timeStamp); }
+    while (st.acc <= -need && guard++ < 8) { st.acc += need; step(+1, e.timeStamp); }
     // If the guard capped this frame, drop the windup — carrying it forward
     // fires phantom detents on later frames after the fingers have stopped.
-    if (Math.abs(st.acc) >= DETENT) st.acc = 0;
+    if (Math.abs(st.acc) >= need) st.acc = 0;
   }
 
   function step(dir, ts) {
@@ -151,6 +164,10 @@
     st.idx = i;
     const b = st.btns[i];
     if (!b.isConnected) { st = null; return; } // React re-render replaced it
+    st.engaged = true;
+    // Claim the gesture: the chart's fluid zoom stands down while presets
+    // hop (rolling window — self-expires, nothing to clean up on touchend).
+    try { window.__qtDetentUntil = Date.now() + 450; } catch (e) {}
     b.click();
     buzz(TICK_MS);
     try { b.scrollIntoView({ inline: 'center', block: 'nearest' }); } catch (e) {}

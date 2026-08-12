@@ -11,6 +11,8 @@ const RANGES = [
   { id: "1D", label: "1D", ms: 24 * 3600e3 },
   { id: "3D", label: "3D", ms: 3 * 24 * 3600e3 },
   { id: "1W", label: "1W", ms: 7 * 24 * 3600e3 },
+  { id: "2W", label: "2W", ms: 14 * 24 * 3600e3 },
+  { id: "3W", label: "3W", ms: 21 * 24 * 3600e3 },
   { id: "1M", label: "1M", ms: 31 * 24 * 3600e3 },
   { id: "3M", label: "3M", ms: 92 * 24 * 3600e3 },
   { id: "6M", label: "6M", ms: 183 * 24 * 3600e3 },
@@ -52,6 +54,9 @@ export type OverlaySeries = {
 declare global {
   interface Window {
     __qtOverlaySeries?: OverlaySeries[];
+    /** Set by owner_zoom.js while a FAST pinch is hopping range presets —
+     *  the chart's fluid zoom stands down until it expires. */
+    __qtDetentUntil?: number;
   }
 }
 const MIN_SPAN_MS = 10 * 60e3; // can't zoom tighter than 10 minutes
@@ -157,12 +162,13 @@ export default function EquityChart(props: {
     return rows;
   }, [rawRows, xfers]);
 
-  const data: Pt[] = useMemo(() => {
-    const win = RANGES.find((r) => r.id === range)?.ms ?? Infinity;
-    if (win === Infinity) return allRows;
-    const cutoff = Date.now() - win;
-    return allRows.filter((p) => p.t >= cutoff);
-  }, [allRows, range]);
+  // Range tabs pick the default VIEW WINDOW, they no longer filter the data:
+  // the full history stays loaded behind every tab, so one-finger pan (and
+  // the scrubber bar) can travel back past the window's left edge at the
+  // SAME zoom level instead of hitting a wall — switching tabs is a choice,
+  // never a side effect of navigating (Robert, 2026-08-11).
+  const data: Pt[] = allRows;
+  const rangeMs = RANGES.find((r) => r.id === range)?.ms ?? Infinity;
 
   const val = (p: Pt) => (net ? p.adj : p.equity);
 
@@ -179,20 +185,18 @@ export default function EquityChart(props: {
   // ticks over the plot.
   const ovExtent = useMemo(() => {
     if (!overlayChannel || !Array.isArray(window.__qtOverlaySeries)) return null;
-    const win = RANGES.find((r) => r.id === range)?.ms ?? Infinity;
-    const cutoff = win === Infinity ? -Infinity : Date.now() - win;
     let mn = Infinity, mx = -Infinity;
     for (const o of window.__qtOverlaySeries) {
       if (!o || o.channel !== overlayChannel || !Array.isArray(o.points)) continue;
       for (const p of o.points) {
-        if (!Number.isFinite(p.t) || p.t < cutoff) continue;
+        if (!Number.isFinite(p.t)) continue;
         if (p.t < mn) mn = p.t;
         if (p.t > mx) mx = p.t;
       }
     }
     return mx > mn ? { mn, mx } : null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [overlayChannel, overlayRev, range]);
+  }, [overlayChannel, overlayRev]);
   const padR = ovExtent ? 34 : 6;
   const padRRef = useRef(padR);
   padRRef.current = padR;
@@ -203,13 +207,16 @@ export default function EquityChart(props: {
     dataMin = Math.min(dataMin, ovExtent.mn);
     dataMax = Math.max(dataMax, ovExtent.mx);
   }
-  const d0 = domain ? domain[0] : dataMin;
+  // Default window = the selected range's span, right-anchored at the newest
+  // point. A custom domain (pan/zoom/scrub) overrides it until reset.
+  const fitD0 = rangeMs === Infinity ? dataMin : Math.max(dataMin, dataMax - rangeMs);
+  const d0 = domain ? domain[0] : fitD0;
   const d1 = domain ? domain[1] : dataMax;
 
   // Refs mirror the live domain/extent so native listeners and mid-gesture
   // math never read a stale render closure (the 20 s poll appends points).
-  const domRef = useRef({ d0, d1, dataMin, dataMax });
-  domRef.current = { d0, d1, dataMin, dataMax };
+  const domRef = useRef({ d0, d1, dataMin, dataMax, fitD0 });
+  domRef.current = { d0, d1, dataMin, dataMax, fitD0 };
 
   // Reset the custom domain ONLY when the user picks a different range tab.
   // Data refreshes must NOT reset it — that was the 24H jank: every poll
@@ -299,9 +306,11 @@ export default function EquityChart(props: {
       const doubleTap = now - lastTap.current < 300;
       if (doubleTap) setDomain(null);
       lastTap.current = now;
-      const { d0: a, d1: b, dataMin: mn, dataMax: mx } = domRef.current;
+      const { d0: a, d1: b, dataMax: mx, fitD0: f0 } = domRef.current;
+      // Reset lands on the RANGE's window (right-anchored), not the full
+      // history — so the follow-on drag starts from what reset shows.
       gestureStart.current = doubleTap
-        ? { d0: mn, d1: mx, x: pts[0].x, dist: 0, mid: pts[0].x }
+        ? { d0: f0, d1: mx, x: pts[0].x, dist: 0, mid: pts[0].x }
         : { d0: a, d1: b, x: pts[0].x, dist: 0, mid: pts[0].x };
     } else if (pts.length === 2) {
       const dist = Math.abs(pts[0].x - pts[1].x);
@@ -336,6 +345,14 @@ export default function EquityChart(props: {
       setDomain(clampDomain(ck.inv(gu0 - dxU), ck.inv(gu1 - dxU)));
       if (data.length) setReadout(nearest(data, xToT(pts[0].x - rect.left, rect.width)));
     } else if (pts.length >= 2) {
+      // Two-tier zoom: a FAST pinch belongs to the preset-detent engine
+      // (owner_zoom.js) — once it claims the gesture the fluid zoom stands
+      // down, so a range hop never tugs-of-war with a mid-flight domain
+      // change. Slow pinches never trip the detents and stay fully fluid.
+      if ((window.__qtDetentUntil ?? 0) > Date.now()) {
+        gestureStart.current = { d0: domRef.current.d0, d1: domRef.current.d1, x: 0, dist: Math.max(Math.abs(pts[0].x - pts[1].x), 1), mid: (pts[0].x + pts[1].x) / 2 };
+        return;
+      }
       // PINCH: scale the start-domain around the pinch midpoint (u-space)
       const dist = Math.max(Math.abs(pts[0].x - pts[1].x), 1);
       const scale = g.dist / dist;
@@ -381,6 +398,57 @@ export default function EquityChart(props: {
     return () => el.removeEventListener("wheel", onWheelNative);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasData]);
+
+  // ── Scrubber bar: mirrors where the visible window sits inside the full
+  // history and slides along as you pan the chart; grab it to pan directly
+  // at the EXACT current zoom (the span never changes), or tap the track to
+  // jump-center the window there. ──
+  const scrubRef = useRef<HTMLDivElement>(null);
+  const scrubGrab = useRef<{ px: number; d0: number; d1: number } | null>(null);
+
+  const uAll0 = activeClock.u(dataMin), uAll1 = activeClock.u(dataMax);
+  const uAllSpan = Math.max(uAll1 - uAll0, 1);
+  const thumbL = ((activeClock.u(d0) - uAll0) / uAllSpan) * 100;
+  const thumbW = Math.max(((activeClock.u(d1) - activeClock.u(d0)) / uAllSpan) * 100, 1.5);
+
+  /** Domain centered at track position `clientX`, span preserved. */
+  const scrubCenterDomain = (clientX: number): [number, number] => {
+    const rect = scrubRef.current!.getBoundingClientRect();
+    const ck = clockRef.current;
+    const { d0: a, d1: b, dataMin: mn, dataMax: mx } = domRef.current;
+    const half = (ck.u(b) - ck.u(a)) / 2;
+    const uc = ck.u(mn) +
+      ((clientX - rect.left) / Math.max(rect.width, 1)) * Math.max(ck.u(mx) - ck.u(mn), 1);
+    return clampDomain(ck.inv(uc - half), ck.inv(uc + half));
+  };
+
+  function onScrubDown(e: React.PointerEvent) {
+    (e.target as Element).setPointerCapture?.(e.pointerId);
+    const rect = scrubRef.current!.getBoundingClientRect();
+    const fracPct = ((e.clientX - rect.left) / Math.max(rect.width, 1)) * 100;
+    let a = domRef.current.d0, b = domRef.current.d1;
+    // Tap outside the thumb jump-centers first; the same drag continues
+    // from the jumped-to window so down-and-slide feels like one motion.
+    if (fracPct < thumbL || fracPct > thumbL + thumbW) {
+      const nd = scrubCenterDomain(e.clientX);
+      setDomain(nd);
+      a = nd[0]; b = nd[1];
+    }
+    scrubGrab.current = { px: e.clientX, d0: a, d1: b };
+  }
+  function onScrubMove(e: React.PointerEvent) {
+    const g = scrubGrab.current;
+    const el = scrubRef.current;
+    if (!g || !el) return;
+    const rect = el.getBoundingClientRect();
+    const ck = clockRef.current;
+    const { dataMin: mn, dataMax: mx } = domRef.current;
+    // Track px → history-fraction: the thumb tracks the finger 1:1.
+    const du = ((e.clientX - g.px) / Math.max(rect.width, 1)) *
+      Math.max(ck.u(mx) - ck.u(mn), 1);
+    setDomain(clampDomain(ck.inv(ck.u(g.d0) + du), ck.inv(ck.u(g.d1) + du)));
+  }
+  const onScrubUp = () => { scrubGrab.current = null; };
 
   // ── Robinhood-style window P/L: equity change net of transfers ──
   const windowPL = useMemo(() => {
@@ -765,23 +833,39 @@ export default function EquityChart(props: {
       {data.length === 0 ? (
         <p className="py-8 text-center text-xs text-faint">No equity points in this range.</p>
       ) : (
-        <div
-          ref={wrapRef}
-          className="relative h-44 w-full select-none"
-          style={{ touchAction: "none" }}
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
-          onPointerCancel={onPointerUp}
-          onPointerLeave={(e) => { if (e.pointerType === "mouse" && pointers.current.size === 0) setReadout(null); }}
-        >
-          <canvas ref={canvasRef} className="h-full w-full" />
-        </div>
+        <>
+          <div
+            ref={wrapRef}
+            className="relative h-44 w-full select-none"
+            style={{ touchAction: "none" }}
+            onPointerDown={onPointerDown}
+            onPointerMove={onPointerMove}
+            onPointerUp={onPointerUp}
+            onPointerCancel={onPointerUp}
+            onPointerLeave={(e) => { if (e.pointerType === "mouse" && pointers.current.size === 0) setReadout(null); }}
+          >
+            <canvas ref={canvasRef} className="h-full w-full" />
+          </div>
+          <div
+            ref={scrubRef}
+            className="relative mt-1 h-2 w-full cursor-ew-resize touch-none select-none overflow-hidden rounded-full border border-bd"
+            title="Slide to pan the window at the current zoom"
+            onPointerDown={onScrubDown}
+            onPointerMove={onScrubMove}
+            onPointerUp={onScrubUp}
+            onPointerCancel={onScrubUp}
+          >
+            <div
+              className="absolute top-0 h-full rounded-full"
+              style={{ left: `${thumbL}%`, width: `${thumbW}%`, background: color, opacity: 0.6, minWidth: 8 }}
+            />
+          </div>
+        </>
       )}
       {/* gesture hint costs a text row on phones — the whole chart must fit
           above the fold there, and the gestures are discoverable by now */}
       <p className="mt-1 hidden px-2 text-[9px] text-faint md:block md:px-0">
-        drag to pan · pinch or scroll to zoom · double-tap to reset
+        drag chart or slide the bar to pan (zoom stays) · slow pinch/scroll = fluid zoom · quick pinch = hop range presets · double-tap to reset
         {hasXfers && <> · ▲▼ deposits/withdrawals{net ? " (collapsed — line is trading P/L only)" : " (raw account value)"}</>}
       </p>
     </div>

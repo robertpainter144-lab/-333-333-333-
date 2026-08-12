@@ -94,8 +94,8 @@ ALPACA_KEY    = (os.environ.get("ALPACA_LIVE_KEY") if ALPACA_MODE == "live"
 ALPACA_SECRET = (os.environ.get("ALPACA_LIVE_SECRET") if ALPACA_MODE == "live"
                  else os.environ.get("ALPACA_PAPER_SECRET", ""))
 
-MIN_ORDER_USD = 1.00
-REBALANCE_THRESHOLD_USD = 0.50
+MIN_ORDER_USD = 2.00          # D19 churn fix (Robert 2026-08-03), re-applied
+REBALANCE_THRESHOLD_USD = 2.50  # 2026-08-11 after the VM→Mac migration lost it
 
 # ── Daily circuit breaker (2026-07-31, Robert: auto pull-out on dip days) ──
 # If today's live P/L (equity vs yesterday's close) breaches the freeze

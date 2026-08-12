@@ -28,3 +28,4 @@ closed_at,symbol,entry_time,entry_price,exit_price,notional,realized_pl,pl_pct,r
 2026-08-12T01:33:25+00:00,CRV/USD,2026-08-10T16:09:13+00:00,0.2411,0.2777,6.00,0.8776,0.1463,take_profit,whale-confirmed (risk_on=0.59)
 2026-08-12T05:49:43+00:00,LTC/USD,2026-08-12T00:00:30+00:00,45.4700,45.2400,6.00,-0.0602,-0.0100,momentum_flip,whale-confirmed (risk_on=0.63)
 2026-08-12T05:59:58+00:00,XRP/USD,2026-08-12T05:49:49+00:00,1.0214,1.0210,6.00,-0.0328,-0.0055,momentum_flip,whale-confirmed (risk_on=0.69)
+2026-08-12T06:15:20+00:00,XRP/USD,2026-08-12T06:00:04+00:00,1.0210,1.0184,6.00,-0.0449,-0.0075,momentum_flip,whale-confirmed (risk_on=0.69)

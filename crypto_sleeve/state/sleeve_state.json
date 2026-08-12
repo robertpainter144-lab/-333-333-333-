@@ -6,7 +6,7 @@
       "opened": "2026-08-11T00:01:02+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.57)",
       "mv": 6.3,
-      "cur": 8.75338
+      "cur": 8.75208
     },
     "DOGE/USD": {
       "entry_price": 0.0700736,
@@ -14,7 +14,7 @@
       "opened": "2026-08-11T08:01:34+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.56)",
       "mv": 6.1,
-      "cur": 0.071578
+      "cur": 0.0715508
     },
     "SOL/USD": {
       "entry_price": 76.25,
@@ -22,12 +22,12 @@
       "opened": "2026-08-12T01:33:31+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.65)",
       "mv": 5.97,
-      "cur": 76.3
+      "cur": 76.29
     },
-    "XRP/USD": {
-      "entry_price": 1.01796,
+    "CRV/USD": {
+      "entry_price": 0.27849,
       "notional": 6.0,
-      "opened": "2026-08-12T08:23:09+00:00",
+      "opened": "2026-08-12T08:38:30+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.64)"
     }
   },
@@ -41,10 +41,9 @@
     "SOL/USD": 6.0,
     "DOGE/USD": 6.0,
     "LINK/USD": 6.0,
-    "XRP/USD": 6.0,
     "CRV/USD": 6.0,
     "WLD/USD": 6.0
   },
-  "targets_ts": "2026-08-12T08:23:08+00:00",
+  "targets_ts": "2026-08-12T08:38:28+00:00",
   "targets_gate": "whale-confirmed (risk_on=0.64)"
 }

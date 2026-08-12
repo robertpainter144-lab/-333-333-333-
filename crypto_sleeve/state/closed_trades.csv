@@ -30,3 +30,4 @@ closed_at,symbol,entry_time,entry_price,exit_price,notional,realized_pl,pl_pct,r
 2026-08-12T05:59:58+00:00,XRP/USD,2026-08-12T05:49:49+00:00,1.0214,1.0210,6.00,-0.0328,-0.0055,momentum_flip,whale-confirmed (risk_on=0.69)
 2026-08-12T06:15:20+00:00,XRP/USD,2026-08-12T06:00:04+00:00,1.0210,1.0184,6.00,-0.0449,-0.0075,momentum_flip,whale-confirmed (risk_on=0.69)
 2026-08-12T08:23:04+00:00,SUI/USD,2026-08-12T06:15:26+00:00,0.6888,0.6890,6.00,-0.0283,-0.0047,momentum_flip,whale-confirmed (risk_on=0.69)
+2026-08-12T08:38:24+00:00,XRP/USD,2026-08-12T08:23:09+00:00,1.0180,1.0171,6.00,-0.0350,-0.0058,momentum_flip,whale-confirmed (risk_on=0.64)

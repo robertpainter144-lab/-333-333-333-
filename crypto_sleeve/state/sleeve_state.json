@@ -1,23 +1,12 @@
 {
-  "positions": {
-    "CRV/USD": {
-      "entry_price": 0.26563,
-      "notional": 6.0,
-      "opened": "2026-08-12T21:34:27+00:00",
-      "signal_mode": "whale-confirmed (risk_on=0.64)",
-      "mv": 5.98,
-      "cur": 0.26612
-    }
-  },
+  "positions": {},
   "frozen": false,
   "last_notified": {
     "crypto_inactive": 1786306737.674485,
     "kraken_key": 1786308844.526507
   },
   "seen_active": true,
-  "targets": {
-    "CRV/USD": 6.0
-  },
-  "targets_ts": "2026-08-12T21:44:47+00:00",
+  "targets": {},
+  "targets_ts": "2026-08-12T22:00:24+00:00",
   "targets_gate": "whale-confirmed (risk_on=0.64)"
 }

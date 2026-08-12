@@ -1712,3 +1712,11 @@ layer. Pushed to lab repo app-333.
   authoritative, only real 429s throttle explicit asks. Mega-review
   workflow (9 find dims → 3-vote verify → fixers) ran same evening — see
   next entry.
+- 2026-08-12 ~16:43 — **Phone Catalog pilots restored (never a tradergrader
+  regression).** GCP's trimmed edge_ledger.py never had
+  _autopilot_catalog_rows → pilots structurally 0 on the phone. Ported the
+  Mac's function (backup edge_ledger.py.bak-catrows-*), manual tick →
+  23 pilots on GCP /api/catalog; quarki-scanner restarted so its ticks keep
+  them; autopilot_catalog.json+curves added to the daily Mac→GCP scp leg.
+  adb-verified: full shelf renders on the Flip4 (Burry/Point72/InTheMoney/
+  ... + collapsed TraderGrader card + DipBuyer row).

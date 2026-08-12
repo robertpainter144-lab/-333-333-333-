@@ -946,6 +946,71 @@ def _grade_one_rec(rec: dict, spy_cache: dict) -> dict:
     return row
 
 
+def _write_catalog_row(accounts: dict) -> None:
+    """Publish TraderGrader as a standard catalog benchmark row (Robert
+    2026-08-12: 'exact same layout and data as the rest of the cards').
+    Curve = base-100 NAV of FOLLOWING each auto-graded callout's 1-day
+    signed return, compounded in ts order — the honest testable version of
+    his feed, same {curve, updated_ts} shape autopilot_catalog.py writes.
+    The pilots entry is metadata-only (_-prefixed keys, no weights) so the
+    catalog engine's holdings marker skips it; edge_ledger's
+    _autopilot_catalog_rows() turns it into the card row."""
+    acct = accounts.get("tradergrader_auto") or {}
+    recs = sorted((acct.get("recs") or []), key=lambda r: str(r.get("ts")))
+    nav, curve = 100.0, {}
+    for r in recs:
+        h1 = r.get("h1") or {}
+        if h1.get("ret_pct") is None:
+            continue
+        nav *= 1.0 + h1["ret_pct"] / 100.0
+        curve[str(r["ts"])[:10]] = round(nav, 4)
+    today = date.today().isoformat()
+    curve[today] = round(nav, 4)   # flat carry-forward so the card has a fresh mark
+
+    curves_path = SCANNER_STATE / "autopilot_catalog_curves.json"
+    try:
+        curves = json.loads(curves_path.read_text())
+    except Exception:
+        curves = {}
+    curves["TraderGrader"] = {"curve": curve, "updated_ts": now_iso()}
+    _atomic_write(curves_path, curves)
+
+    lb = {}
+    try:
+        lb = json.loads(OUT_LEADERBOARD.read_text()).get("traders") or {}
+    except Exception:
+        pass
+    favs = " ".join("@" + (v.get("handle") or k) for k, v in list(lb.items())[:3])
+    wr = acct.get("win_rate_1d")
+    blurb = (f"@tradergrader on X — grades other options traders; this row follows "
+             f"his Sniper/Trade-of-the-Week callouts at the close they land. "
+             f"{acct.get('n', 0)} recs, 1d win {round(wr * 100) if wr is not None else '—'}%, "
+             f"avg 1d vs SPY {acct.get('avg_excess_1d', '—')}%. His podium lately: {favs or '—'}. "
+             "Retrospective recaps — tests FOLLOWING, not his entry timing. Never real money.")
+    note_lines = ["Recent callouts (1d/20d vs SPY):"]
+    for r in recs[-5:][::-1]:
+        h1, h20 = r.get("h1") or {}, r.get("h20") or {}
+        note_lines.append(
+            f"{str(r['ts'])[:10]} {r['sym']} {r['side']}: "
+            f"1d {h1.get('ret_pct', '…')}% / 20d {h20.get('ret_pct', '…')}% — {r.get('note', '')[:80]}")
+    note_lines.append("Medal leaderboard: " + (", ".join(
+        f"@{v.get('handle') or k} {v.get('golds', 0)}g/{v.get('medals', 0)}m"
+        for k, v in list(lb.items())[:5]) or "none yet"))
+    cat_path = SCANNER_STATE / "autopilot_catalog.json"
+    try:
+        cat = json.loads(cat_path.read_text())
+    except Exception:
+        return
+    pilots = cat.setdefault("pilots", {})
+    row = pilots.get("TraderGrader") or {}
+    row.update({"_blurb": blurb, "_note": "\n".join(note_lines),
+                "_holdings_source": "equity_social.py grade leg (daily 15:35 MT)",
+                "_record": "display-only benchmark; STRUCTURALLY never receives money"})
+    pilots["TraderGrader"] = row
+    _atomic_write(cat_path, cat)
+    print(f"catalog row TraderGrader: nav={nav:.2f} points={len(curve)}")
+
+
 def grade() -> None:
     tracked = _load_tracked()
     # x_fetch's auto-parsed callouts join the manual accounts as their own
@@ -1007,6 +1072,10 @@ def grade() -> None:
 
     out = {"ts": now_iso(), "accounts": accounts_out}
     _atomic_write(OUT_GRADES, out)
+    try:
+        _write_catalog_row(accounts_out)
+    except Exception as e:
+        print(f"catalog row write failed: {e!r}")
     print(f"wrote {OUT_GRADES} accounts={list(accounts_out)}")
     for name, a in accounts_out.items():
         print(f"  {name}: n={a['n']} resolved_1d={a['n_resolved_1d']} "

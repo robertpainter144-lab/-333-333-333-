@@ -1494,7 +1494,6 @@ def mount(fastapi_app, main_module) -> None:
                           '<script defer src="/owner/crypto-intel.js"></script>'
                           '<script defer src="/owner/zoom.js"></script>'
                           '<script defer src="/owner/crypto-account.js"></script>'
-                          '<script defer src="/owner/tradergrader.js"></script>'
                           '<script defer src="/owner/explain.js"></script>')
                 if _owner_ok:
                     # Via the funnel, the browser's <script> loads of the
@@ -1511,8 +1510,6 @@ def mount(fastapi_app, main_module) -> None:
                               '<script defer src="/owner/zoom.js?key='
                               + _qkey + '"></script>'
                               '<script defer src="/owner/crypto-account.js?key='
-                              + _qkey + '"></script>'
-                              '<script defer src="/owner/tradergrader.js?key='
                               + _qkey + '"></script>'
                               '<script defer src="/owner/explain.js?key='
                               + _qkey + '"></script>')

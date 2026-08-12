@@ -1720,3 +1720,13 @@ layer. Pushed to lab repo app-333.
   them; autopilot_catalog.json+curves added to the daily Mac→GCP scp leg.
   adb-verified: full shelf renders on the Flip4 (Burry/Point72/InTheMoney/
   ... + collapsed TraderGrader card + DipBuyer row).
+- 2026-08-12 ~16:47 — **TraderGrader = standard catalog row (Robert's 3rd
+  iteration).** equity_social grade leg now publishes a real catalog row:
+  base-100 curve of FOLLOWING each callout's 1d return (compounded, carry-
+  forward mark) into autopilot_catalog_curves.json + a metadata-only
+  pilots["TraderGrader"] entry (_blurb w/ live stats + podium, _note w/
+  recent recs + medal board for the data-center drawer). edge_ledger picks
+  it up like any pilot (Mac +7.02% total; card shows 1y-window +3.39%).
+  owner_tradergrader.js injection REMOVED from both hosts (bundle+endpoint
+  kept, unused); catalog+curves in the daily GCP scp. adb-verified: card
+  chrome identical to Burry/Point72 on the Flip4.

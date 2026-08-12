@@ -1653,3 +1653,26 @@ layer. Pushed to lab repo app-333.
   leaderboard (top 15 traders, golds/medals/avg claimed ROI), honest
   recap-not-picks framing + ADVISORY pill. Gates verified: guest key 403 on
   api + bundle; owner/local 200. Android Terminal 333 inherits via WebView.
+- 2026-08-12 ~15:55 — **Grader tab deployed to GCP quarki-stack + verified
+  on the Flip4 via adb.** KEY FINDING: Terminal 333 v3.4
+  (com.lab333.terminal) is the WEBVIEW app whose compiled URL is
+  https://quarki-stack.tail33de20.ts.net/terminal/?key=… — the phone loads
+  the Terminal from GCP, NOT the Mac, and GCP's ng_dashboard is a DIVERGED
+  copy (own bundle set: owner_terminal_crypto/equity_intel; api.py base
+  predates activity_detail). Mac-only dashboard deploys never reach the
+  phone — future app-visible changes must also patch GCP. Today: additively
+  patched GCP api.py (activity_detail incl. mode=holding, /api/tradergrader,
+  /owner/tradergrader.js route, inject lines), copied webapp.html (base was
+  identical pre-change), owner_tradergrader.js, and the two grader state
+  JSONs; backups api.py.bak-grader-*/webapp.html.bak-grader-* on the VM;
+  quarki-dashboard restarted, endpoints 200, injection verified. adb loop:
+  force-stop→relaunch→tap → 🎯 Grader tab renders (6 recs, 60% 1d win,
+  leaderboard) on the phone. NOTE: GCP grader state JSONs are hand-copied
+  snapshots — the Mac timer regenerates them daily but nothing syncs them
+  to GCP yet (queued follow-up).
+- 2026-08-12 ~16:02 — **Grader tab → Catalog card (Robert's correction).**
+  owner_tradergrader.js rewritten to the owner_crypto_intel.js pattern: no
+  nav button/overlay; polls for #qtcat-overlay and inserts the TraderGrader
+  card directly under the Catalog header (re-inserts on catalog re-renders).
+  Deployed Mac + GCP, both dashboards restarted; adb-verified on the Flip4
+  (nav back to 7 tabs, card renders first in Catalog). Synced to lab mirror.

@@ -14,7 +14,7 @@
       "opened": "2026-08-13T05:19:32+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.60)",
       "mv": 6.22,
-      "cur": 12.527
+      "cur": 12.525
     },
     "WLD/USD": {
       "entry_price": 0.3404,
@@ -22,7 +22,7 @@
       "opened": "2026-08-13T09:01:02+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.79)",
       "mv": 6.03,
-      "cur": 0.3439
+      "cur": 0.3441
     },
     "RENDER/USD": {
       "entry_price": 1.268,
@@ -46,6 +46,6 @@
     "WLD/USD": 6.0,
     "FET/USD": 6.0
   },
-  "targets_ts": "2026-08-13T10:28:57+00:00",
+  "targets_ts": "2026-08-13T10:44:16+00:00",
   "targets_gate": "whale-confirmed (risk_on=0.79)"
 }

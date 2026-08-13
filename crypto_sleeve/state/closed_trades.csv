@@ -45,3 +45,4 @@ closed_at,symbol,entry_time,entry_price,exit_price,notional,realized_pl,pl_pct,r
 2026-08-12T21:34:20+00:00,CRV/USD,2026-08-12T21:13:44+00:00,0.2668,0.2648,6.00,-0.0739,-0.0123,momentum_flip,whale-confirmed (risk_on=0.64)
 2026-08-12T22:00:19+00:00,CRV/USD,2026-08-12T21:34:27+00:00,0.2656,0.2648,6.00,-0.0484,-0.0081,momentum_flip,whale-confirmed (risk_on=0.64)
 2026-08-13T03:30:12+00:00,LINK/USD,2026-08-13T03:14:48+00:00,8.7172,8.7008,6.00,-0.0412,-0.0069,momentum_flip,whale-confirmed (risk_on=0.60)
+2026-08-13T05:19:24+00:00,VVV/USD,2026-08-13T03:09:35+00:00,11.8570,11.9930,6.00,0.0385,0.0064,momentum_flip,whale-confirmed (risk_on=0.60)

@@ -47,3 +47,7 @@ closed_at,symbol,entry_time,entry_price,exit_price,notional,realized_pl,pl_pct,r
 2026-08-13T03:30:12+00:00,LINK/USD,2026-08-13T03:14:48+00:00,8.7172,8.7008,6.00,-0.0412,-0.0069,momentum_flip,whale-confirmed (risk_on=0.60)
 2026-08-13T05:19:24+00:00,VVV/USD,2026-08-13T03:09:35+00:00,11.8570,11.9930,6.00,0.0385,0.0064,momentum_flip,whale-confirmed (risk_on=0.60)
 2026-08-13T08:14:51+00:00,LINK/USD,2026-08-13T03:45:53+00:00,8.7057,8.7283,6.00,-0.0145,-0.0024,momentum_flip,whale-confirmed (risk_on=0.60)
+2026-08-13T08:50:37+00:00,ETH/USD,2026-08-13T08:14:57+00:00,1890.9100,1888.4900,6.00,-0.0376,-0.0063,momentum_flip,whale-confirmed (risk_on=0.63)
+2026-08-13T08:50:37+00:00,SOL/USD,2026-08-13T06:01:15+00:00,76.4700,76.1100,6.00,-0.0581,-0.0097,momentum_flip,whale-confirmed (risk_on=0.61)
+2026-08-13T09:00:52+00:00,SOL/USD,2026-08-13T08:50:43+00:00,76.1300,76.1500,6.00,-0.0284,-0.0047,momentum_flip,whale-confirmed (risk_on=0.79)
+2026-08-13T09:00:52+00:00,SUI/USD,2026-08-13T08:50:44+00:00,0.6890,0.6887,6.00,-0.0326,-0.0054,momentum_flip,whale-confirmed (risk_on=0.79)

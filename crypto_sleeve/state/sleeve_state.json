@@ -6,15 +6,15 @@
       "opened": "2026-08-13T03:04:20+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.60)",
       "mv": 6.03,
-      "cur": 6.508
+      "cur": 6.507
     },
     "VVV/USD": {
       "entry_price": 12.021,
       "notional": 6.0,
       "opened": "2026-08-13T05:19:32+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.60)",
-      "mv": 6.13,
-      "cur": 12.353
+      "mv": 6.28,
+      "cur": 12.646
     },
     "SOL/USD": {
       "entry_price": 76.47,
@@ -22,7 +22,7 @@
       "opened": "2026-08-13T06:01:15+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.61)",
       "mv": 5.95,
-      "cur": 76.19
+      "cur": 76.17
     },
     "ETH/USD": {
       "entry_price": 1890.91,
@@ -30,7 +30,7 @@
       "opened": "2026-08-13T08:14:57+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.63)",
       "mv": 5.97,
-      "cur": 1890.94
+      "cur": 1891.12
     }
   },
   "frozen": false,
@@ -49,6 +49,6 @@
     "LINK/USD": 6.0,
     "WLD/USD": 6.0
   },
-  "targets_ts": "2026-08-13T08:30:17+00:00",
-  "targets_gate": "whale-confirmed (risk_on=0.63)"
+  "targets_ts": "2026-08-13T08:45:35+00:00",
+  "targets_gate": "whale-confirmed (risk_on=0.79)"
 }

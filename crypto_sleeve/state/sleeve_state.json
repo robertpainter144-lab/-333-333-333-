@@ -1,12 +1,39 @@
 {
-  "positions": {},
+  "positions": {
+    "AVAX/USD": {
+      "entry_price": 6.439,
+      "notional": 6.0,
+      "opened": "2026-08-13T03:04:20+00:00",
+      "signal_mode": "whale-confirmed (risk_on=0.60)",
+      "mv": 5.97,
+      "cur": 6.442
+    },
+    "VVV/USD": {
+      "entry_price": 11.857,
+      "notional": 6.0,
+      "opened": "2026-08-13T03:09:35+00:00",
+      "signal_mode": "whale-confirmed (risk_on=0.60)",
+      "mv": 5.97,
+      "cur": 11.858
+    },
+    "LINK/USD": {
+      "entry_price": 8.7172,
+      "notional": 6.0,
+      "opened": "2026-08-13T03:14:48+00:00",
+      "signal_mode": "whale-confirmed (risk_on=0.60)"
+    }
+  },
   "frozen": false,
   "last_notified": {
     "crypto_inactive": 1786306737.674485,
     "kraken_key": 1786308844.526507
   },
   "seen_active": true,
-  "targets": {},
-  "targets_ts": "2026-08-13T02:59:07+00:00",
+  "targets": {
+    "AVAX/USD": 6.0,
+    "VVV/USD": 6.0,
+    "LINK/USD": 6.0
+  },
+  "targets_ts": "2026-08-13T03:14:44+00:00",
   "targets_gate": "whale-confirmed (risk_on=0.60)"
 }

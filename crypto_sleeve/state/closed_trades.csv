@@ -55,3 +55,4 @@ closed_at,symbol,entry_time,entry_price,exit_price,notional,realized_pl,pl_pct,r
 2026-08-13T17:00:24+00:00,FET/USD,2026-08-13T13:04:28+00:00,0.1354,0.1342,6.00,-0.0829,-0.0138,momentum_flip,whale-confirmed (risk_on=0.76)
 2026-08-13T17:36:52+00:00,LINK/USD,2026-08-13T17:26:42+00:00,8.7653,8.7553,6.00,-0.0368,-0.0061,momentum_flip,whale-confirmed (risk_on=0.77)
 2026-08-13T17:57:29+00:00,LINK/USD,2026-08-13T17:42:12+00:00,8.7652,8.7586,6.00,-0.0345,-0.0058,momentum_flip,whale-confirmed (risk_on=0.77)
+2026-08-13T18:28:21+00:00,FET/USD,2026-08-13T18:02:48+00:00,0.1345,0.1343,6.00,-0.0389,-0.0065,momentum_flip,whale-confirmed (risk_on=0.77)

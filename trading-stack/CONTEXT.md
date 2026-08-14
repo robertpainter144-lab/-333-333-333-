@@ -2062,3 +2062,15 @@ buys started on 2026-08-17; P4 page only if scanner stale or spend still $0
 (incl. settled-BP hint since Friday's JPM proceeds settle Monday); quiet P2
 confirmation otherwise; date-guarded and fully self-removing (plist + bootout)
 after one run. Needs the Mac awake — same precondition as the buys themselves.
+
+## 2026-08-14 (~13:38) — GCP twin for the Monday-open check (D48)
+
+Robert asked if the Monday check existed on GCP — it was Mac-only (reads
+Mac-local state). Gap: Mac asleep Monday = no buys AND no page. Added GCP
+twin quarki-monday-check.timer (one-shot, 2026-08-17 13:55 UTC = 07:55 MT,
+5 min after the Mac check): ~/bin/monday_rebalance_check_gcp.py queries the
+Alpaca LIVE API directly for orders since the 13:30Z open — works even with
+the Mac dark. P4 page only if zero orders (message distinguishes accepted
+Mac-off gap vs stuck buys); silent on success (Mac side already confirms
+quietly). Date-guarded, disables its own timer after firing. Dry-ran the
+API path from the VM: HTTP OK (saw today's JPM/NFLX/TEVA fills).

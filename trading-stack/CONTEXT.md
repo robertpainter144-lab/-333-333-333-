@@ -2106,3 +2106,17 @@ remainder count), grade legs + "finished" ping only at true completion.
 Pings moved out of ExecStopPost into the wrapper so "finished" is never
 claimed early. Robert gets the ntfy ping either way; session monitor armed
 to pull the jsonl back to the Mac + regrade when it lands.
+
+## 2026-08-14 (~15:25) — Mac-side backfill pull automated
+
+Per Robert ("pull the jsonl back when it finishes") — now deterministic,
+not session-dependent: com.quarki3.backfill-pull (launchd, 30-min) polls
+GCP for TRUE completion (service inactive AND todo==0 via the same count
+the wrapper uses), then scp-pulls x_posts_tradergrader.jsonl, merges
+dedup-by-id (Mac entries win — daily x_fetch may be fresher), atomic
+write, runs --leg grade, quiet P2 confirmation, self-removes. Failure →
+P4 with by-hand path; GCP unreachable → silently retries next interval;
+7-day self-expiry with page so it can't orphan. Dry-ran the completion
+check live: (active, todo=988) → correctly stays armed. Progress at
+15:20: store 3,037/4,020, pass 1 still running, ~500 transient 429s
+queued for later passes.

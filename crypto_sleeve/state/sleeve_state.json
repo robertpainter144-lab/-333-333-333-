@@ -5,8 +5,8 @@
       "notional": 6.0,
       "opened": "2026-08-14T05:55:08+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.51)",
-      "mv": 5.98,
-      "cur": 0.1364
+      "mv": 6.0,
+      "cur": 0.1367
     }
   },
   "frozen": false,
@@ -18,6 +18,6 @@
   "targets": {
     "FET/USD": 6.0
   },
-  "targets_ts": "2026-08-14T08:27:26+00:00",
+  "targets_ts": "2026-08-14T08:37:49+00:00",
   "targets_gate": "whale-confirmed (risk_on=0.50)"
 }

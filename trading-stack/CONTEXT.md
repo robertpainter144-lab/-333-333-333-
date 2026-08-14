@@ -2090,3 +2090,19 @@ the Mac and regrade there so the phone Grader card picks up full history;
 do NOT rerun the backfill on the Mac (dedup makes it safe but it wastes
 archive.org quota). D44 scope unchanged: read-only, one handle, archive.org
 only. The tradergrader D7 paper lane stays Mac-only (no double-trading).
+
+## 2026-08-14 (~13:48) — wayback backfill hardened: retry-until-done wrapper
+
+First GCP flushes showed the real failure mode: wayback 429-bursts fail
+~half the fetches, and transient fails are NOT retried within a pass — a
+single pass would exit "success" with hundreds unfetched and would have
+fired a false "finished" ping. Fixes: (1) wayback_backfill.py honors
+QUARKI_SKIP_POSTRUN=1 (skip the x_fetch/grade legs — D44 once-daily cap —
+so multi-pass looping doesn't hammer the handle); (2) GCP wrapper
+~/bin/wayback_until_done.sh loops passes (max 40, 5-min gaps) until todo=0,
+independent todo count cross-checked against the script's own (matched:
+1,569), stall detection (3 no-progress passes → honest "stalled" ping with
+remainder count), grade legs + "finished" ping only at true completion.
+Pings moved out of ExecStopPost into the wrapper so "finished" is never
+claimed early. Robert gets the ntfy ping either way; session monitor armed
+to pull the jsonl back to the Mac + regrade when it lands.

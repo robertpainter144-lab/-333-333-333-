@@ -21,6 +21,7 @@ from web.archive.org — no X servers touched at all.
 from __future__ import annotations
 
 import json
+import os
 import queue
 import subprocess
 import sys
@@ -173,6 +174,11 @@ def main() -> None:
     _log(f"DONE ok={_counts['ok']} fail={_counts['fail']} store={len(posts)}")
 
     es = ROOT / "equity_social.py"
+    if os.environ.get("QUARKI_SKIP_POSTRUN") == "1":
+        # multi-pass wrapper (GCP): legs run once at true completion, not
+        # per pass — D44 caps the x_fetch handle ingest at once daily
+        _log("post-run legs skipped (QUARKI_SKIP_POSTRUN=1)")
+        return
     for leg in ("x_fetch", "grade"):
         try:
             subprocess.run([sys.executable, str(es), "--leg", leg], timeout=1800)

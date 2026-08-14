@@ -2074,3 +2074,19 @@ the Mac dark. P4 page only if zero orders (message distinguishes accepted
 Mac-off gap vs stuck buys); silent on success (Mac side already confirms
 quietly). Date-guarded, disables its own timer after firing. Dry-ran the
 API path from the VM: HTTP OK (saw today's JPM/NFLX/TEVA fills).
+
+## 2026-08-14 (~13:42) — tradergrader wayback backfill moved to GCP (D48)
+
+Per Robert. The Mac's one-shot resumable backfill (8/12 job) was STALLED at
+2,270/4,020 with no process running (session that launched it ended). Synced
+job + state (wayback_backfill.py, equity_social.py, tracked_accounts.json,
+x_posts jsonl, checkpoint, CDX cache) to GCP ~/lab-stack/equity_social/ and
+installed quarki-wayback-backfill.service (systemd, Restart=on-failure,
+exits when done). Resumed correctly (todo=1629) and fetches fast from the
+VM (+20/min first flush vs ~40-60s/piece on Mac) — ETA ~2h. On completion
+it runs the x_fetch+grade legs GCP-side (fails soft if deps missing).
+OPEN: when finished, pull the enriched x_posts_tradergrader.jsonl back to
+the Mac and regrade there so the phone Grader card picks up full history;
+do NOT rerun the backfill on the Mac (dedup makes it safe but it wastes
+archive.org quota). D44 scope unchanged: read-only, one handle, archive.org
+only. The tradergrader D7 paper lane stays Mac-only (no double-trading).

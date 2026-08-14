@@ -244,7 +244,22 @@ def _latest_px(sym: str) -> float | None:
     return None
 
 
-def _ntfy(msg: str) -> None:
+def _ntfy(msg: str, title: str = "Circuit breaker") -> None:
+    # D28: route through the central tiered notifier so titles/levels stay
+    # consistent stack-wide; the raw ntfy POST survives only as a fallback
+    # for hosts without ~/bin/quarki_notify.py. All calls here are P4
+    # "action" — money moved or a rail tripped, Robert should see it.
+    try:
+        import importlib.util as _ilu
+        _qn_path = Path.home() / "bin" / "quarki_notify.py"
+        if _qn_path.exists():
+            _spec = _ilu.spec_from_file_location("quarki_notify", _qn_path)
+            _mod = _ilu.module_from_spec(_spec)
+            _spec.loader.exec_module(_mod)
+            _mod.notify("action", title, msg)
+            return
+    except Exception:
+        pass
     try:
         topic = None
         for ln in (Path.home() / "ntfy.env").read_text().splitlines():
@@ -252,7 +267,7 @@ def _ntfy(msg: str) -> None:
                 topic = ln.split("=", 1)[1].strip()
         if topic:
             requests.post(f"https://ntfy.sh/{topic}", data=msg.encode(),
-                          headers={"Title": "Circuit breaker", "Priority": "4",
+                          headers={"Title": title, "Priority": "4",
                                    "Tags": "warning"}, timeout=10)
     except Exception:
         pass
@@ -762,7 +777,8 @@ def tick() -> None:
                       f"position was sold to lock the recovery in. It re-enters by "
                       f"itself once the sold basket is "
                       f"{ratch.get('rebuy_dip_pct', 0.5)}% cheaper, or after "
-                      f"{ratch.get('max_flat_td', 5)} trading days. Nothing to do.")
+                      f"{ratch.get('max_flat_td', 5)} trading days. Nothing to do.",
+                      title="Breakeven ratchet")
         else:
             _basket = rstate.get("basket") or {}
             # Straggler retry (review finding: a failed/skipped sell left a
@@ -803,7 +819,8 @@ def tick() -> None:
                               f"${(_basket_val or 0):.2f} vs ${_flat_val:.2f} at flatten")
                     _ntfy(f"Breakeven ratchet re-entry: {_why} (basket now "
                           f"${(_basket_val or 0):.2f} vs ${_flat_val:.2f} when sold). "
-                          f"The book is buying back toward the governor targets now.")
+                          f"The book is buying back toward the governor targets now.",
+                          title="Breakeven ratchet re-entry")
                 # desired stays as computed — rebuy toward targets this tick;
                 # flat clears below only once a buy actually fills
             else:
@@ -911,15 +928,40 @@ def tick() -> None:
         if abs(delta) < REBALANCE_THRESHOLD_USD:
             continue
         # budget gate: discretionary buys AND partial trims; never full
-        # exits, never ratchet/PT-claimed sells
+        # exits, never ratchet/PT-claimed sells, and never the ratchet's
+        # re-entry buys — risk-restoring flow is the mirror image of the
+        # never-blocked flatten sells (D42xD43 interaction, found live
+        # 2026-08-13: flatten-day sells consumed the whole budget and the
+        # re-entry would have trickled at ~20%/day for a week)
         _discretionary = (delta > 0) or (delta < 0 and want > 0)
+        # Only flow the gate can actually block charges the budget — exempt
+        # sells (full exits, PT, ratchet) counting toward `spent` starved the
+        # rebalance behind them (found live 2026-08-14: $143 of the $90 cap
+        # consumed by exits before 09:02, 273 rebalance deferrals by 09:07).
+        _tb_counted = (_discretionary and sym not in pt_reason
+                       and not _ratchet_reentering)
         if (tb_cap is not None and _discretionary and sym not in pt_reason
+                and not _ratchet_reentering
                 and tb_state["spent"] + abs(delta) > tb_cap):
-            tb_state["skipped"] = tb_state.get("skipped", 0) + 1
-            log_tick("combined_mirror",
-                     f"[turnover budget] {sym} ${delta:+.2f} deferred — "
-                     f"${tb_state['spent']:.0f}/${tb_cap:.0f} spent today")
-            continue
+            # Partial-fill up to the day's remaining budget instead of an
+            # all-or-nothing defer (found live 2026-08-14: the JPM trim was
+            # 28% of book vs the 20%/day cap, so a whole-order gate deferred
+            # it on a fresh budget too — permanent deadlock, and the
+            # INTC/TEVA buys behind it starved for cash).
+            tb_remaining = tb_cap - tb_state["spent"]
+            if tb_remaining >= MIN_ORDER_USD:
+                clamped = tb_remaining if delta > 0 else -tb_remaining
+                log_tick("combined_mirror",
+                         f"[turnover budget] {sym} ${delta:+.2f} clamped to "
+                         f"${clamped:+.2f} — ${tb_state['spent']:.0f}/"
+                         f"${tb_cap:.0f} spent today")
+                delta = clamped
+            else:
+                tb_state["skipped"] = tb_state.get("skipped", 0) + 1
+                log_tick("combined_mirror",
+                         f"[turnover budget] {sym} ${delta:+.2f} deferred — "
+                         f"${tb_state['spent']:.0f}/${tb_cap:.0f} spent today")
+                continue
         if delta > 0 and delta >= MIN_ORDER_USD:
             blocked_by = []
             if sym in cooldowns:
@@ -988,7 +1030,8 @@ def tick() -> None:
                                     f"governor target {targets.get(sym, 0)*100:.1f}% "
                                     f"(blend: {driver})"),
                             "result": res.get("id", res.get("error", "skipped"))[:16]})
-            tb_state["spent"] += abs(delta)
+            if _tb_counted:
+                tb_state["spent"] += abs(delta)
         elif delta < 0 and abs(delta) >= MIN_ORDER_USD:
             if want <= 0.0:
                 # Minimum-dwell guard: don't full-exit a GREEN position
@@ -1029,7 +1072,8 @@ def tick() -> None:
                                       f"governor target {targets.get(sym, 0)*100:.1f}% "
                                       f"(blend: {driver})"))),
                             "result": res.get("id", res.get("error", "skipped"))[:80]})
-            tb_state["spent"] += abs(delta)
+            if _tb_counted:
+                tb_state["spent"] += abs(delta)
     if skipped_buys:
         log_tick("combined_mirror", "buys deferred: " + ",".join(skipped_buys))
 

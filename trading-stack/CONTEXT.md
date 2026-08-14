@@ -1770,3 +1770,295 @@ layer. Pushed to lab repo app-333.
   PROMOTION RULES UNCHANGED per Robert: zero live/governor weight, same D7
   bar (n≥30, mean≥0.05%, Sharpe≥1, late≥0.02%), D34 cap applies, catalog
   row stays display-only. Wired into the daily 15:35 chain after grade.
+- 2026-08-13 07:45 — **Book-page hero cards evened out (Robert's ask).**
+  The Alpaca and Kraken portfolio-value sections above the equity chart
+  rendered lopsided on the Flip4: 1.25fr/1fr column split, Alpaca card in
+  borderless mobile-bleed vs Kraken framed card, Kraken delta lines
+  clipping off the right edge ("-$4.81 (-15.81%" cut), and the Alpaca
+  header wrapping to two lines so the big numbers sat unlevel. All fixed
+  in ng_dashboard/private/owner_crypto_account.js (owner-only bundle;
+  guests unaffected): equal 1fr/1fr columns, Kraken card chrome now
+  mirrors the SPA Card primitive (uppercase text-xs header, p-3 body,
+  text-[9px] gauge labels), whitespace-nowrap dropped from delta lines,
+  and a new injected `qt-even-heroes` stylesheet re-frames the Alpaca
+  hero inside the two-column row (no negative margins, var(--bd) border,
+  restored px, one-line ellipsized title + nowrap timestamp). Verified
+  via adb screencap on the Flip4 — twins now identical in width, frame,
+  and number alignment. Deployed to Mac AND GCP quarki-stack
+  (~/ng_dashboard/private/, md5-verified); served per-request with
+  no-cache, so no dashboard restart was needed on either host.
+- 2026-08-13 07:58 — **Book equity chart defaults to 12H (Robert's ask).**
+  EquityChart grew a `defaultRange` prop (mount-time tab, still "ALL" when
+  unset — Lab page unchanged) and Book.tsx passes defaultRange="12H".
+  Rebuilt trading-gui (assets index-C6nUVjtv.js) and rsynced dist/ to GCP
+  quarki-stack; verified via adb screencap — 12H chip active on launch,
+  window spans the trailing 12 hours. No dashboard restart needed
+  (static served per-request).
+- 2026-08-13 08:18 — UNKNOWN STATE FILE detected: `moonshot_state.json` (add to CONTEXT.md)
+- 2026-08-13 09:05 — **D42 first live fire, audited.** Ratchet flattened all
+  18 positions 08:22:06 MDT at book $449.98 (trigger $449.79 = contributed
+  500.04 − 50 turbo carve − 0.25); $455.79 banked, slippage −$0.10. Robert
+  challenged the exit; audit vs live marks (Alpaca IEX + Yahoo agree): by
+  08:54 holding would be ~$1 WORSE than the cash — exit validated, Robert
+  concurred (INTC pump captured). Standing audit tool:
+  `~/bin/ratchet_hold_vs_exit.py` (raw fills + dual price sources, read-only).
+  Rebuy waits on basket ≤ $453.61 or ~5td timeout.
+- 2026-08-13 09:05 — **NYSE Scan paper lane shipped (Robert's ask: "scan the
+  entire NYSE... mean reversion and any other ideas").** `~/nyse_scan/
+  nyse_scan.py`: 2,413-symbol NYSE universe (Alpaca assets, weekly refresh),
+  three D7-scoreable themes — nyse_meanrev (RSI<30 + >SMA100), nyse_pullback
+  (uptrend, 5d ≤ −3%, RSI 30-45), nyse_breakout (fresh 55d high, stacked
+  SMAs) — 5×$15 paper slots each, midcap-lane rails (PDT guard, cooldown,
+  spend cap, P2 notify). Ledger `nyse_scan_ledger.jsonl`. launchd
+  com.quarki3.nyse-daily M-F 13:50 MT + nyse-universe Sun. Full dry scan
+  validated (2,350 scanned, 6 pullback candidates); breakout 55d-high
+  reference excludes current bar (self-caught bug). Zero live weight until
+  D7 gate. Opportunity-deep-dive workflow (inventory dangling feeds + 4
+  ideation lenses + adversarial judges) launched same session.
+- 2026-08-13 09:35 — **News Harvest shipped (D46).** `~/news_harvest/
+  news_harvest.py` hourly launchd (com.quarki3.news-harvest): GDELT +
+  Google News RSS + Yahoo ticker RSS + Reddit JSON + StockTwits trending +
+  EDGAR full-text, keyless/ToS-clean, X excluded per D44. Ticker mention
+  velocity + tone → `scanner/state/news_harvest.json`; watchlist
+  (`~/news_harvest/watchlist.json`, Robert-editable) seeded with dad's
+  names: PEW (GrabAGun/ATF-rule catalyst) + Greenland cluster CRML/UUUU/
+  USAR/ALOY/GLND + DJT. First runs: CRML 82 mentions (+7% pre-market on
+  Tanbreez update), PEW earnings watch. Spike pages P4 only after baseline
+  exists (first-sighting seeds silently). Advisory-only, no orders.
+- 2026-08-13 09:40 — **overnight_drift units bug fixed** (found by
+  opportunity-deep-dive workflow): pl_pct was a raw fraction, 100x smaller
+  than every other ledger's %-point units — would have made the stack's
+  BEST lane (mean +0.52%/trade, 6/6 wins, Sharpe 1.56, n=6) look like a
+  100x D7 failure to any future gate-checker. sources/overnight_drift.py
+  now emits %-points; all 6 ledger rows migrated x100 (backup
+  overnight_drift_ledger.jsonl.bak-units-20260813). Other workflow
+  findings (prop-desk dead at n=758 mean −0.35%; whale risk_on 81h stale
+  on VM; intel engine unconsumed; Senate eFD fetcher built 8/12 but
+  unwired; D22 shadow at 64/150) reported to Robert — decisions pending.
+- 2026-08-13 09:45 — **NYSE Scan first live-paper entries** (manual early
+  fire on Robert's "trade within 10 minutes"; 13:50 MT timer still active):
+  5 pullback (PFGC HIG CRS LUV PGR) + 5 breakout (P U RBRK DELL MHK),
+  $15 each, paper.
+- 2026-08-13 09:52 — **Turbo hand-add: CRML** (live $50 sleeve, D36).
+  Robert ran ~/bin/turbo_buy_crml.py himself (Claude's live order was
+  classifier-blocked; script staged instead): 2.281973 sh @ $6.568 =
+  $14.99, sleeve open cost $46.97/$50. Thesis: dad's Greenland rare-earth
+  play — CRML holds 92.5% of Tanbreez, US admin mulling equity stake
+  (Reuters 8/12); chase-risk (+7% entry day) flagged twice before buy.
+  Leg registered in turbo_arm_state.json (theme greenland_ree), managed by
+  com.quarki3.turbo-exits (−12/+25/10td). PEW deliberately skipped
+  pre-earnings; harvester watches it (D46).
+- 2026-08-13 10:00 — **Insider Lane shipped** (Robert: "build the insider
+  lane"; top 2 workflow survivors). `~/insider_lane/insider_lane.py`:
+  Form 4 cluster-buys (≥2 distinct insiders, ≥$25k/5td, code P, 10b5-1
+  excluded) + fresh SC 13Ds, from EDGAR daily index + full-text (fair-
+  access UA, 4 req/s). Two legs: insider-scan 15:30 MT queues signals,
+  insider-trade 07:35 MT enters ($15 paper, 5 slots/theme) + exits
+  (−8/+15, 15/20td). Ledger insider_ledger.jsonl (D7). Smoke: 120 filings
+  → 17 qualified buys → cluster AVBC. efts date-params quirk worked
+  around (undated query + client-side file_date filter). **D47 recorded**:
+  Robert's PT philosophy — per-position profit-taking + redeploy freed
+  cash; whole-book flattens reserved for D42 floor defense; he confirmed
+  the INTC-pump→18-position-liquidation coupling critique. LTBR fact-check:
+  no LTBR buy today (only governor drift buys 07:34-39 + Robert's CRML);
+  LTBR held since 8/6.
+- 2026-08-13 13:27 — **Tracking-gap stat shipped (Robert's ask).** New
+  /api/trackgap (both hosts): half-L1 distance between actual mirror
+  weights and the capped governor blend + top drift contributors;
+  owner_trackgap.js injects the stat under Positions & Allocation Drift
+  (7th owner bundle, both inject lists). GCP reads the Mac-pushed
+  combined_mirror_state_live.json (added to the 5-min crypto-state-push;
+  _live suffix so the paper observer never fights the file; post-cutover
+  it reads local). Verified identical on both hosts: gap 10.2% ≈ $45.80
+  of $449 (JPM +3.8 over target, VTRS/TEVA/RDY ~−2.3 under, cash +2).
+  Framing in-app: "gap is the cost-damper working, not error."
+- 2026-08-13 13:20 — **D48 migration: Robert's GO received; Phase 0
+  started.** Scanner drift committed (baseline 65e00a5, 24 files:
+  7/27→8/13 incl. all of today); sources+main.py synced to GCP lab-stack
+  (combined_mirror.py md5 parity a20f1a49… verified both hosts);
+  quarki-scanner (paper observer) restarted on the baseline. SOAK DAY 1
+  = 2026-08-13; target ~5 trading days → cutover (broker key rotation =
+  the fence) circa 2026-08-20, before Robert's flight. Cutover day needs
+  ROBERT'S HANDS for the key rotations (Alpaca dashboard + Kraken UI).
+  Open questions in D48_MIGRATION_PLAN.md defaulted per recommendation
+  unless he says otherwise: IBKR stays Mac-dormant, mobile-sshd retired
+  (GCP path primary), Kraken rotation at cutover, small shadows follow
+  later.
+- 2026-08-13 12:50 — **D48 migration design complete → plan awaiting
+  Robert's go at trading-stack/D48_MIGRATION_PLAN.md.** 9-agent workflow:
+  inventories (62 plists mapped, 3 live-money surfaces, watchdog blind
+  spot on turbo/crypto found), 3 competing designs, adversarial attacks.
+  ALL THREE designs failed review (2-2.5/10) — convergent lesson: every
+  two-brain failover is a dual-execution factory; process-level guards
+  are reversible. Synthesis = full cutover hardened by **broker-side key
+  rotation as the fence** (rotate Alpaca+Kraken at cutover, new keys only
+  on GCP, old revoked — Mac physically cannot trade after), + paper soak
+  week, one-time state migration w/ broker-API reconciliation, UTC-pinned
+  systemd twins, host guards in turbo/sleeve code, Mac env neutering.
+  4 open questions for Robert in the plan. NOTHING built yet.
+- 2026-08-13 12:15 — **Yellow-line accuracy fixed (both hosts).** Root
+  cause: the Terminal SPA always fetches /api/equity/{src}?period=5Y and
+  windows client-side, while _equity_alpaca_live served only Alpaca
+  portfolio-history DAILY bars → intraday chips drew a 2-point straight
+  line. Fix: serve both horizons in one series — dailies before a 5-day
+  cutoff + the 5-min equity.csv spliced over the trailing days (Mac
+  api.py + GCP api.py, both compiled, one restart each). Verified 1,022
+  points w/ 135 in the last 12h; app screencap shows true intraday
+  structure (ratchet spike + re-entry dip visible). Also completed:
+  session-verify-sweep workflow (5 agents, reverse-chron) — all
+  live-money configs PASS (D22 live w/ $5 floor, D42 off + params
+  restored, tb-fix loaded in running proc, turbo CRML leg, 15 fresh
+  positions), all lanes/timers PASS, docs PASS; flags: new D43/D45/D46/
+  D47/D48 CHECK lines not yet wired into directive_auditor (tonight's
+  audit may false-page once on today's legitimate ~200% ratchet-cycle
+  turnover — benign), equity_social Reddit leg degraded behind Nord
+  (expected), Mac dashboard restart tracebacks were transient.
+- 2026-08-13 12:08 — **Crypto card/tab/chart-line restored on GCP (parity
+  complete).** Ported /api/crypto/summary + /api/crypto/ticker from Mac
+  api.py to GCP (ticker = public-Kraken passthrough, portable; summary
+  reads crypto_sleeve state). New com.quarki3.crypto-state-push (Mac
+  launchd, 5-min ssh-pipe of equity.csv/sleeve_state/whale_signals/
+  config/log-tail Mac→GCP — sleeve trades from the Mac, so Mac-off means
+  last-known values w/ honest timestamps). Re-injected crypto.js +
+  crypto-account.js → full 6-bundle owner shell on GCP. Verified: both
+  endpoints 200 (1,074 equity rows, state+whale fresh), app screencap
+  shows TOTAL hero, dual-line chart, Crypto tab. Earlier blank-screen
+  root causes on record: (a) phone Tailscale dropped (ExpressVPN churn
+  took the Android VPN slot; always-on VPN recommended), (b) WebView
+  never reloads on resume (force-stop cycle required). App now fully
+  Mac-independent on http://100.94.213.49:8080.
+  Robert moved the app off the Mac path (base URL → GCP tailnet
+  100.94.213.49:8080) and lost the dual Alpaca+crypto chart, crypto hero
+  card, and chart granularity. Root causes: GCP's /terminal/ shell
+  injected only 3 owner bundles (catalog/terminal-crypto/explain) vs the
+  Mac's 6; /Users shim on GCP was EMPTY so equity.csv resolved to nothing.
+  Fixed: 7 owner_*.js synced (incl. zoom + crypto_account), api.py inject
+  lists + 3 routes ported (bak: api.py.bak-parity-20260813), equity.csv
+  backfilled (2,704 Mac rows), NEW quarki-equity-log.timer on GCP (5-min
+  native Alpaca marks — no Mac dependency), ONE dashboard restart,
+  verified: all 6 bundles in served shell, owner routes 200, csv
+  continuous (…499.22→499.28). React dist already identical (md5 match).
+  OPEN DEBT: api.py has two-way divergence — GCP carries a 5D period-map fix
+  + combined_mirror_ledger_live.jsonl preference the Mac LACKS; full
+  convergence (ideally via lab333 canonical source) still to do.
+- 2026-08-13 10:55 — **Adaptive-PT round 1 RETRACTED by adversarial audit;
+  corrected rerun FLIPS the verdict.** Sonnet auditor: same-bar
+  high-before-low sequencing (tight variants harvested impossible
+  same-bar fills), sigma20 same-day lookahead (sabotaged spike_adapt's
+  own speed classifier), FIFO pre-window blind spot — all biased toward
+  flat/tight. Fixed all three (conservative ordering, prior-day-only
+  sigma, fills from 6/1), rerun: flat_050 −$5.48 / flat_035 −$5.28 /
+  flat_100 −$6.43 / vol_k075 +$0.58 / **spike_adapt +$0.55 with 86 vs 221
+  fires**. Caveats: fixed ordering is worst-case (truth between runs),
+  deltas small; the dead VM harness behind the 8/5 +$6.62 (which
+  justified today's D22 live flip) likely shared the optimistic bias.
+  Decisions: flat-D22 STAYS live only because the nightly pt-tripwire
+  bounds it with REAL-fire evidence (auto-revert at −$3); Robert's
+  adaptive rule shipped as SHADOW — ~/pt_adaptive/shadow.py, 15-min
+  launchd com.quarki3.pt-adaptive-shadow →
+  scanner/state/pt_adaptive_shadow.jsonl (conservative prior-peak
+  semantics). Compare vs pt_live/pt_shadow at ~20 events (~2wk).
+- 2026-08-13 10:48 — **NASDAQ added to the D45 scanner** (Robert's word;
+  surfaced while explaining NVDA's 1.3% weight). Universe 2,413 → 7,964
+  (NYSE+NASDAQ), sanity floor 1,000 → 3,000, daily timer 13:50 → 13:40 MT
+  (~8-min scan must finish before the close). NVDA/AAPL/META-class names
+  now visible to the lane; first NASDAQ-inclusive run today 13:40 — the
+  meanrev theme has 5 open slots for it.
+- 2026-08-13 10:45 — **Adaptive-PT round 1 (Robert's idea: vol-scaled
+  leeway — grinders loose, spikes tight).** Rebuilt the dead Oracle
+  pt_backtest harness lean at ~/pt_adaptive/backtest.py (503 real fills →
+  459 FIFO episodes, 34 syms, hourly IEX bars, 7/13→8/13). Verdict:
+  flat_050 (live D22) ≈ $0.00; flat_035 +$0.47 (noise); flat_100 −$2.64;
+  vol_k075 −$3.99; spike_adapt −$4.14 — every step looser loses on this
+  choppy window; vol-scaling mostly WIDENS givebacks. Decision: NO change
+  to live D22; idea filed armed — rerun the harness when a window
+  contains a sustained trend. Sonnet adversarial audit of the harness
+  methodology launched (same-bar sequencing bias is the main suspect).
+- 2026-08-13 10:35 — **D42 DISARMED (mode=off)** on Robert's instruction
+  ("make sure we don't exit anything unnecessarily... there's no trigger
+  line, just optimizing for profit at all times"). Root cause of urgency:
+  the 10:26 re-entry put the book (~$454) permanently ABOVE the $449.79
+  breakeven trigger, so live mode would have re-flattened the whole book
+  at tomorrow's 24h cycle-guard expiry and every ~24h after — churn, not
+  capture. Successor regime: D22 live per-position PT + governor rotation
+  (partial trims only) + turbo/DD rails. Re-arm recipe in the config
+  off_note (only as floor defense with the book BELOW the trigger).
+  Peak-capture shadow (trailing high-water, no anchor) continues
+  accumulating as the future profit-anchored upgrade.
+- 2026-08-13 10:30 — **D42×D43 latent bug found+fixed on Robert's
+  repopulate order.** Sequence: Robert ordered immediate repopulation;
+  dip-path re-entry correctly refused (governor rotated MO/NFLX in, META/
+  MU/ZTS out — targets⊄basket); timeout path armed via
+  ~/bin/ratchet_reenter_v2.py (Robert-run; Claude's config edits + orders
+  classifier-blocked throughout, scripts staged instead). Then the REAL
+  bug: D43 turnover budget counted the morning's $455 flatten sells as
+  spent (cap ~$90/day) and its gate exempted ratchet sells but NOT
+  re-entry buys → re-entry would have trickled ~20%/day for a week.
+  One-line fix in combined_mirror.py (`not _ratchet_reentering` in budget
+  gate; backup .bak-tbfix-20260813; py_compile clean); scanner
+  kickstarted by Robert (KeepAlive daemon, exec model — code loads only
+  on restart). D43 CHECK amended with cycle-day carve-out so the auditor
+  doesn't false-page tonight. Watcher restores rebuy_dip_pct 0.5 +
+  max_flat_td 5 post-fill.
+- 2026-08-13 10:02 — **D22 FLIPPED LIVE** on Robert's explicit override
+  (64/150 shadow events; retest +$6.62, CI included 0 — flagged twice).
+  Mac risk_config profit_take.mode="live" (hot-read, provenance field in
+  config); live branch = per-position sell + 24h rebuy suppression +
+  pt_live.jsonl logging; pt-tripwire timer already loaded. Book was flat
+  at flip — first live PT fires after the D42 rebuy (basket was $0.51
+  above trigger at 09:55). VM has no risk_config → its combined_mirror
+  copy defaults to shadow (no dual-execution risk; port flag if GCP ever
+  takes live execution). D22 amendment recorded in DIRECTIVES under D47.
+- 2026-08-13 09:32 — UNKNOWN STATE FILE detected: `nyse_scan_state.json` (add to CONTEXT.md)
+- 2026-08-13 09:32 — UNKNOWN STATE FILE detected: `overnight_drift_ledger.jsonl.bak-units-20260813` (add to CONTEXT.md)
+- 2026-08-13 09:32 — UNKNOWN STATE FILE detected: `news_harvest.json` (add to CONTEXT.md)
+- 2026-08-13 09:32 — UNKNOWN STATE FILE detected: `news_harvest_history.jsonl` (add to CONTEXT.md)
+- 2026-08-13 10:04 — UNKNOWN STATE FILE detected: `insider_state.json` (add to CONTEXT.md)
+- 2026-08-14 07:53 — UNKNOWN STATE FILE detected: `pt_live.jsonl` (add to CONTEXT.md)
+
+## 2026-08-14 (~13:10) — D43 turnover budget: partial-fill fix (deadlock found live)
+
+Robert asked why the 55.8% tracking gap wasn't closing. Root cause: the D43
+budget gate was all-or-nothing — any discretionary order with |delta| >
+remaining daily budget was deferred WHOLE. The JPM trim (-$126, 28% of book vs
+7.14% target) exceeded the full $90/day cap, so it deferred every day forever,
+and the INTC (+$72) / TEVA (+$60) buys behind it starved for cash (~$5 free) —
+a permanent deadlock, not pacing. Compounding: budget-EXEMPT sells still count
+toward `spent` (today $143/$90 by 09:02, 273 skips), which is unchanged for
+now — only the clamp shipped.
+
+Fix (combined_mirror.py budget gate): clamp discretionary orders to the day's
+remaining budget (`tb_remaining`) and submit the partial, mirroring the buy
+path's `min(delta, spendable)`; defer only when remaining < MIN_ORDER_USD.
+Expected Monday 8/17 open: ~$90 JPM trim fills, remainder next day; buys
+follow as proceeds settle. Deployed: Mac scanner (kickstart, verified tick) +
+GCP twin synced (was otherwise byte-identical ex-comments; paper mode there so
+tb_cap inactive; backup combined_mirror.py.bak-20260814, systemd restart OK).
+DIRECTIVES D43 amendment appended. Note for D15 auditor: on clamp days the
+ledger shows a partial trim, not the full target move.
+
+## 2026-08-14 (~13:12) — D43 part 2: exempt flow stops charging the budget
+
+Follow-on to the 13:10 partial-fill fix, per Robert. Exempt orders (full
+exits on target drops, PT-claimed sells, ratchet cycle) no longer increment
+turnover `spent` — only discretionary flow the gate can actually block does
+(new `_tb_counted` guard at both `spent +=` sites in combined_mirror.py).
+Rationale: this morning exempt sells alone consumed $143 of the $90 cap by
+09:02, deferring every rebalance order all day — the budget was throttling
+flow it wasn't allowed to block. Today's inflated spent ($147) left alone
+(deliberate: don't hand-edit the risk rail's state; market closes 14:00 MT
+and Monday resets clean). Deployed Mac (kickstart, tick verified) + GCP twin
+(synced, systemd restart, combined_mirror ok; morning .bak-20260814 backup
+still = pre-today original). D43 amendment extended in DIRECTIVES.md incl.
+auditor carve-out: exclude ALL exempt rows from the ≤1.3×-cap daily sum.
+
+## 2026-08-14 (~13:35) — One-shot Monday-open rebalance check installed
+
+Robert asked to "reset spent again Monday" — not needed: the D43 budget
+self-resets on the day-key change, so Monday opens with the full ~$90 fresh.
+Instead installed com.quarki3.monday-rebalance-check (launchd, Mon 07:50 MT,
+script ~/bin/monday_rebalance_check.py): verifies the deferred TEVA/INTC
+buys started on 2026-08-17; P4 page only if scanner stale or spend still $0
+(incl. settled-BP hint since Friday's JPM proceeds settle Monday); quiet P2
+confirmation otherwise; date-guarded and fully self-removing (plist + bootout)
+after one run. Needs the Mac awake — same precondition as the buys themselves.

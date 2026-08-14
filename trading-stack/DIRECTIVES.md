@@ -452,6 +452,30 @@ Last full revision: 2026-07-29.
   drag at large-cap spreads — the harness's survivable zone.
   CHECK: turnover_budget.mode == "live"; combined_mirror_state.turnover.day
   == today on trading days; ledger daily |delta_usd| sum ≤ 1.3× the cap.
+  **AMENDMENT 2026-08-13: ratchet re-entry buys are budget-EXEMPT** (like
+  the flatten sells and PT sells already were) — found live on D42's first
+  cycle: flatten-day sells consumed the whole budget and the re-entry
+  would have trickled ~20%/day for a week, destroying the validated
+  sell-high/rebuy-dip mechanism. Patch in combined_mirror.py
+  (`not _ratchet_reentering` in the budget gate; backup
+  .bak-tbfix-20260813). CHECK carve-out: on a day containing ratchet
+  flatten and/or re-entry rows, exclude those rows from the ≤1.3×-cap sum
+  — a full cycle is legitimately ~200% turnover and must not page.
+  **AMENDMENT 2026-08-14: partial-fill instead of whole-order defer.**
+  Found live: a single drift larger than the daily cap (JPM trim -$126 vs
+  $90 cap) was deferred in full every day — a permanent deadlock that
+  also starved the buys behind it for cash. The gate now clamps
+  discretionary orders to the day's remaining budget and submits the
+  partial (defer only when remaining < MIN_ORDER_USD). Patch in
+  combined_mirror.py (Mac + GCP twin synced, GCP backup
+  .bak-20260814). CHECK note: a clamped day legitimately shows a partial
+  trim toward target, not the full target move. Same day, part 2:
+  budget-EXEMPT flow (full exits, PT sells, ratchet cycle) no longer
+  charges `spent` — only gate-blockable discretionary flow does
+  (`_tb_counted`). Exempt sells consuming the budget had starved the
+  rebalance behind them ($143/$90 by 09:02 that morning). CHECK
+  carve-out extended: exclude ALL exempt rows (not just ratchet rows)
+  from the ≤1.3×-cap daily sum — exits and PT were never budget-bound.
 
 - **D44 — TraderGrader X-ingest exception (2026-08-12).** The house
   no-X-scraping rule has ONE scope-limited exception, granted by Robert
@@ -463,3 +487,89 @@ Last full revision: 2026-07-29.
   CHECK: equity_social.py's NITTER/SYNDICATION fetches reference only
   X_HANDLE="tradergrader"; the daily plist is the only timer calling
   --leg x_fetch.
+
+- **D45 — Standing NYSE-wide opportunity scan (2026-08-13).** Robert's
+  order: "set up a way for you to consistently scan the entire NYSE for
+  opportunities. try mean reversion and any other ideas you think we can
+  use." Implemented as ~/nyse_scan/nyse_scan.py — full NYSE universe
+  (~2,400 symbols) scanned every trading day at 13:50 MT on the PAPER
+  account only, three tagged themes (nyse_meanrev / nyse_pullback /
+  nyse_breakout), closed-trade ledger nyse_scan_ledger.jsonl scored by the
+  D7 gate before any live weight. New strategy themes may be added; live
+  deployment always goes through D7.
+  AMENDMENT 2026-08-13: NASDAQ added on Robert's word ("yes add nasdaq to
+  the scanner") — universe now NYSE+NASDAQ (~8k symbols; NYSE-only had
+  left NVDA/AAPL/META-class names invisible); daily timer moved 13:50 →
+  13:40 MT for the ~8-minute full scan; universe sanity floor raised to
+  3,000 so a partial single-exchange fetch can't silently shrink coverage.
+  CHECK: launchctl lists com.quarki3.nyse-daily and com.quarki3.nyse-universe;
+  nyse_scan.py contains PAPER_BASE = "https://paper-api.alpaca.markets" and
+  no live-account base URL; on trading days trading-data/logs/nyse-daily.log
+  has a same-day "universe=" line.
+
+- **D46 — Standing broad news/social harvest (2026-08-13).** Robert's
+  order: "make sure we are using all news sources and other avenues for
+  mining data." Implemented as ~/news_harvest/news_harvest.py, hourly:
+  keyless PUBLIC sources only (GDELT, Google News RSS, Yahoo ticker RSS,
+  Reddit public JSON, StockTwits trending, EDGAR full-text). Hard limits:
+  X/Twitter stays inside the D44 single-handle exception (never duplicated
+  here); no login-walled, paywalled, or ToS-hostile scraping; output is
+  ADVISORY ONLY — news_harvest.json places no orders and gates no live
+  money without a separate directive. Watchlist edits are Robert's
+  (~/news_harvest/watchlist.json).
+  CHECK: launchctl lists com.quarki3.news-harvest; news_harvest.py contains
+  no reference to x.com/twitter.com/nitter; scanner/state/news_harvest.json
+  is <3h old at any audit time; no broker base URL appears in the file.
+
+- **D47 — Profit-taking philosophy (2026-08-13).** Robert, verbatim:
+  "exiting because we're taking profits is great but it doesn't mean the
+  whole book should be empty after that, it just means we should take
+  profits on individual opportunities when we can and then rebalance that
+  money into something better once it's back in cash." Standing intent:
+  per-position profit-taking with prompt redeployment of freed cash is the
+  TARGET architecture (= D22, currently shadow, promotion still
+  evidence-gated at ~150 events); whole-book flattens remain reserved for
+  the D42 breakeven floor-defense and are not a general PT mechanism.
+  Robert also confirmed the mechanical critique: one hot name (INTC 8/13)
+  lifting book value over the D42 line liquidates all 18 positions — that
+  book-level coupling is why D22 exists. Any future PT feature must exit
+  per-position and hand cash back to the governor for redeployment, not
+  empty the book.
+  CHECK: risk_config.json profit_take.mode in {"shadow","live"} (never
+  removed); if D22 flips live, combined_mirror sells are per-symbol
+  pt_reason exits, not desired={} wipes, outside a D42 ratchet event.
+  **AMENDMENT 2026-08-13 ~10:00 MT: D22 FLIPPED LIVE** by Robert's explicit
+  override ("flip D22 live now, I don't want to wait for 150 events") at 64
+  shadow events; retest +$6.62 but bootstrap CI included 0 — flagged before
+  flip. profit_take.mode="live" (Mac risk_config, hot-read; flip provenance
+  recorded in the config itself). pt-tripwire timer active, scoring
+  pt_live.jsonl. VM has NO risk_config.json → its copy falls back to shadow
+  defaults; if live execution ever hands to GCP, port the flag.
+  Revisit rule: if live PT churns (>3 fires/week or tripwire flags net
+  negative after ~20 fires), bring evidence to Robert per D6 style.
+  **D42 AMENDMENT same day: breakeven ratchet mode=off.** After the 10:26
+  re-entry the book sat permanently above the $449.79 trigger, making
+  live mode a 24h whole-book churn loop; Robert: "there's no trigger
+  line, just optimizing for profit at all times." Whole-book flattens are
+  retired; D22 + governor rotation are the exit regime. Re-arming D42
+  requires Robert's explicit word AND the book below the trigger.
+  CHECK: risk_config.json breakeven_ratchet.mode == "off" unless Robert
+  re-armed it in a logged CONTEXT entry.
+
+- **D48 — No single-hardware dependency (2026-08-13).** Robert, verbatim:
+  "I don't want my system to depend on a single piece of hardware to
+  survive. I will always need a way to choose how to manipulate my app
+  whether I have access to this machine or not." Standing intent: the app
+  (viewing AND control) must work with the Mac off, dead, or VPN'd; new
+  services should default to a GCP-hosted or GCP-fallback design; any
+  remaining Mac-only dependency is a tracked gap, not an accepted one.
+  Known gaps at declaration: (1) app base URL pointed at the Mac funnel
+  (fix available: quarki-stack.tail33de20.ts.net), (2) LIVE mirror
+  execution is Mac-only when Mac is on (GCP guardrail is alert-only —
+  failover needs leader-election design, dual-execution is the hazard),
+  (3) discovery-engine timers (nyse_scan, news_harvest, insider_lane,
+  midcap, moonshot, pt shadows) are Mac launchd only.
+  CHECK: the Terminal app's owner base URL host is quarki-stack (not
+  quarki3s-macbook-air) once Robert flips it; each new launchd service
+  added after 2026-08-13 has either a GCP twin or a CONTEXT entry
+  explaining why not.

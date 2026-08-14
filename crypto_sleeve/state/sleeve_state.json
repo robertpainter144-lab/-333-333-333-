@@ -5,16 +5,16 @@
       "notional": 6.0,
       "opened": "2026-08-14T05:55:08+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.51)",
-      "mv": 6.05,
-      "cur": 0.1379
+      "mv": 6.03,
+      "cur": 0.1375
     },
     "LINK/USD": {
       "entry_price": 8.74292,
       "notional": 6.0,
       "opened": "2026-08-14T08:43:05+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.50)",
-      "mv": 5.97,
-      "cur": 8.74683
+      "mv": 6.01,
+      "cur": 8.79418
     }
   },
   "frozen": false,
@@ -27,6 +27,6 @@
     "FET/USD": 6.0,
     "LINK/USD": 6.0
   },
-  "targets_ts": "2026-08-14T08:53:24+00:00",
+  "targets_ts": "2026-08-14T09:08:57+00:00",
   "targets_gate": "whale-confirmed (risk_on=0.50)"
 }

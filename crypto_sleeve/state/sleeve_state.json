@@ -14,7 +14,7 @@
       "opened": "2026-08-14T07:04:40+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.51)",
       "mv": 5.97,
-      "cur": 8.75852
+      "cur": 8.76153
     }
   },
   "frozen": false,
@@ -27,6 +27,6 @@
     "FET/USD": 6.0,
     "LINK/USD": 6.0
   },
-  "targets_ts": "2026-08-14T07:40:49+00:00",
+  "targets_ts": "2026-08-14T07:56:21+00:00",
   "targets_gate": "whale-confirmed (risk_on=0.51)"
 }

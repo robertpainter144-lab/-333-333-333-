@@ -1,20 +1,12 @@
 {
   "positions": {
-    "WLD/USD": {
-      "entry_price": 0.3404,
-      "notional": 6.0,
-      "opened": "2026-08-13T09:01:02+00:00",
-      "signal_mode": "whale-confirmed (risk_on=0.79)",
-      "mv": 5.95,
-      "cur": 0.339
-    },
     "FET/USD": {
       "entry_price": 0.1361,
       "notional": 6.0,
       "opened": "2026-08-14T05:55:08+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.51)",
-      "mv": 6.01,
-      "cur": 0.1369
+      "mv": 6.0,
+      "cur": 0.1367
     },
     "LINK/USD": {
       "entry_price": 8.75873,
@@ -22,7 +14,7 @@
       "opened": "2026-08-14T07:04:40+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.51)",
       "mv": 5.97,
-      "cur": 8.7642
+      "cur": 8.75852
     }
   },
   "frozen": false,
@@ -33,9 +25,8 @@
   "seen_active": true,
   "targets": {
     "FET/USD": 6.0,
-    "LINK/USD": 6.0,
-    "WLD/USD": 6.0
+    "LINK/USD": 6.0
   },
-  "targets_ts": "2026-08-14T07:25:18+00:00",
+  "targets_ts": "2026-08-14T07:40:49+00:00",
   "targets_gate": "whale-confirmed (risk_on=0.51)"
 }

@@ -5,8 +5,8 @@
       "notional": 6.0,
       "opened": "2026-08-13T09:01:02+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.79)",
-      "mv": 5.94,
-      "cur": 0.3388
+      "mv": 5.97,
+      "cur": 0.3403
     },
     "DASH/USD": {
       "entry_price": 30.496,
@@ -27,6 +27,6 @@
     "DASH/USD": 6.0,
     "WLD/USD": 6.0
   },
-  "targets_ts": "2026-08-14T05:34:19+00:00",
+  "targets_ts": "2026-08-14T05:49:53+00:00",
   "targets_gate": "whale-confirmed (risk_on=0.51)"
 }

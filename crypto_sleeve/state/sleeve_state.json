@@ -1,12 +1,23 @@
 {
-  "positions": {},
+  "positions": {
+    "LINK/USD": {
+      "entry_price": 8.94112,
+      "notional": 6.0,
+      "opened": "2026-08-14T23:04:49+00:00",
+      "signal_mode": "whale-confirmed (risk_on=0.53)",
+      "mv": 6.0,
+      "cur": 8.99056
+    }
+  },
   "frozen": false,
   "last_notified": {
     "crypto_inactive": 1786306737.674485,
     "kraken_key": 1786308844.526507
   },
   "seen_active": true,
-  "targets": {},
-  "targets_ts": "2026-08-14T22:59:38+00:00",
-  "targets_gate": "whale-blocked (risk_on=0.47)"
+  "targets": {
+    "LINK/USD": 6.0
+  },
+  "targets_ts": "2026-08-14T23:15:08+00:00",
+  "targets_gate": "whale-confirmed (risk_on=0.53)"
 }

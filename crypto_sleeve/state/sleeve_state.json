@@ -5,40 +5,40 @@
       "notional": 6.0,
       "opened": "2026-08-14T23:04:49+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.53)",
-      "mv": 6.42,
-      "cur": 9.60869
+      "mv": 6.32,
+      "cur": 9.47247
     },
     "AVAX/USD": {
       "entry_price": 6.469,
       "notional": 6.0,
       "opened": "2026-08-14T23:30:44+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.53)",
-      "mv": 6.24,
-      "cur": 6.759
-    },
-    "WLD/USD": {
-      "entry_price": 0.341,
-      "notional": 6.0,
-      "opened": "2026-08-14T23:46:23+00:00",
-      "signal_mode": "whale-confirmed (risk_on=0.53)",
-      "mv": 5.95,
-      "cur": 0.3396
+      "mv": 6.23,
+      "cur": 6.753
     },
     "ALGO/USD": {
       "entry_price": 0.0798,
       "notional": 6.0,
       "opened": "2026-08-15T03:11:25+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.51)",
-      "mv": 5.95,
-      "cur": 0.07947
+      "mv": 5.96,
+      "cur": 0.07964
     },
     "RENDER/USD": {
       "entry_price": 1.277,
       "notional": 6.0,
       "opened": "2026-08-15T03:11:27+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.51)",
+      "mv": 5.95,
+      "cur": 1.273
+    },
+    "DOGE/USD": {
+      "entry_price": 0.0702825,
+      "notional": 6.0,
+      "opened": "2026-08-15T04:02:43+00:00",
+      "signal_mode": "whale-confirmed (risk_on=0.52)",
       "mv": 5.97,
-      "cur": 1.277
+      "cur": 0.0702583
     }
   },
   "frozen": false,
@@ -49,11 +49,11 @@
   "seen_active": true,
   "targets": {
     "AVAX/USD": 6.0,
+    "DOGE/USD": 6.0,
     "ALGO/USD": 6.0,
     "RENDER/USD": 6.0,
-    "LINK/USD": 6.0,
-    "WLD/USD": 6.0
+    "LINK/USD": 6.0
   },
-  "targets_ts": "2026-08-15T03:57:34+00:00",
+  "targets_ts": "2026-08-15T04:12:58+00:00",
   "targets_gate": "whale-confirmed (risk_on=0.52)"
 }

@@ -573,3 +573,25 @@ Last full revision: 2026-07-29.
   quarki3s-macbook-air) once Robert flips it; each new launchd service
   added after 2026-08-13 has either a GCP twin or a CONTEXT entry
   explaining why not.
+
+- **D49 — Weekly performance funding ladder, Alpaca live (2026-08-14).**
+  Robert's rule, his words: "another $5 for every 1% of profit decided at
+  the end of each US trading week by me based on your performance.
+  negative returns have the same but opposite effect… the deposit or
+  withdrawal based on the previous weeks performance will always be made
+  by open of trading week the following monday." Mechanics: at each US
+  trading-week close (Fri 14:00 MT), week-over-week % on the Alpaca live
+  book NET OF INTRAWEEK TRANSFERS → ±$5 per whole 1%, Robert decides and
+  executes by Monday open; every resulting deposit/withdrawal updates
+  contributed_usd (D42 bookkeeping) by hand as always.
+  GUARDRAIL (Claude-added, Robert-visible): the ladder lives OUTSIDE the
+  trading loop — no engine gate, sizing rule, or exit may ever reference
+  it (anti-Goodhart: the book must never take risk to hit a funding
+  threshold). Reporter: ~/bin/weekly_perf_report.py via
+  com.quarki3.weekly-perf (Fri 14:06 MT) → P4 ntfy with the week's % and
+  implied ±$5×n so the Monday decision is one glance; state in
+  ~/trading-data/weekly_perf_state.json (seeded 2026-08-14 close,
+  equity 497.67 / contributed 500.04).
+  CHECK: weekly_perf_state.json `prev.ts` is ≤ 8 days old on trading
+  Fridays after 14:10 MT; no engine source file references
+  weekly_perf/funding-ladder identifiers.

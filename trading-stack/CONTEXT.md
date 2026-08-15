@@ -2191,3 +2191,20 @@ deployed Mac+GCP. Engine freeze math needs NO change — sleeve.py's rail is
 realized+unrealized (cost-basis), which a cash deposit cannot inflate.
 Watcher armed for the cash landing (equity.csv cash > $12); engine deploys
 new cash per its own whale/momentum gates once it arrives.
+
+## 2026-08-14 (~21:20) — D49 weekly funding ladder recorded + automated
+
+Robert's new standing rule: ±$5 per whole 1% of Alpaca-live weekly
+performance (net of transfers), his decision at Friday close, executed by
+Monday open; symmetric both directions. Recorded as D49 with the
+anti-Goodhart guardrail (ladder lives OUTSIDE the trading loop — nothing
+in any engine may reference it). Built ~/bin/weekly_perf_report.py +
+com.quarki3.weekly-perf (Fri 14:06 MT): computes the week net of
+contributed_usd changes, ntfy P4 with implied ±$5×n. State seeded at
+today's close (497.90 / contributed 500.04). First application computed
+by hand for Robert: 8/7 close $498.41 (Alpaca history) → 8/14 close
+$497.90 = −0.10% → $0 due (inside the ±1% band). Claude's position
+stated on the record: no credit claimed for breakeven noise; no return
+promises on the crypto sleeve; deposits inform the book, never instruct
+it. (His separate "$5 for this week's performance" offer → superseded by
+the computed $0-due under his own rule.)

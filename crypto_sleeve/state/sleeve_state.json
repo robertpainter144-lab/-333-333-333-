@@ -5,8 +5,8 @@
       "notional": 6.0,
       "opened": "2026-08-14T23:04:49+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.53)",
-      "mv": 6.38,
-      "cur": 9.54793
+      "mv": 6.4,
+      "cur": 9.57926
     },
     "AVAX/USD": {
       "entry_price": 6.469,
@@ -29,16 +29,16 @@
       "notional": 6.0,
       "opened": "2026-08-15T13:00:35+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.52)",
-      "mv": 5.96,
-      "cur": 0.7731
+      "mv": 5.95,
+      "cur": 0.7724
     },
     "WLD/USD": {
       "entry_price": 0.3468,
       "notional": 6.0,
       "opened": "2026-08-15T15:13:56+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.52)",
-      "mv": 5.98,
-      "cur": 0.3472
+      "mv": 6.0,
+      "cur": 0.3488
     }
   },
   "frozen": false,
@@ -52,9 +52,8 @@
     "RENDER/USD": 6.0,
     "LINK/USD": 6.0,
     "WLD/USD": 6.0,
-    "DOT/USD": 6.0,
-    "ETH/USD": 6.0
+    "DOT/USD": 6.0
   },
-  "targets_ts": "2026-08-15T16:30:46+00:00",
+  "targets_ts": "2026-08-15T16:46:09+00:00",
   "targets_gate": "whale-confirmed (risk_on=0.53)"
 }

@@ -2120,3 +2120,27 @@ P4 with by-hand path; GCP unreachable → silently retries next interval;
 check live: (active, todo=988) → correctly stays armed. Progress at
 15:20: store 3,037/4,020, pass 1 still running, ~500 transient 429s
 queued for later passes.
+
+## 2026-08-14 (~18:35) — Wayback backfill COMPLETE end-to-end; grader on full history
+
+Backfill finished on GCP at 18:22 MT: 7 passes, todo=0, store 4,025 posts
+(4,028 on Mac after merge). Wrapper's completion legs on GCP graded
+DEGRADED (no ALPACA data keys on VM → 401 on every bars fetch → junk
+TraderGrader catalog row nav=100/points=1 in GCP state = what the phone
+shows). Recovery, all same evening: (1) ran the Mac pull manually WITH
+~/quarki.env sourced (the launchd pull job would have hit the same 401
+trap — it never fired and self-removed cleanly); (2) fixed latent
+equity_social.py grade() crash exposed by full history (best/worst max()
+over rows with excess_pct=None — now filtered); (3) Mac x_auto_recs was
+94 recs vs GCP's 172 (parse runs in x_fetch, which only GCP had run on
+the full store) — pulled GCP's rec file, merged +1 Mac-only rec (SPY
+8/13), 173 total, regraded; (4) pushed corrected grader+catalog files to
+GCP via the daily timer's exact scp list; verified on GCP: curve 153
+points, n=173. equity_social.py fix synced to GCP copy.
+
+FULL-HISTORY VERDICT (n=173, resolved 173@1d / 154@20d): 1d win 52.0%,
+20d win 43.5%, avg 20d excess −0.30% vs SPY; catalog nav 147.31.
+Softer than the n=4 deep-history read but same direction: follow-the-
+highlight has no 20d edge; 1d-compounded curve looks fine (nav 147) —
+classic short-horizon momentum that decays by 20d. D7 bar unchanged;
+paper lane keeps deciding.

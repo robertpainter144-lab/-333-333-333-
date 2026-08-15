@@ -1075,8 +1075,10 @@ def grade() -> None:
         avg_excess_20d = round(sum(excess_vals) / len(excess_vals), 3) if excess_vals else None
         best = worst = None
         if excess_vals:
-            best_row = max(resolved, key=lambda r: r["h20"]["excess_pct"])
-            worst_row = min(resolved, key=lambda r: r["h20"]["excess_pct"])
+            scored = [r for r in resolved
+                      if r["h20"].get("excess_pct") is not None]
+            best_row = max(scored, key=lambda r: r["h20"]["excess_pct"])
+            worst_row = min(scored, key=lambda r: r["h20"]["excess_pct"])
             best = {"sym": best_row["sym"], "ts": best_row["ts"],
                     "excess_20d_pct": best_row["h20"]["excess_pct"]}
             worst = {"sym": worst_row["sym"], "ts": worst_row["ts"],

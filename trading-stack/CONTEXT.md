@@ -2161,3 +2161,21 @@ treats any HTTP response as "up", so no false pages). Affected while
 Nord-on-Mac: owner-mode Terminal from the Mac browser, Termux→Mac:2222.
 Standing option: GCP exit node replaces Nord (sysctl+advertise commands
 + admin approval pending Robert — classifier blocks Claude running them).
+
+## 2026-08-14 (~20:30) — Per-block P/L labels on the Book allocation bars
+
+Per Robert: small signed dollars.cents (no $ sign) inside each holdings
+block of the allocation bars, live book + crypto sleeve. D1-compliant:
+zero changes to the shared trading-gui dist or api.py (Mac/GCP api.py
+have diverged — deliberately untouched); both are owner-injection edits:
+- owner_trackgap.js: new decorator polls /api/portfolio/alpaca_live
+  (60s), anchors on the dist's data-qt-slot="book-alloc-top" (Book page
+  only — the identical hA bars on paper/broker tabs are never mislabeled
+  with live numbers), labels only the "current" bar (targets have no
+  P/L), skips blocks <24px, appends P/L to the hover title, re-applies
+  every 5s to survive SPA re-renders.
+- owner_crypto.js: sleeve bar segments get pl = mv − notional labels
+  (blocks ≥8% wide) + P/L in the tooltip.
+Deployed Mac + GCP by file sync only — the /owner/*.js routes serve from
+disk with no-cache, so NO dashboard restart was needed (no mid-restart
+ownerless-tab window). Phone not on USB; visual check = Robert's reopen.

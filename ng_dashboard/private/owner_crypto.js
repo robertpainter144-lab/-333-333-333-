@@ -224,7 +224,9 @@
         var p = st.positions[sym] || {};
         var mv = (p.mv != null ? p.mv : p.notional) || 0;
         var pct = equity > 0 ? mv / equity * 100 : 0;
-        if (pct > 0.01) cur.push({ sym: sym, pct: pct });
+        // per-block P/L label (Robert 2026-08-14): live mark minus cost basis
+        var pl = (p.mv != null && p.notional != null) ? p.mv - p.notional : null;
+        if (pct > 0.01) cur.push({ sym: sym, pct: pct, pl: pl });
       });
       cur.sort(function (a, b) { return b.pct - a.pct; });
       var curCash = Math.max(0, 100 - cur.reduce(function (s, x) { return s + x.pct; }, 0));
@@ -249,8 +251,14 @@
         var h = '<div class="qtcy-h" style="margin-bottom:2px">' + label + (badge || "") + "</div>" +
           '<div class="qtcy-bar">';
         rows.forEach(function (r) {
-          h += '<div title="' + esc(short(r.sym)) + " " + r.pct.toFixed(1) + '%" style="width:' +
-            r.pct + "%;background:" + colorOf[r.sym] + '"></div>';
+          var plTxt = r.pl != null ? (r.pl >= 0 ? "+" : "") + r.pl.toFixed(2) : "";
+          var lbl = (plTxt && r.pct >= 8)
+            ? '<span class="qtcy-num" style="font-size:8px;font-weight:600;color:#0d1117">' +
+              plTxt + "</span>"
+            : "";
+          h += '<div title="' + esc(short(r.sym)) + " " + r.pct.toFixed(1) + "%" +
+            (plTxt ? " · P/L " + plTxt : "") + '" style="width:' +
+            r.pct + "%;background:" + colorOf[r.sym] + '">' + lbl + "</div>";
         });
         if (cashPct > 0.5)
           h += '<div class="qtcy-cash" title="cash / uninvested ' + cashPct.toFixed(1) +

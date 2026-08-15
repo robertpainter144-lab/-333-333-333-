@@ -34,15 +34,15 @@ def main() -> None:
     if prev:
         flows = contributed - float(prev["contributed"])
         pct = (eq - float(prev["equity"]) - flows) / float(prev["equity"]) * 100
-        steps = int(abs(pct))  # whole 1% points only
-        if steps == 0:
-            move = "inside the ±1% band — no deposit or withdrawal is due"
+        amt = round(5 * abs(pct), 2)  # pro-rata (D49 rev 2026-08-14 eve)
+        if amt < 0.01:
+            move = "flat — nothing due"
         elif pct > 0:
-            move = (f"up {pct:.2f}% — your rule says deposit ${5 * steps} "
-                    f"(${5}×{steps}) by Monday's open")
+            move = (f"up {pct:.2f}% — your rule says deposit ${amt:.2f} "
+                    f"($5 × {abs(pct):.2f}) by Monday's open")
         else:
             move = (f"down {abs(pct):.2f}% — your rule says withdraw "
-                    f"${5 * steps} (${5}×{steps}) by Monday's open")
+                    f"${amt:.2f} ($5 × {abs(pct):.2f}) by Monday's open")
         body = (f"Alpaca live closed the week at ${eq:.2f} "
                 f"(last Friday ${float(prev['equity']):.2f}"
                 + (f", net of ${flows:+.2f} deposits this week" if abs(flows) > 0.005 else "")

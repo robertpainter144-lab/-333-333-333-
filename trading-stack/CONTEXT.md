@@ -2208,3 +2208,10 @@ stated on the record: no credit claimed for breakeven noise; no return
 promises on the crypto sleeve; deposits inform the book, never instruct
 it. (His separate "$5 for this week's performance" offer → superseded by
 the computed $0-due under his own rule.)
+
+## 2026-08-14 (~21:22) — D49 revised to pro-rata
+
+Robert: "make it pro-rata instead." Ladder is now $5 × |week %| exact to
+the cent, no whole-percent bands. Reporter updated. This week's
+application under the revised rule: −0.10% → withdraw $0.51 by Monday
+8/17 open (Robert's action; update contributed_usd to 499.53 when done).

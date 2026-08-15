@@ -581,9 +581,12 @@ Last full revision: 2026-07-29.
   withdrawal based on the previous weeks performance will always be made
   by open of trading week the following monday." Mechanics: at each US
   trading-week close (Fri 14:00 MT), week-over-week % on the Alpaca live
-  book NET OF INTRAWEEK TRANSFERS → ±$5 per whole 1%, Robert decides and
-  executes by Monday open; every resulting deposit/withdrawal updates
-  contributed_usd (D42 bookkeeping) by hand as always.
+  book NET OF INTRAWEEK TRANSFERS → ±$5 per 1% PRO-RATA (rev same
+  evening, Robert: "make it pro-rata instead" — $5 × |pct|, exact to the
+  cent, no bands), Robert decides and executes by Monday open; every
+  resulting deposit/withdrawal updates contributed_usd (D42 bookkeeping)
+  by hand as always. First application (wk of 8/8–8/14, −0.10%):
+  withdraw $0.51 by Mon 8/17 open.
   GUARDRAIL (Claude-added, Robert-visible): the ladder lives OUTSIDE the
   trading loop — no engine gate, sizing rule, or exit may ever reference
   it (anti-Goodhart: the book must never take risk to hit a funding

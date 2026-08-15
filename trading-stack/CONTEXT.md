@@ -2144,3 +2144,20 @@ Softer than the n=4 deep-history read but same direction: follow-the-
 highlight has no 20d edge; 1d-compounded curve looks fine (nav 147) —
 classic short-horizon momentum that decays by 20d. D7 bar unchanged;
 paper lane keeps deciding.
+
+## 2026-08-14 (~20:17) — App outage postmortem: NordVPN vs Tailscale
+
+App "down" 3h traced to two stacked causes, both now understood:
+(1) PHONE: Nord ON displaced Tailscale (Android single-VPN slot); turning
+Nord OFF does NOT re-enable Tailscale — must manually reconnect in the
+app; then the Terminal WebView shows the dead page until FORCE-CLOSE +
+relaunch (known no-reload-on-resume quirk). (2) MAC: Nord internally uses
+100.64.0.0/10 — the same CGNAT range as Tailscale — so while Nord is on,
+the Mac's tailnet DATA PATH is blackholed (direct 100.x timeouts) and
+Nord DNS resolves ts.net names to the public funnel → owner requests
+arrive with XFF → correct 403 by the D1 gate. NOT affected: all Mac→GCP
+jobs on the raw public IP (mirror trading, scp pushes, heartbeat — which
+treats any HTTP response as "up", so no false pages). Affected while
+Nord-on-Mac: owner-mode Terminal from the Mac browser, Termux→Mac:2222.
+Standing option: GCP exit node replaces Nord (sysctl+advertise commands
++ admin approval pending Robert — classifier blocks Claude running them).

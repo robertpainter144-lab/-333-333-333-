@@ -91,12 +91,11 @@
       const pl = plMap[sym];
       const txt = (pl >= 0 ? "+" : "") + Number(pl).toFixed(2);
       let lbl = seg.querySelector(".qt-allocpl");
-      if (seg.clientWidth < 24) { if (lbl) lbl.remove(); continue; }
       if (!lbl) {
         lbl = document.createElement("span");
         lbl.className = "qt-allocpl num";
-        lbl.style.cssText =
-          "font-size:8px;font-weight:600;color:#0d1117;pointer-events:none";
+        lbl.style.cssText = "font-size:8px;font-weight:600;color:#0d1117;" +
+          "pointer-events:none;white-space:nowrap";
         seg.style.display = "flex";
         seg.style.alignItems = "center";
         seg.style.justifyContent = "center";
@@ -104,7 +103,30 @@
         seg.appendChild(lbl);
       }
       if (lbl.textContent !== txt) lbl.textContent = txt;
+      // show only where the text genuinely fits — measured, not guessed
+      lbl.style.visibility =
+        lbl.scrollWidth > seg.clientWidth - 2 ? "hidden" : "visible";
       if (!/P\/L/.test(t)) seg.setAttribute("title", t + " · P/L " + txt);
+    }
+    // legend: every holding gets its P/L there too, so blocks too narrow
+    // to hold a label still show a number ("JPM 13.6% +0.03")
+    const leg = bar.nextElementSibling;
+    if (leg) {
+      for (const item of leg.children) {
+        const sym = (item.textContent || "").trim().split(/\s+/)[0];
+        if (!(sym in plMap)) continue;
+        const pl = plMap[sym];
+        const txt = (pl >= 0 ? "+" : "") + Number(pl).toFixed(2);
+        let tag = item.querySelector(".qt-legpl");
+        if (!tag) {
+          tag = document.createElement("span");
+          tag.className = "qt-legpl num";
+          tag.style.cssText = "font-size:9px;font-weight:600;margin-left:2px";
+          item.appendChild(tag);
+        }
+        if (tag.textContent !== txt) tag.textContent = txt;
+        tag.style.color = pl >= 0 ? "#3fb950" : "#f85149";
+      }
     }
   }
 

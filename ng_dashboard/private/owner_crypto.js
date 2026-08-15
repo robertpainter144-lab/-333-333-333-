@@ -577,9 +577,9 @@
       '<div class="qtcy-bar">';
     cur.forEach(function (r, i) {
       var plTxt = r.pl != null ? (r.pl >= 0 ? "+" : "") + r.pl.toFixed(2) : "";
-      var lbl = (plTxt && r.pct >= 8)
-        ? '<span class="qtcy-num" style="font-size:8px;font-weight:600;color:#0d1117">' +
-          plTxt + "</span>"
+      var lbl = plTxt
+        ? '<span class="qtcy-num qtcy-plfit" style="font-size:8px;' +
+          'font-weight:600;color:#0d1117;white-space:nowrap">' + plTxt + "</span>"
         : "";
       h += '<div title="' + esc(r.sym) + " " + r.pct.toFixed(1) + "%" +
         (plTxt ? " · P/L " + plTxt : "") + '" style="width:' +
@@ -592,14 +592,23 @@
           cash.toFixed(0) + "% cash</span>" : "") + "</div>";
     h += '</div><div class="qtcy-leg" style="margin-bottom:10px">';
     cur.forEach(function (r, i) {
+      var plTxt = r.pl != null ? (r.pl >= 0 ? "+" : "") + r.pl.toFixed(2) : "";
       h += '<span class="qtcy-num"><span class="qtcy-sw" style="background:' +
         PAL[i % PAL.length] + '"></span>' + esc(r.sym) +
-        ' <span class="qtcy-faint">' + r.pct.toFixed(1) + "%</span></span>";
+        ' <span class="qtcy-faint">' + r.pct.toFixed(1) + "%</span>" +
+        (plTxt ? ' <span style="font-weight:600;color:' +
+          (r.pl >= 0 ? "#3fb950" : "#f85149") + '">' + plTxt + "</span>" : "") +
+        "</span>";
     });
     if (cash > 0.5)
       h += '<span class="qtcy-num"><span class="qtcy-sw qtcy-cash"></span>cash ' +
         '<span class="qtcy-faint">' + cash.toFixed(1) + "%</span></span>";
     slot.innerHTML = h + "</div>";
+    // keep in-block labels only where they genuinely fit
+    slot.querySelectorAll(".qtcy-bar .qtcy-plfit").forEach(function (l2) {
+      l2.style.visibility =
+        l2.scrollWidth > l2.parentElement.clientWidth - 2 ? "hidden" : "visible";
+    });
   }
 
   function init() {

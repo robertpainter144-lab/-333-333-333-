@@ -73,3 +73,4 @@ closed_at,symbol,entry_time,entry_price,exit_price,notional,realized_pl,pl_pct,r
 2026-08-14T13:11:13+00:00,LINK/USD,2026-08-14T08:43:05+00:00,8.7429,8.7869,6.00,0.0001,0.0000,momentum_flip,whale-confirmed (risk_on=0.50)
 2026-08-15T04:02:37+00:00,WLD/USD,2026-08-14T23:46:23+00:00,0.3410,0.3395,6.00,-0.0563,-0.0094,momentum_flip,whale-confirmed (risk_on=0.53)
 2026-08-15T09:04:40+00:00,DOGE/USD,2026-08-15T04:02:43+00:00,0.0703,0.0699,6.00,-0.0661,-0.0110,momentum_flip,whale-confirmed (risk_on=0.52)
+2026-08-15T13:00:26+00:00,WLD/USD,2026-08-15T09:04:51+00:00,0.3458,0.3424,6.00,-0.0887,-0.0148,momentum_flip,whale-confirmed (risk_on=0.56)

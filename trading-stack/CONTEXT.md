@@ -2179,3 +2179,15 @@ have diverged — deliberately untouched); both are owner-injection edits:
 Deployed Mac + GCP by file sync only — the /owner/*.js routes serve from
 disk with no-cache, so NO dashboard restart was needed (no mid-restart
 ownerless-tab window). Phone not on USB; visual check = Robert's reopen.
+
+## 2026-08-14 (~21:10) — $10 Kraken deposit booked as transfer (D39 sleeve)
+
+Robert deposited $10 into Kraken after the D41 recency flag was given and
+acknowledged (sleeve stays within the $50 D39 cap — no gate applies to a
+top-up, only to raising the cap). Accounting: TRANSFERS array in
+owner_crypto_account.js gains {2026-08-15T03:07Z, $10.00} so vs-inception /
+vs-baseline P/L nets it out (label now says "transfers" not "adopted");
+deployed Mac+GCP. Engine freeze math needs NO change — sleeve.py's rail is
+realized+unrealized (cost-basis), which a cash deposit cannot inflate.
+Watcher armed for the cash landing (equity.csv cash > $12); engine deploys
+new cash per its own whale/momentum gates once it arrives.

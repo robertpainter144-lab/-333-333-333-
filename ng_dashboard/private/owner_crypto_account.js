@@ -25,7 +25,12 @@
                       ts: Date.parse('2026-08-09T00:00:00-04:00') };
   const TEST_BASELINE = { value: 30.43, date: '2026-08-09', label: 'expansion',
                           ts: Date.parse('2026-08-09T23:55:00Z') };
-  const TRANSFERS = [{ ts: Date.parse('2026-08-09T23:51:45Z'), amount: 20.4289 }];
+  const TRANSFERS = [
+    { ts: Date.parse('2026-08-09T23:51:45Z'), amount: 20.4289 },
+    // 2026-08-14 eve: Robert's $10 Kraken cash deposit (flagged per D41,
+    // proceeded — within the $50 D39 cap; capital in, not P/L)
+    { ts: Date.parse('2026-08-15T03:07:00Z'), amount: 10.0 },
+  ];
   // D39 rails: freeze all sleeve trading at −$15 off peak; amber at −$10.
   const DD_FREEZE = 15.0, DD_AMBER = 10.0;
 
@@ -48,10 +53,12 @@
       '<div>' +
       '<div class="text-[10px] uppercase tracking-wider text-muted">' + label +
       ' <span class="text-faint">(' + dateStr + ', ' + $(base) + ')</span></div>' +
-      '<div class="num whitespace-nowrap text-sm font-semibold ' + cls(d) + '">' + arrow(d) + ' ' +
+      // No whitespace-nowrap here: in the two-column heroes row the card is
+      // ~half the phone width, and nowrap made the (%) clip off the edge.
+      '<div class="num text-sm font-semibold ' + cls(d) + '">' + arrow(d) + ' ' +
       signed(d) + ' <span class="opacity-80">(' + (p >= 0 ? '+' : '') + p.toFixed(2) + '%)</span></div>' +
       (netX !== 0
-        ? '<div class="whitespace-nowrap text-[9px] text-faint" title="Adopted holdings are capital in, not P/L">net of +$' + netX.toFixed(2) + ' adopted</div>'
+        ? '<div class="text-[9px] text-faint" title="Adoptions and cash deposits are capital in, not P/L">net of +$' + netX.toFixed(2) + ' transfers</div>'
         : '') +
       '</div>'
     );
@@ -73,7 +80,7 @@
       $(dd) + ' of ' + $(DD_FREEZE) + '</span></div>' +
       '<div class="h-2 w-full overflow-hidden rounded bg-panel2">' +
       '<div class="h-full rounded" style="width:' + (frac * 100) + '%;background:' + barColor + '"></div></div>' +
-      '<div class="num mt-0.5 flex justify-between gap-1 whitespace-nowrap text-[8px] text-faint">' +
+      '<div class="num mt-0.5 flex justify-between gap-1 text-[9px] text-faint">' +
       '<span>$0</span><span class="text-amber">$' + DD_AMBER.toFixed(0) + ' amber</span>' +
       '<span class="text-neg">$' + DD_FREEZE.toFixed(0) + ' freeze</span></div>' +
       (state === 'red'
@@ -100,13 +107,16 @@
     }
     const ageS = Math.max(0, Math.round(Date.now() / 1000 - (sum.ts || 0)));
     slot.innerHTML =
+      // Header + padding mirror the SPA Card primitive (ui.tsx) exactly —
+      // uppercase text-xs title, px-3 py-2 header, p-3 body — so the two
+      // hero sections read as identical twins.
       '<section class="h-full rounded-lg border border-bd bg-panel">' +
-      '<header class="flex items-center justify-between gap-1 border-b border-bd/60 px-2 py-2">' +
-      '<span class="flex min-w-0 items-center gap-2 truncate text-sm font-semibold">' +
+      '<header class="flex items-center justify-between gap-2 border-b border-bd px-3 py-2">' +
+      '<span class="flex min-w-0 items-center gap-2 truncate text-xs font-semibold uppercase tracking-wider text-muted">' +
       '<span class="h-2 w-2 shrink-0 rounded-full" style="background:' + GREEN + '"></span>' +
       '<span class="truncate">Crypto — Kraken</span></span>' +
       '<span class="num shrink-0 text-[10px] text-faint">' + (ageS < 90 ? ageS + 's' : Math.round(ageS / 60) + 'm') + '</span></header>' +
-      '<div class="px-2 py-2">' +
+      '<div class="p-3">' +
       '<div><div class="num text-4xl font-bold tracking-tight" style="color:' + GREEN + '">' + $(equity) + '</div>' +
       '<div class="num mt-0.5 text-xs text-muted">unrealized <span class="' + cls(unreal) + '">' +
       arrow(unreal) + ' ' + signed(unreal) + '</span></div></div>' +
@@ -116,11 +126,49 @@
       '</div>' + gauge(peak, equity) + '</div></section>';
     // Sit beside the Alpaca hero, not below it: flip the wrapper row to two
     // columns only now that the card exists (guests keep a single column).
+    // Robert 2026-08-13: EQUAL columns — the 1.25fr/1fr split plus the
+    // Alpaca card's mobile bleed (-mx-3, borderless) made the two value
+    // sections visibly uneven. evenHeroes() re-frames the Alpaca card to a
+    // normal bordered card inside this row so both halves match.
     const row = slot.closest('[data-qt-row="book-heroes"]');
     if (row) {
-      row.style.gridTemplateColumns = 'minmax(0,1.25fr) minmax(0,1fr)';
+      row.style.gridTemplateColumns = 'minmax(0,1fr) minmax(0,1fr)';
       row.style.alignItems = 'stretch';
+      evenHeroes();
     }
+  }
+
+  // Neutralize the SPA Card's mobile "bleed" styling for the Alpaca hero
+  // while it sits in the owner two-column row: no negative margins, framed
+  // border like its Kraken twin, horizontal padding restored (bleed mode
+  // drops px on mobile), and a one-line ellipsized title so both headers are
+  // the same height and the two big numbers sit level. Stylesheet (not
+  // inline) so it survives every SPA re-render; guests never load this
+  // bundle, so their single-column bleed layout is untouched.
+  function evenHeroes() {
+    if (document.getElementById('qt-even-heroes')) return;
+    const st = document.createElement('style');
+    st.id = 'qt-even-heroes';
+    st.textContent =
+      '[data-qt-row="book-heroes"]>section:first-child{' +
+      'margin-left:0!important;margin-right:0!important;' +
+      'border:1px solid var(--bd);border-radius:0.5rem}' +
+      '[data-qt-row="book-heroes"]>section:first-child>div{' +
+      'padding-left:0.75rem;padding-right:0.75rem}' +
+      '[data-qt-row="book-heroes"]>section:first-child header h2{' +
+      'white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
+      // The title's inner span is a flex row (dot + text); flatten it to
+      // inline so the h2's ellipsis actually renders instead of hard-clipping
+      // mid-glyph, and keep the status dot visible as inline-block.
+      '[data-qt-row="book-heroes"]>section:first-child header h2>span{' +
+      'display:inline}' +
+      '[data-qt-row="book-heroes"]>section:first-child header h2>span>span:first-child{' +
+      'display:inline-block;margin-right:0.4rem}' +
+      // Keep the "N s ago" stamp on one line — when it wraps, the Alpaca
+      // header grows two lines taller and the two big numbers sit unlevel.
+      '[data-qt-row="book-heroes"]>section:first-child header .num{' +
+      'white-space:nowrap}';
+    document.head.appendChild(st);
   }
 
   // Robert 2026-08-10: the top balance trio is redundant now that both hero

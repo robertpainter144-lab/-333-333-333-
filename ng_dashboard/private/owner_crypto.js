@@ -560,11 +560,15 @@
       var p = s2.positions[sym] || {};
       var mv = (p.mv != null ? p.mv : p.notional) || 0;
       var pct = equity > 0 ? mv / equity * 100 : 0;
-      if (pct > 0.01) cur.push({ sym: String(sym).replace("/USD", ""), pct: pct });
+      var pl = (p.mv != null && p.notional != null) ? p.mv - p.notional : null;
+      if (pct > 0.01) cur.push({ sym: String(sym).replace("/USD", ""), pct: pct, pl: pl });
     });
     cur.sort(function (a, b) { return b.pct - a.pct; });
     var cash = Math.max(0, 100 - cur.reduce(function (s, x) { return s + x.pct; }, 0));
-    var fp = JSON.stringify([cur.map(function (x) { return [x.sym, x.pct.toFixed(1)]; }),
+    var fp = JSON.stringify([cur.map(function (x) {
+                               return [x.sym, x.pct.toFixed(1),
+                                       x.pl != null ? x.pl.toFixed(2) : ""];
+                             }),
                              cash.toFixed(0), equity.toFixed(2)]);
     if (slot.getAttribute("data-qtcy-fp") === fp) return;
     slot.setAttribute("data-qtcy-fp", fp);
@@ -572,8 +576,14 @@
       "crypto sleeve — % of sleeve equity " + money(equity) + "</div>" +
       '<div class="qtcy-bar">';
     cur.forEach(function (r, i) {
-      h += '<div title="' + esc(r.sym) + " " + r.pct.toFixed(1) + '%" style="width:' +
-        r.pct + "%;background:" + PAL[i % PAL.length] + '"></div>';
+      var plTxt = r.pl != null ? (r.pl >= 0 ? "+" : "") + r.pl.toFixed(2) : "";
+      var lbl = (plTxt && r.pct >= 8)
+        ? '<span class="qtcy-num" style="font-size:8px;font-weight:600;color:#0d1117">' +
+          plTxt + "</span>"
+        : "";
+      h += '<div title="' + esc(r.sym) + " " + r.pct.toFixed(1) + "%" +
+        (plTxt ? " · P/L " + plTxt : "") + '" style="width:' +
+        r.pct + "%;background:" + PAL[i % PAL.length] + '">' + lbl + "</div>";
     });
     if (cash > 0.5)
       h += '<div class="qtcy-cash" title="cash / uninvested ' + cash.toFixed(1) +

@@ -592,23 +592,44 @@
           cash.toFixed(0) + "% cash</span>" : "") + "</div>";
     h += '</div><div class="qtcy-leg" style="margin-bottom:10px">';
     cur.forEach(function (r, i) {
-      var plTxt = r.pl != null ? (r.pl >= 0 ? "+" : "") + r.pl.toFixed(2) : "";
       h += '<span class="qtcy-num"><span class="qtcy-sw" style="background:' +
         PAL[i % PAL.length] + '"></span>' + esc(r.sym) +
-        ' <span class="qtcy-faint">' + r.pct.toFixed(1) + "%</span>" +
-        (plTxt ? ' <span style="font-weight:600;color:' +
-          (r.pl >= 0 ? "#3fb950" : "#f85149") + '">' + plTxt + "</span>" : "") +
-        "</span>";
+        ' <span class="qtcy-faint">' + r.pct.toFixed(1) + "%</span></span>";
     });
     if (cash > 0.5)
       h += '<span class="qtcy-num"><span class="qtcy-sw qtcy-cash"></span>cash ' +
         '<span class="qtcy-faint">' + cash.toFixed(1) + "%</span></span>";
     slot.innerHTML = h + "</div>";
-    // keep in-block labels only where they genuinely fit
+    // in-block labels only where they genuinely fit; too-small blocks get
+    // a diagonal label above the bar, anchored at the block's x
+    var barEl = slot.querySelector(".qtcy-bar");
+    var need = [];
     slot.querySelectorAll(".qtcy-bar .qtcy-plfit").forEach(function (l2) {
-      l2.style.visibility =
-        l2.scrollWidth > l2.parentElement.clientWidth - 2 ? "hidden" : "visible";
+      if (l2.scrollWidth > l2.parentElement.clientWidth - 2) {
+        l2.style.visibility = "hidden";
+        need.push({ x: l2.parentElement.offsetLeft - barEl.offsetLeft,
+                    txt: l2.textContent });
+      } else {
+        l2.style.visibility = "visible";
+      }
     });
+    if (need.length && barEl) {
+      var strip = document.createElement("div");
+      strip.className = "qtcy-plstrip";
+      strip.style.cssText =
+        "position:relative;height:26px;overflow:visible;pointer-events:none";
+      need.forEach(function (it) {
+        var s3 = document.createElement("span");
+        s3.className = "qtcy-num";
+        s3.textContent = it.txt;
+        s3.style.cssText = "position:absolute;bottom:-2px;left:" + it.x +
+          "px;font-size:8px;font-weight:600;white-space:nowrap;" +
+          "transform:rotate(-55deg);transform-origin:left bottom;color:" +
+          (it.txt.charAt(0) === "-" ? "#f85149" : "#3fb950");
+        strip.appendChild(s3);
+      });
+      barEl.parentElement.insertBefore(strip, barEl);
+    }
   }
 
   function init() {

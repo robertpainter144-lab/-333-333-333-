@@ -84,6 +84,7 @@
     if (!slot || !slot.parentElement) return;
     const bar = slot.parentElement.querySelector("div.h-4.w-full");
     if (!bar) return; // first h-4 bar after the slot = "current"
+    const overflow = []; // blocks too narrow → diagonal labels above the bar
     for (const seg of bar.children) {
       const t = seg.getAttribute("title") || "";
       const sym = t.split(" ")[0];
@@ -103,30 +104,44 @@
         seg.appendChild(lbl);
       }
       if (lbl.textContent !== txt) lbl.textContent = txt;
-      // show only where the text genuinely fits — measured, not guessed
-      lbl.style.visibility =
-        lbl.scrollWidth > seg.clientWidth - 2 ? "hidden" : "visible";
+      // in-block only where the text genuinely fits — measured, not guessed
+      if (lbl.scrollWidth > seg.clientWidth - 2) {
+        lbl.style.visibility = "hidden";
+        overflow.push({ x: seg.offsetLeft - bar.offsetLeft, txt: txt, pl: pl });
+      } else {
+        lbl.style.visibility = "visible";
+      }
       if (!/P\/L/.test(t)) seg.setAttribute("title", t + " · P/L " + txt);
     }
-    // legend: every holding gets its P/L there too, so blocks too narrow
-    // to hold a label still show a number ("JPM 13.6% +0.03")
-    const leg = bar.nextElementSibling;
-    if (leg) {
-      for (const item of leg.children) {
-        const sym = (item.textContent || "").trim().split(/\s+/)[0];
-        if (!(sym in plMap)) continue;
-        const pl = plMap[sym];
-        const txt = (pl >= 0 ? "+" : "") + Number(pl).toFixed(2);
-        let tag = item.querySelector(".qt-legpl");
-        if (!tag) {
-          tag = document.createElement("span");
-          tag.className = "qt-legpl num";
-          tag.style.cssText = "font-size:9px;font-weight:600;margin-left:2px";
-          item.appendChild(tag);
-        }
-        if (tag.textContent !== txt) tag.textContent = txt;
-        tag.style.color = pl >= 0 ? "#3fb950" : "#f85149";
+    // Diagonal labels above the bar (Robert 2026-08-14): each too-small
+    // block's P/L starts at that block's x and slants up-right.
+    let strip = bar.parentElement.querySelector(".qt-allocpl-strip");
+    if (overflow.length) {
+      if (!strip) {
+        strip = document.createElement("div");
+        strip.className = "qt-allocpl-strip";
+        strip.style.cssText =
+          "position:relative;height:26px;overflow:visible;pointer-events:none";
+        bar.parentElement.insertBefore(strip, bar);
       }
+      strip.innerHTML = "";
+      for (const it of overflow) {
+        const s = document.createElement("span");
+        s.className = "num";
+        s.textContent = it.txt;
+        s.style.cssText = "position:absolute;bottom:-2px;left:" + it.x +
+          "px;font-size:8px;font-weight:600;white-space:nowrap;" +
+          "transform:rotate(-55deg);transform-origin:left bottom;color:" +
+          (it.pl >= 0 ? "#3fb950" : "#f85149");
+        strip.appendChild(s);
+      }
+    } else if (strip) {
+      strip.remove();
+    }
+    // retire the earlier legend-P/L experiment — superseded by the strip
+    const leg = bar.nextElementSibling;
+    if (leg && leg.querySelectorAll) {
+      leg.querySelectorAll(".qt-legpl").forEach((e2) => e2.remove());
     }
   }
 

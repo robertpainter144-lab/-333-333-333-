@@ -5,32 +5,32 @@
       "notional": 6.0,
       "opened": "2026-08-14T23:04:49+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.53)",
-      "mv": 6.36,
-      "cur": 9.52542
+      "mv": 6.35,
+      "cur": 9.51467
     },
     "AVAX/USD": {
       "entry_price": 6.469,
       "notional": 6.0,
       "opened": "2026-08-14T23:30:44+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.53)",
-      "mv": 5.92,
-      "cur": 6.412
+      "mv": 5.9,
+      "cur": 6.393
     },
     "RENDER/USD": {
       "entry_price": 1.277,
       "notional": 6.0,
       "opened": "2026-08-15T03:11:27+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.51)",
-      "mv": 5.92,
-      "cur": 1.267
+      "mv": 5.91,
+      "cur": 1.265
     },
     "WLD/USD": {
       "entry_price": 0.3468,
       "notional": 6.0,
       "opened": "2026-08-15T15:13:56+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.52)",
-      "mv": 6.02,
-      "cur": 0.3496
+      "mv": 6.04,
+      "cur": 0.3506
     },
     "ETH/USD": {
       "entry_price": 1883.67,
@@ -38,13 +38,14 @@
       "opened": "2026-08-15T22:39:36+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.50)",
       "mv": 5.97,
-      "cur": 1883.23
+      "cur": 1882.5
     }
   },
   "frozen": false,
   "last_notified": {
     "crypto_inactive": 1786306737.674485,
-    "kraken_key": 1786308844.526507
+    "kraken_key": 1786308844.526507,
+    "engine_error": 1786841878.12528
   },
   "seen_active": true,
   "targets": {
@@ -56,6 +57,6 @@
     "VVV/USD": 6.0,
     "ALGO/USD": 6.0
   },
-  "targets_ts": "2026-08-15T22:44:44+00:00",
+  "targets_ts": "2026-08-15T22:54:59+00:00",
   "targets_gate": "whale-confirmed (risk_on=0.50)"
 }

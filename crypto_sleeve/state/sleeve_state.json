@@ -5,24 +5,24 @@
       "notional": 6.0,
       "opened": "2026-08-14T23:30:44+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.53)",
-      "mv": 5.87,
-      "cur": 6.36
+      "mv": 5.88,
+      "cur": 6.366
     },
     "WLD/USD": {
       "entry_price": 0.3468,
       "notional": 6.0,
       "opened": "2026-08-15T15:13:56+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.52)",
-      "mv": 6.38,
-      "cur": 0.3707
+      "mv": 6.31,
+      "cur": 0.3665
     },
     "ETH/USD": {
       "entry_price": 1883.67,
       "notional": 6.0,
       "opened": "2026-08-15T22:39:36+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.50)",
-      "mv": 5.98,
-      "cur": 1886.36
+      "mv": 5.97,
+      "cur": 1885.02
     },
     "CRV/USD": {
       "entry_price": 0.24863,
@@ -30,15 +30,15 @@
       "opened": "2026-08-16T13:32:32+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.73)",
       "mv": 6.1,
-      "cur": 0.25385
+      "cur": 0.2542
     },
     "LTC/USD": {
       "entry_price": 44.24,
       "notional": 6.0,
       "opened": "2026-08-16T13:32:33+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.73)",
-      "mv": 6.01,
-      "cur": 44.52
+      "mv": 6.0,
+      "cur": 44.48
     }
   },
   "frozen": false,
@@ -54,10 +54,10 @@
     "LTC/USD": 6.0,
     "AVAX/USD": 6.0,
     "WLD/USD": 6.0,
-    "BTC/USD": 6.0,
     "ONDO/USD": 6.0,
-    "DASH/USD": 6.0
+    "DASH/USD": 6.0,
+    "RENDER/USD": 6.0
   },
-  "targets_ts": "2026-08-16T17:12:51+00:00",
+  "targets_ts": "2026-08-16T17:28:12+00:00",
   "targets_gate": "whale-confirmed (risk_on=0.54)"
 }

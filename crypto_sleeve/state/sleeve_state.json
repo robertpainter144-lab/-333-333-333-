@@ -5,40 +5,40 @@
       "notional": 6.0,
       "opened": "2026-08-14T23:30:44+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.53)",
-      "mv": 5.81,
-      "cur": 6.297
+      "mv": 5.82,
+      "cur": 6.304
     },
     "WLD/USD": {
       "entry_price": 0.3468,
       "notional": 6.0,
       "opened": "2026-08-15T15:13:56+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.52)",
-      "mv": 6.09,
-      "cur": 0.3539
+      "mv": 6.11,
+      "cur": 0.355
     },
     "ETH/USD": {
       "entry_price": 1883.67,
       "notional": 6.0,
       "opened": "2026-08-15T22:39:36+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.50)",
-      "mv": 6.02,
-      "cur": 1900.32
+      "mv": 6.03,
+      "cur": 1903.81
     },
     "BTC/USD": {
       "entry_price": 63354.8,
       "notional": 6.0,
       "opened": "2026-08-17T03:01:24+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.69)",
-      "mv": 5.99,
-      "cur": 63617.8
+      "mv": 6.0,
+      "cur": 63677.7
     },
     "DOGE/USD": {
       "entry_price": 0.0699955,
       "notional": 6.0,
       "opened": "2026-08-17T09:03:40+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.76)",
-      "mv": 5.98,
-      "cur": 0.0700617
+      "mv": 5.99,
+      "cur": 0.0701957
     }
   },
   "frozen": false,
@@ -58,6 +58,6 @@
     "ONDO/USD": 6.0,
     "VVV/USD": 6.0
   },
-  "targets_ts": "2026-08-17T14:34:58+00:00",
+  "targets_ts": "2026-08-17T14:50:12+00:00",
   "targets_gate": "whale-confirmed (risk_on=0.80)"
 }

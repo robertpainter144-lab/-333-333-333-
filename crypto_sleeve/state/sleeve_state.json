@@ -6,31 +6,23 @@
       "opened": "2026-08-14T23:30:44+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.53)",
       "mv": 5.85,
-      "cur": 6.338
+      "cur": 6.337
     },
     "ETH/USD": {
       "entry_price": 1883.67,
       "notional": 6.0,
       "opened": "2026-08-15T22:39:36+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.50)",
-      "mv": 6.05,
-      "cur": 1909.32
-    },
-    "BTC/USD": {
-      "entry_price": 63354.8,
-      "notional": 6.0,
-      "opened": "2026-08-17T03:01:24+00:00",
-      "signal_mode": "whale-confirmed (risk_on=0.69)",
-      "mv": 6.05,
-      "cur": 64200.0
+      "mv": 6.04,
+      "cur": 1905.43
     },
     "SOL/USD": {
       "entry_price": 75.87,
       "notional": 6.0,
       "opened": "2026-08-17T15:00:36+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.80)",
-      "mv": 6.04,
-      "cur": 76.75
+      "mv": 6.03,
+      "cur": 76.59
     },
     "VVV/USD": {
       "entry_price": 13.062,
@@ -38,7 +30,13 @@
       "opened": "2026-08-18T02:26:56+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.80)",
       "mv": 6.25,
-      "cur": 13.685
+      "cur": 13.681
+    },
+    "PENGU/USD": {
+      "entry_price": 0.006118,
+      "notional": 6.0,
+      "opened": "2026-08-19T06:12:16+00:00",
+      "signal_mode": "whale-confirmed (risk_on=0.65)"
     }
   },
   "frozen": false,
@@ -49,15 +47,15 @@
   },
   "seen_active": true,
   "targets": {
-    "BTC/USD": 6.0,
     "ETH/USD": 6.0,
     "SOL/USD": 6.0,
     "AVAX/USD": 6.0,
     "VVV/USD": 6.0,
-    "XRP/USD": 6.0,
-    "LTC/USD": 6.0,
-    "PENGU/USD": 6.0
+    "PENGU/USD": 6.0,
+    "ALGO/USD": 6.0,
+    "PEPE/USD": 6.0,
+    "LINK/USD": 6.0
   },
-  "targets_ts": "2026-08-19T05:56:35+00:00",
+  "targets_ts": "2026-08-19T06:12:14+00:00",
   "targets_gate": "whale-confirmed (risk_on=0.65)"
 }

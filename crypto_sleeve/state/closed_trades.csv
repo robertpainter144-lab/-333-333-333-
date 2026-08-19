@@ -85,3 +85,6 @@ closed_at,symbol,entry_time,entry_price,exit_price,notional,realized_pl,pl_pct,r
 2026-08-17T15:00:34+00:00,WLD/USD,2026-08-15T15:13:56+00:00,0.3468,0.3568,6.00,0.1421,0.0237,momentum_flip,whale-confirmed (risk_on=0.52)
 2026-08-18T02:01:16+00:00,DOGE/USD,2026-08-17T09:03:40+00:00,0.0700,0.0700,6.00,-0.0327,-0.0055,momentum_flip,whale-confirmed (risk_on=0.76)
 2026-08-18T02:26:49+00:00,LTC/USD,2026-08-18T02:01:20+00:00,44.4400,44.3100,6.00,-0.0475,-0.0079,momentum_flip,whale-confirmed (risk_on=0.81)
+2026-08-19T06:01:38+00:00,BTC/USD,2026-08-17T03:01:24+00:00,63354.8000,64200.0000,6.00,0.0496,0.0083,momentum_flip,whale-confirmed (risk_on=0.69)
+2026-08-19T06:07:02+00:00,XRP/USD,2026-08-19T06:02:00+00:00,0.9990,0.9987,6.00,-0.0314,-0.0052,momentum_flip,whale-confirmed (risk_on=0.65)
+2026-08-19T06:12:09+00:00,XRP/USD,2026-08-19T06:07:07+00:00,0.9990,0.9985,6.00,-0.0329,-0.0055,momentum_flip,whale-confirmed (risk_on=0.65)

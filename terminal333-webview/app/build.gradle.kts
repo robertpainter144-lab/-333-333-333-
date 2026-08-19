@@ -12,8 +12,8 @@ android {
         applicationId = "com.lab333.terminal"
         minSdk = 26
         targetSdk = 35
-        versionCode = 10
-        versionName = "3.4"
+        versionCode = 11
+        versionName = "3.5"
         val lp = Properties()
         val lpf = rootProject.file("local.properties")
         if (lpf.exists()) lpf.inputStream().use { lp.load(it) }

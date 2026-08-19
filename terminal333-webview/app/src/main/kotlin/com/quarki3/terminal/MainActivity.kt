@@ -38,6 +38,41 @@ class MainActivity : AppCompatActivity() {
         // guest surface after upgrade
         private const val LEGACY_URL = "https://129-153-96-201.sslip.io/terminal"
         private const val LONG_PRESS_MS = 1500L
+        // System picture-in-picture (Robert 2026-08-19): keep the equity
+        // chart floating over other apps when the Terminal is minimized.
+        private const val KEY_PIP = "pip_enabled"
+    }
+
+    private var pipEnabled: Boolean
+        get() = prefs.getBoolean(KEY_PIP, true)
+        set(value) = prefs.edit().putBoolean(KEY_PIP, value).apply()
+
+    private fun tryEnterPip() {
+        try {
+            enterPictureInPictureMode(
+                android.app.PictureInPictureParams.Builder()
+                    .setAspectRatio(android.util.Rational(16, 10))
+                    .build())
+        } catch (_: Exception) { }
+    }
+
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        if (pipEnabled) tryEnterPip()
+    }
+
+    override fun onPictureInPictureModeChanged(
+        isInPictureInPictureMode: Boolean,
+        newConfig: android.content.res.Configuration
+    ) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        // tell the page to swap to the chart-only PiP layout (owner_pip.js)
+        webView.evaluateJavascript(
+            "window.__qtSetPip&&window.__qtSetPip($isInPictureInPictureMode)", null)
+        swipeRefresh.isEnabled = !isInPictureInPictureMode
+        findViewById<ImageButton>(R.id.menuButton).visibility =
+            if (isInPictureInPictureMode) android.view.View.GONE
+            else android.view.View.VISIBLE
     }
 
     private lateinit var webView: WebView
@@ -150,6 +185,18 @@ class MainActivity : AppCompatActivity() {
                 } catch (_: Exception) { }
             }
         }, "QTNative")
+
+        // PiP bridge: the web PiP panel toggles auto-PiP and can enter PiP
+        // on demand (owner_pip.js probes for QTPip and shows the controls
+        // only inside this app).
+        webView.addJavascriptInterface(object {
+            @android.webkit.JavascriptInterface
+            fun setEnabled(on: Boolean) { pipEnabled = on }
+            @android.webkit.JavascriptInterface
+            fun isEnabled(): Boolean = pipEnabled
+            @android.webkit.JavascriptInterface
+            fun enterNow() { runOnUiThread { tryEnterPip() } }
+        }, "QTPip")
 
         // Surface WebView JS console + errors to logcat (tag QT_WEB) so a
         // blank page can be diagnosed over adb instead of guessed at.

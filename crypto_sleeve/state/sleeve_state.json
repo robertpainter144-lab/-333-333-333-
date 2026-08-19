@@ -5,16 +5,16 @@
       "notional": 6.0,
       "opened": "2026-08-14T23:30:44+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.53)",
-      "mv": 6.12,
-      "cur": 6.629
+      "mv": 6.09,
+      "cur": 6.598
     },
     "ETH/USD": {
       "entry_price": 1883.67,
       "notional": 6.0,
       "opened": "2026-08-15T22:39:36+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.50)",
-      "mv": 6.65,
-      "cur": 2098.79
+      "mv": 6.62,
+      "cur": 2089.6
     },
     "SOL/USD": {
       "entry_price": 75.87,
@@ -22,15 +22,15 @@
       "opened": "2026-08-17T15:00:36+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.80)",
       "mv": 6.44,
-      "cur": 81.9
+      "cur": 81.85
     },
     "PENGU/USD": {
       "entry_price": 0.006118,
       "notional": 6.0,
       "opened": "2026-08-19T06:12:16+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.65)",
-      "mv": 6.21,
-      "cur": 0.00636
+      "mv": 6.2,
+      "cur": 0.006356
     },
     "XRP/USD": {
       "entry_price": 1.00335,
@@ -38,7 +38,7 @@
       "opened": "2026-08-19T08:14:00+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.62)",
       "mv": 6.35,
-      "cur": 1.06761
+      "cur": 1.06715
     }
   },
   "frozen": false,
@@ -58,6 +58,6 @@
     "ADA/USD": 6.0,
     "XLM/USD": 6.0
   },
-  "targets_ts": "2026-08-19T16:25:31+00:00",
+  "targets_ts": "2026-08-19T16:40:58+00:00",
   "targets_gate": "whale-confirmed (risk_on=0.86)"
 }

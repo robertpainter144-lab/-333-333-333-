@@ -5,16 +5,16 @@
       "notional": 6.0,
       "opened": "2026-08-14T23:30:44+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.53)",
-      "mv": 6.04,
-      "cur": 6.543
+      "mv": 6.05,
+      "cur": 6.554
     },
     "ETH/USD": {
       "entry_price": 1883.67,
       "notional": 6.0,
       "opened": "2026-08-15T22:39:36+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.50)",
-      "mv": 6.64,
-      "cur": 2095.48
+      "mv": 6.65,
+      "cur": 2097.71
     },
     "SOL/USD": {
       "entry_price": 75.87,
@@ -29,16 +29,16 @@
       "notional": 6.0,
       "opened": "2026-08-19T06:12:16+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.65)",
-      "mv": 6.14,
-      "cur": 0.006295
+      "mv": 6.16,
+      "cur": 0.006313
     },
     "XRP/USD": {
       "entry_price": 1.00335,
       "notional": 6.0,
       "opened": "2026-08-19T08:14:00+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.62)",
-      "mv": 6.35,
-      "cur": 1.06757
+      "mv": 6.34,
+      "cur": 1.06484
     }
   },
   "frozen": false,
@@ -58,6 +58,6 @@
     "ADA/USD": 6.0,
     "XLM/USD": 6.0
   },
-  "targets_ts": "2026-08-19T19:28:21+00:00",
+  "targets_ts": "2026-08-19T19:43:43+00:00",
   "targets_gate": "whale-confirmed (risk_on=0.85)"
 }

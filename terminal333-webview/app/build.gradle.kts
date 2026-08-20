@@ -12,13 +12,19 @@ android {
         applicationId = "com.lab333.terminal"
         minSdk = 26
         targetSdk = 35
-        versionCode = 12
-        versionName = "3.6"
+        versionCode = 13
+        versionName = "3.7"
         val lp = Properties()
         val lpf = rootProject.file("local.properties")
         if (lpf.exists()) lpf.inputStream().use { lp.load(it) }
         buildConfigField("String", "DEFAULT_TERMINAL_URL",
             "\"https://quarki-stack.tail33de20.ts.net/terminal/?key=${lp.getProperty("ownerApiKey", "")}\"")
+        // Embedded Claude terminal (Robert 2026-08-20): tailnet ttyd URL +
+        // basic-auth, auto-supplied by the app for that host only.
+        buildConfigField("String", "TERMINAL_URL",
+            "\"${lp.getProperty("terminalUrl", "")}\"")
+        buildConfigField("String", "TERMINAL_AUTH",
+            "\"${lp.getProperty("terminalAuth", "")}\"")
 
     }
     signingConfigs {

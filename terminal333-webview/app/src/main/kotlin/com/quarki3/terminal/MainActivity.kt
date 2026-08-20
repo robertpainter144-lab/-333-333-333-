@@ -198,13 +198,36 @@ class MainActivity : AppCompatActivity() {
                     return true
                 }
                 // Same host as the configured start URL stays in the WebView;
-                // everything else is an external link -> system browser.
+                // the embedded terminal host also stays in-app; everything
+                // else is an external link -> system browser.
                 val homeHost = Uri.parse(startUrl).host
-                return if (url.host.equals(homeHost, ignoreCase = true)) {
+                val termHost = runCatching {
+                    Uri.parse(BuildConfig.TERMINAL_URL).host }.getOrNull()
+                return if (url.host.equals(homeHost, ignoreCase = true) ||
+                           (termHost != null && url.host.equals(termHost, ignoreCase = true))) {
                     false
                 } else {
                     openExternally(url)
                     true
+                }
+            }
+
+            // Auto-supply the terminal's basic-auth for its host ONLY, so the
+            // fingerprint-gated app holds the password and other tailnet
+            // clients still must enter it (Robert 2026-08-20).
+            override fun onReceivedHttpAuthRequest(
+                view: WebView, handler: android.webkit.HttpAuthHandler,
+                host: String?, realm: String?
+            ) {
+                val termHost = runCatching {
+                    Uri.parse(BuildConfig.TERMINAL_URL).host }.getOrNull()
+                val creds = BuildConfig.TERMINAL_AUTH
+                if (host != null && host.equals(termHost, ignoreCase = true) &&
+                    creds.contains(":")) {
+                    val i = creds.indexOf(":")
+                    handler.proceed(creds.substring(0, i), creds.substring(i + 1))
+                } else {
+                    handler.cancel()
                 }
             }
 

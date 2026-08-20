@@ -93,13 +93,16 @@ class MainActivity : AppCompatActivity() {
 
     @SuppressLint("SetJavaScriptEnabled", "ClickableViewAccessibility")
     private var unlocked = false
+    private var pendingState: Bundle? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         // Biometric gate (Robert 2026-08-20): the app controls a live trading
         // account, so require fingerprint / device credential before any UI
-        // or WebView loads. authenticate() calls buildApp() on success.
+        // or WebView loads. authenticate() calls buildApp() on success. Stash
+        // savedInstanceState — buildApp() runs async after the prompt.
+        pendingState = savedInstanceState
         requireBiometric()
     }
 
@@ -299,8 +302,10 @@ class MainActivity : AppCompatActivity() {
             }
         })
 
-        if (savedInstanceState != null) {
-            webView.restoreState(savedInstanceState)
+        val saved = pendingState
+        pendingState = null
+        if (saved != null) {
+            webView.restoreState(saved)
         } else {
             webView.loadUrl(startUrl)
         }

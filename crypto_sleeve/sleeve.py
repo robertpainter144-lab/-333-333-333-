@@ -206,9 +206,28 @@ class KrakenBroker:
         return price
 
     def close(self, pos: Position) -> None:
+        # Sell only the SPOT-available balance: positions() sums spot + .F
+        # (earn) aliases, but a market order can only touch spot — ordering
+        # the summed qty rejects with EOrder:Insufficient funds and leaves
+        # the position UNPROTECTED (found live 2026-08-20: ETH/SOL take-
+        # profits failing every tick). Any Earn remainder is logged for a
+        # manual unstake.
+        try:
+            bal = self._priv("/0/private/Balance")
+            spot = float(bal.get(self.asset[pos.symbol][0], 0))
+        except Exception:
+            spot = pos.qty
+        vol = min(pos.qty, spot) * 0.9995
+        if vol * pos.current_price < 2:
+            raise RuntimeError(
+                f"{pos.symbol}: spot balance {spot:.8f} too small to sell — "
+                f"remainder likely in Kraken Earn (.F); unstake to free it")
         self._priv("/0/private/AddOrder",
                    {"pair": self.pair[pos.symbol], "type": "sell",
-                    "ordertype": "market", "volume": f"{pos.qty:.8f}"})
+                    "ordertype": "market", "volume": f"{vol:.8f}"})
+        if spot < pos.qty * 0.99:
+            log(f"{pos.symbol}: sold spot {vol:.8f}; ~{pos.qty - spot:.8f} "
+                f"remains in Earn (.F) — unstake to fully exit")
 
 
 class AlpacaBroker:
@@ -353,6 +372,27 @@ def append_ledger(row: dict) -> None:
         w.writerow(row)
 
 
+def trail_width(broker, symbol: str) -> float:
+    """Per-asset trailing-stop width from ITS OWN recent volatility (Robert
+    2026-08-20: 'a safe trailing stop that makes sense for each individual
+    holding analyzed separately'): stdev of the last 48 hourly returns,
+    scaled to a day, times a multiplier, clamped. BTC lands ~5-7%; high-beta
+    alts 12-18%. Data failure = widest (safest against whipsaw exits)."""
+    try:
+        closes = broker.closes(symbol)[-49:]
+        rets = [closes[i + 1] / closes[i] - 1
+                for i in range(len(closes) - 1) if closes[i]]
+        if len(rets) < 12:
+            return float(CFG.get("trail_max", 0.18))
+        import statistics
+        w = (float(CFG.get("trail_vol_mult", 2.5))
+             * statistics.pstdev(rets) * (24 ** 0.5))
+        return max(float(CFG.get("trail_min", 0.05)),
+                   min(float(CFG.get("trail_max", 0.18)), w))
+    except Exception:
+        return float(CFG.get("trail_max", 0.18))
+
+
 def close_position(broker, pos: Position, st: dict, reason: str) -> None:
     broker.close(pos)
     meta = st["positions"].pop(pos.symbol, {})
@@ -438,16 +478,33 @@ def main() -> None:
         return
 
     # ---- exits ----
+    # Per-holding TRAILING stops (Robert 2026-08-20, D41 amendment: keep the
+    # upward momentum, protect each winner by its own volatility) — replaces
+    # the fixed take_profit as the primary upside exit; the hard stop_pct
+    # still guards below-entry moves before the trail arms.
+    peaks = st.setdefault("trail_peaks", {})
     still_open = []
     for p in positions:
         try:
-            chg = p.current_price / p.entry_price - 1
+            cur = p.current_price
+            peaks[p.symbol] = max(peaks.get(p.symbol, 0.0), cur, p.entry_price)
+            peak = peaks[p.symbol]
+            chg = cur / p.entry_price - 1
+            trail = trail_width(broker, p.symbol)
+            armed = peak >= p.entry_price * (1 + float(CFG.get("trail_arm_pct", 0.02)))
             if chg <= CFG["stop_pct"]:
                 close_position(broker, p, st, "stop")
+                peaks.pop(p.symbol, None)
+            elif armed and cur <= peak * (1 - trail):
+                close_position(broker, p, st,
+                               f"trail_stop({trail * 100:.1f}%_off_{peak:.6g})")
+                peaks.pop(p.symbol, None)
             elif chg >= CFG["take_pct"]:
                 close_position(broker, p, st, "take_profit")
+                peaks.pop(p.symbol, None)
             elif momentum_ok(broker.closes(p.symbol)) is False:
                 close_position(broker, p, st, "momentum_flip")
+                peaks.pop(p.symbol, None)
             else:
                 still_open.append(p)
         except Exception as e:

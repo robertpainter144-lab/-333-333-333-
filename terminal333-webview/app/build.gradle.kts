@@ -12,8 +12,8 @@ android {
         applicationId = "com.lab333.terminal"
         minSdk = 26
         targetSdk = 35
-        versionCode = 11
-        versionName = "3.5"
+        versionCode = 12
+        versionName = "3.6"
         val lp = Properties()
         val lpf = rootProject.file("local.properties")
         if (lpf.exists()) lpf.inputStream().use { lp.load(it) }
@@ -58,4 +58,5 @@ dependencies {
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("androidx.activity:activity-ktx:1.9.3")
     implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
+    implementation("androidx.biometric:biometric:1.1.0")
 }

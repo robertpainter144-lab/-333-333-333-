@@ -20,6 +20,9 @@ import android.widget.ImageButton
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.biometric.BiometricManager
+import androidx.biometric.BiometricPrompt
+import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
@@ -89,9 +92,56 @@ class MainActivity : AppCompatActivity() {
     private var downY = 0f
 
     @SuppressLint("SetJavaScriptEnabled", "ClickableViewAccessibility")
+    private var unlocked = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+        // Biometric gate (Robert 2026-08-20): the app controls a live trading
+        // account, so require fingerprint / device credential before any UI
+        // or WebView loads. authenticate() calls buildApp() on success.
+        requireBiometric()
+    }
+
+    // BIOMETRIC_STRONG (fingerprint/face) OR device PIN/pattern/password — so
+    // a phone with no enrolled fingerprint, or a failed sensor, still unlocks
+    // via the lockscreen credential rather than bricking the app.
+    private val authAllowed = BiometricManager.Authenticators.BIOMETRIC_STRONG or
+        BiometricManager.Authenticators.DEVICE_CREDENTIAL
+
+    private fun requireBiometric() {
+        val canAuth = BiometricManager.from(this).canAuthenticate(authAllowed)
+        if (canAuth != BiometricManager.BIOMETRIC_SUCCESS) {
+            // No biometric AND no device lock configured: fail OPEN rather
+            // than lock Robert out of his own trading app — the tailnet +
+            // owner-key gate still protect the data. (A device with any
+            // lockscreen credential never reaches here.)
+            buildApp()
+            return
+        }
+        val exec = ContextCompat.getMainExecutor(this)
+        val prompt = BiometricPrompt(this, exec,
+            object : BiometricPrompt.AuthenticationCallback() {
+                override fun onAuthenticationSucceeded(r: BiometricPrompt.AuthenticationResult) {
+                    if (!unlocked) buildApp()
+                }
+                override fun onAuthenticationError(code: Int, msg: CharSequence) {
+                    // User cancelled / too many attempts: close the app rather
+                    // than expose the trading surface unauthenticated.
+                    if (!unlocked) finish()
+                }
+            })
+        prompt.authenticate(
+            BiometricPrompt.PromptInfo.Builder()
+                .setTitle("Unlock Quarki333 Terminal")
+                .setSubtitle("Fingerprint or device PIN to access live trading")
+                .setAllowedAuthenticators(authAllowed)
+                .build())
+    }
+
+    private fun buildApp() {
+        if (unlocked) return
+        unlocked = true
 
         // Discard ANY saved URL from a prior install: the /private-terminal
         // route only existed on the retired Oracle VM, and pinning to it (or

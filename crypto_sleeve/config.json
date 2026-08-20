@@ -46,5 +46,7 @@
   "d41_amendment": "2026-08-20 16:35 \u2014 Robert deposited $1000 (cash $1000.47 confirmed). Sleeve scaled cap $130\u2192$1130, per_trade $12\u2192$120, tilt_max $30\u2192$350, freeze \u2212$25\u2192\u2212$200 (~18%). FLAGGED per D41: $1130 sleeve is >2x the $485 Alpaca book and blows past D41's 35%-of-book rung \u2014 explicit D34-class escalation on Robert's repeated word (max-profit crypto scale). Momentum-tilt ON: the $1000 legs into the leaders per-tick. Reduce cap to revert.",
   "momentum_weighted": true,
   "tilt_max_usd": 350.0,
-  "tilt_note": "2026-08-20 per Robert ('tilt the sleeve toward the leaders, maximizing profit'): entries now momentum-WEIGHTED \u2014 strongest movers funded FIRST and LARGER (0.5x-2.5x base per_trade by EMA-spread + recent-return strength), clamped [min_order, tilt_max_usd]. Set momentum_weighted=false to revert to equal-weight."
+  "tilt_note": "2026-08-20 per Robert ('tilt the sleeve toward the leaders, maximizing profit'): entries now momentum-WEIGHTED \u2014 strongest movers funded FIRST and LARGER (0.5x-2.5x base per_trade by EMA-spread + recent-return strength), clamped [min_order, tilt_max_usd]. Set momentum_weighted=false to revert to equal-weight.",
+  "max_positions": 4,
+  "concentrated_add": true
 }

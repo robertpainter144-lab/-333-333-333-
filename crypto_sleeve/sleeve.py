@@ -378,6 +378,22 @@ def tilt_size(strength: float, strongest: float) -> float:
     return min(CFG.get("tilt_max_usd", base * 2), base * mult)
 
 
+def add_to_position(st: dict, symbol: str, add_usd: float, price: float) -> float:
+    """Grow a HELD position by add_usd at `price`, blending the entry price
+    on cost basis (Robert 2026-08-20 concentrated_add). Returns new notional."""
+    row = st["positions"].get(symbol, {})
+    old_n = float(row.get("notional", 0.0))
+    old_e = float(row.get("entry_price", price)) or price
+    qty_old = old_n / old_e if old_e else 0.0
+    qty_new = add_usd / price if price else 0.0
+    new_n = round(old_n + add_usd, 4)
+    new_e = round(new_n / (qty_old + qty_new), 8) if (qty_old + qty_new) else price
+    row["notional"] = new_n
+    row["entry_price"] = new_e
+    st["positions"][symbol] = row
+    return new_n
+
+
 def whale_gate() -> tuple[bool, str]:
     """(entries_allowed, mode). Stale/empty/missing feed -> momentum-only fallback."""
     try:
@@ -638,6 +654,60 @@ def main() -> None:
         log(f"targets calc FAIL {e!r}")
 
     bought = 0.0
+
+    # CONCENTRATED ADD (Robert 2026-08-20 "redeploy freed cash into winners"):
+    # when the book already holds winners, grow THEM with any freed cash —
+    # tilt-weighted by momentum, up to each position's tilt_max — instead of
+    # opening a new (possibly meme) name. Keeps the concentration intact when
+    # a trailing stop frees capital. Only bootstraps new names when the book
+    # is empty (falls through to the open-new loop below).
+    if (allowed and CFG.get("concentrated_add") and st.get("positions")
+            and cash_avail - 0.5 >= CFG["min_order_usd"]):
+        pos_cap = CFG.get("tilt_max_usd", CFG["per_trade_usd"] * 2)
+        held_scored = []
+        for sym in list(st["positions"].keys()):
+            try:
+                s = momentum_strength(broker.closes(sym))
+            except Exception:
+                s = None
+            held_scored.append((s if (s and s > 0) else 1e-4, sym))
+        held_scored.sort(reverse=True)
+        strongest = held_scored[0][0] if held_scored else 1.0
+        for s, sym in held_scored:
+            if room < CFG["min_order_usd"] or cash_avail - 0.5 < CFG["min_order_usd"]:
+                break
+            cur_n = float(st["positions"][sym].get("notional", 0.0))
+            headroom = pos_cap - cur_n
+            if headroom < CFG["min_order_usd"]:
+                continue
+            size = round(min(tilt_size(s, strongest), headroom,
+                             room, cash_avail - 0.5), 2)
+            if size < CFG["min_order_usd"]:
+                continue
+            try:
+                price = broker.buy(sym, size)
+            except Exception as e:
+                log(f"ADD {sym} ${size:.2f} FAIL {e!r}")
+                continue
+            new_n = add_to_position(st, sym, size, price)
+            save_state(st)
+            room -= size
+            cash_avail -= size
+            bought += size
+            log(f"ADD {sym} ${size:.2f} @ ~{price} -> ${new_n:.2f} [concentrated]")
+            notify("routine", "Crypto sleeve — grew a winner",
+                   f"Added ${size:.2f} to {sym} (freed cash redeployed into a "
+                   f"held winner, now ${new_n:.2f}). Momentum-weighted.")
+        allowed = False   # concentrated mode never opens NEW names this tick
+
+    # Position cap (Robert 2026-08-20): a concentrated winners book must not
+    # be re-sprayed into new names every time cash frees — once the sleeve
+    # holds max_positions coins, the buy loop opens no new ones (freed cash
+    # sits until a slot opens or is manually deployed into a held winner).
+    _max_pos = int(CFG.get("max_positions", 999))
+    if allowed and len(st.get("positions") or {}) >= _max_pos:
+        allowed = False
+        log(f"position cap: holding {len(st['positions'])}/{_max_pos} — no new entries")
     if allowed:
         # Momentum-weighted (Robert 2026-08-20 "tilt toward the leaders"):
         # rank eligible non-held coins by strength, fund the STRONGEST first

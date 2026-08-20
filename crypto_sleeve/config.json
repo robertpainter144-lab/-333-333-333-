@@ -43,5 +43,8 @@
   "trail_min": 0.05,
   "trail_max": 0.18,
   "trail_arm_pct": 0.02,
-  "d41_amendment": "2026-08-20 15:08 per Robert 'just put $100 into kraken for now' \u2014 dialed back from the $1000 prep: cap $1100\u2192$130 (\u2248 existing ~$30 + $100 deposit), per-trade $60\u2192$12 (~10 slots), freeze \u2212$100\u2192\u2212$25 (trade-P/L). Per-asset trailing stops UNCHANGED. This lands near the D41 $110 ladder rung \u2014 no strong recency flag. Claude does NOT move the fiat; Robert deposits via Kraken. Engine re-reads config each run (launchd), no restart needed."
+  "d41_amendment": "2026-08-20 15:08 per Robert 'just put $100 into kraken for now' \u2014 dialed back from the $1000 prep: cap $1100\u2192$130 (\u2248 existing ~$30 + $100 deposit), per-trade $60\u2192$12 (~10 slots), freeze \u2212$100\u2192\u2212$25 (trade-P/L). Per-asset trailing stops UNCHANGED. This lands near the D41 $110 ladder rung \u2014 no strong recency flag. Claude does NOT move the fiat; Robert deposits via Kraken. Engine re-reads config each run (launchd), no restart needed.",
+  "momentum_weighted": true,
+  "tilt_max_usd": 30.0,
+  "tilt_note": "2026-08-20 per Robert ('tilt the sleeve toward the leaders, maximizing profit'): entries now momentum-WEIGHTED \u2014 strongest movers funded FIRST and LARGER (0.5x-2.5x base per_trade by EMA-spread + recent-return strength), clamped [min_order, tilt_max_usd]. Set momentum_weighted=false to revert to equal-weight."
 }

@@ -356,6 +356,28 @@ def momentum_ok(closes: list[float]) -> bool | None:
     return ema(closes, CFG["ema_fast"]) > ema(closes, CFG["ema_slow"]) and closes[-1] > day_ago
 
 
+def momentum_strength(closes: list[float]) -> float | None:
+    """Leader score for tilt-weighted sizing (Robert 2026-08-20): trend
+    (EMA-fast/slow spread) + recent 24h return. Higher = stronger leader.
+    None when momentum_ok isn't a clean True, so only genuine leaders are
+    sized up; a data outage never inflates a bet."""
+    if momentum_ok(closes) is not True:
+        return None
+    es = ema(closes, CFG["ema_slow"])
+    trend = (ema(closes, CFG["ema_fast"]) / es - 1) if es else 0.0
+    day_ago = closes[-25] if len(closes) >= 25 else closes[0]
+    recent = (closes[-1] / day_ago - 1) if day_ago else 0.0
+    return max(0.0, trend + recent)
+
+
+def tilt_size(strength: float, strongest: float) -> float:
+    """Base per_trade scaled 0.5x (weakest passing) → 2.5x-ish (the
+    strongest leader), clamped to [min_order, tilt_max_usd]."""
+    base = CFG["per_trade_usd"]
+    mult = 0.5 + 2.0 * (strength / strongest if strongest > 0 else 1.0)
+    return min(CFG.get("tilt_max_usd", base * 2), base * mult)
+
+
 def whale_gate() -> tuple[bool, str]:
     """(entries_allowed, mode). Stale/empty/missing feed -> momentum-only fallback."""
     try:
@@ -586,17 +608,26 @@ def main() -> None:
         tgt = {p.symbol: round(p.notional, 2) for p in still_open}
         t_room = CFG["cap_total_usd"] - sum(tgt.values())
         if allowed:
+            # mirror the momentum-weighted buy order for the target bar
+            _scored = []
             for sym in CFG["universe"]:
-                if t_room < CFG["min_order_usd"]:
-                    break
                 if sym in tgt:
                     continue
                 try:
-                    if momentum_ok(broker.closes(sym)) is not True:
-                        continue
+                    s = momentum_strength(broker.closes(sym))
                 except Exception:
+                    s = None
+                if s is not None and s > 0:
+                    _scored.append((s, sym))
+            _scored.sort(reverse=True)
+            _strong = _scored[0][0] if _scored else 1.0
+            for s, sym in _scored:
+                if t_room < CFG["min_order_usd"]:
+                    break
+                want = round(min(tilt_size(s, _strong) if CFG.get("momentum_weighted")
+                                 else CFG["per_trade_usd"], t_room), 2)
+                if want < CFG["min_order_usd"]:
                     continue
-                want = round(min(CFG["per_trade_usd"], t_room), 2)
                 tgt[sym] = want
                 t_room -= want
         st["targets"] = tgt
@@ -608,14 +639,40 @@ def main() -> None:
 
     bought = 0.0
     if allowed:
-        for sym in CFG["universe"]:
-            if sym in held:
-                continue
-            size = min(CFG["per_trade_usd"], room, cash_avail - 0.5)
+        # Momentum-weighted (Robert 2026-08-20 "tilt toward the leaders"):
+        # rank eligible non-held coins by strength, fund the STRONGEST first
+        # and LARGER. Falls back to flat equal-weight in universe order when
+        # momentum_weighted is off.
+        if CFG.get("momentum_weighted"):
+            scored = []
+            for sym in CFG["universe"]:
+                if sym in held:
+                    continue
+                try:
+                    s = momentum_strength(broker.closes(sym))
+                except Exception:
+                    s = None
+                if s is not None and s > 0:
+                    scored.append((s, sym))
+            scored.sort(reverse=True)   # strongest leader first
+            strongest = scored[0][0] if scored else 1.0
+            order = [(sym, tilt_size(s, strongest)) for s, sym in scored]
+        else:
+            order = [(sym, CFG["per_trade_usd"]) for sym in CFG["universe"]
+                     if sym not in held]
+
+        for sym, want in order:
+            size = round(min(want, room, cash_avail - 0.5), 2)
             if size < CFG["min_order_usd"]:
-                break
+                # room/cash exhausted, or this leader's slot is too small —
+                # in ranked mode the strong ones came first, so break
+                if room < CFG["min_order_usd"] or cash_avail - 0.5 < CFG["min_order_usd"]:
+                    break
+                continue
             try:
-                if momentum_ok(broker.closes(sym)) is not True:
+                # momentum already confirmed for ranked mode; re-check in flat
+                if not CFG.get("momentum_weighted") and \
+                        momentum_ok(broker.closes(sym)) is not True:
                     continue
                 price = broker.buy(sym, size)
             except Exception as e:

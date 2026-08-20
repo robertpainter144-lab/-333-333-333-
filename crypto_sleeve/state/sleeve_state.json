@@ -5,8 +5,8 @@
       "notional": 6.0,
       "opened": "2026-08-14T23:30:44+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.53)",
-      "mv": 6.64,
-      "cur": 7.197
+      "mv": 6.63,
+      "cur": 7.187
     },
     "ETH/USD": {
       "entry_price": 1883.67,
@@ -14,95 +14,95 @@
       "opened": "2026-08-15T22:39:36+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.50)",
       "mv": 7.35,
-      "cur": 2320.23
+      "cur": 2319.88
     },
     "SOL/USD": {
       "entry_price": 75.87,
       "notional": 6.0,
       "opened": "2026-08-17T15:00:36+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.80)",
-      "mv": 6.9,
-      "cur": 87.63
+      "mv": 6.89,
+      "cur": 87.55
     },
     "BTC/USD": {
       "entry_price": 71741.6,
       "notional": 6.0,
       "opened": "2026-08-20T08:55:12+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.85)",
-      "mv": 6.06,
-      "cur": 72783.0
+      "mv": 6.05,
+      "cur": 72718.3
     },
     "XRP/USD": {
       "entry_price": 1.18415,
       "notional": 6.0,
       "opened": "2026-08-20T11:37:40+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.86)",
-      "mv": 6.37,
-      "cur": 1.26375
+      "mv": 6.4,
+      "cur": 1.26999
     },
     "ADA/USD": {
       "entry_price": 0.198168,
       "notional": 12.0,
       "opened": "2026-08-20T21:09:59+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.82)",
-      "mv": 11.92,
-      "cur": 0.197871
+      "mv": 11.95,
+      "cur": 0.198392
     },
     "XLM/USD": {
       "entry_price": 0.180266,
       "notional": 12.0,
       "opened": "2026-08-20T21:10:00+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.82)",
-      "mv": 11.97,
-      "cur": 0.1807
+      "mv": 12.04,
+      "cur": 0.181776
     },
     "SUI/USD": {
       "entry_price": 0.7311,
       "notional": 12.0,
       "opened": "2026-08-20T21:10:01+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.82)",
-      "mv": 12.01,
-      "cur": 0.7356
+      "mv": 12.02,
+      "cur": 0.7359
     },
     "CRV/USD": {
       "entry_price": 0.27771,
       "notional": 12.0,
       "opened": "2026-08-20T21:10:02+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.82)",
-      "mv": 11.95,
-      "cur": 0.27791
+      "mv": 11.96,
+      "cur": 0.27818
     },
     "LTC/USD": {
       "entry_price": 48.15,
       "notional": 12.0,
       "opened": "2026-08-20T21:10:03+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.82)",
-      "mv": 11.92,
-      "cur": 48.07
+      "mv": 11.94,
+      "cur": 48.14
     },
     "DOGE/USD": {
       "entry_price": 0.0802209,
       "notional": 12.0,
       "opened": "2026-08-20T21:10:03+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.82)",
-      "mv": 12.0,
-      "cur": 0.0806032
+      "mv": 11.96,
+      "cur": 0.0803322
     },
     "PENGU/USD": {
       "entry_price": 0.007181,
       "notional": 12.0,
       "opened": "2026-08-20T21:10:04+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.82)",
-      "mv": 11.97,
-      "cur": 0.007198
+      "mv": 11.91,
+      "cur": 0.007165
     },
     "VVV/USD": {
       "entry_price": 14.462,
       "notional": 12.0,
       "opened": "2026-08-20T21:10:05+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.82)",
-      "mv": 11.95,
-      "cur": 14.476
+      "mv": 11.99,
+      "cur": 14.524
     }
   },
   "frozen": false,
@@ -127,19 +127,19 @@
     "PENGU/USD": 12.0,
     "VVV/USD": 12.0
   },
-  "targets_ts": "2026-08-20T21:33:54+00:00",
+  "targets_ts": "2026-08-20T21:49:24+00:00",
   "targets_gate": "whale-confirmed (risk_on=0.82)",
   "trail_peaks": {
     "BTC/USD": 72924.4,
     "ETH/USD": 2329.63,
     "SOL/USD": 87.8,
-    "XRP/USD": 1.26375,
+    "XRP/USD": 1.26999,
     "AVAX/USD": 7.22,
-    "ADA/USD": 0.198168,
-    "XLM/USD": 0.1807,
-    "SUI/USD": 0.7356,
+    "ADA/USD": 0.198392,
+    "XLM/USD": 0.181776,
+    "SUI/USD": 0.7359,
     "CRV/USD": 0.27884,
-    "LTC/USD": 48.15,
+    "LTC/USD": 48.18,
     "DOGE/USD": 0.0806032,
     "PENGU/USD": 0.007198,
     "VVV/USD": 14.561

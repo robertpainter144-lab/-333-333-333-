@@ -90,3 +90,4 @@ closed_at,symbol,entry_time,entry_price,exit_price,notional,realized_pl,pl_pct,r
 2026-08-19T06:12:09+00:00,XRP/USD,2026-08-19T06:07:07+00:00,0.9990,0.9985,6.00,-0.0329,-0.0055,momentum_flip,whale-confirmed (risk_on=0.65)
 2026-08-19T08:03:47+00:00,VVV/USD,2026-08-18T02:26:56+00:00,13.0620,13.8680,6.00,0.3384,0.0564,momentum_flip,whale-confirmed (risk_on=0.80)
 2026-08-19T08:13:57+00:00,BTC/USD,2026-08-19T08:03:50+00:00,64249.7000,64192.6000,6.00,-0.0352,-0.0059,momentum_flip,whale-confirmed (risk_on=0.62)
+2026-08-20T08:54:51+00:00,XRP/USD,2026-08-19T08:14:00+00:00,1.0033,1.1550,6.00,0.8723,0.1454,take_profit,whale-confirmed (risk_on=0.62)

@@ -167,6 +167,36 @@ class KrakenBroker:
             return False
         return True
 
+    def transfers(self) -> list[dict]:
+        """Deposit/withdrawal ledger entries (Robert 2026-08-20: the chart
+        must transfer-adjust so deposits don't drown out trading movement).
+        Returns [{ts_epoch, usd(+dep/-wd), refid}]; USD/ZUSD/USD.F assets
+        only. Read-only Ledgers query — works on any key with Query funds."""
+        try:
+            res = self._priv("/0/private/Ledgers",
+                             {"type": "deposit", "ofs": 0})
+            res2 = self._priv("/0/private/Ledgers",
+                              {"type": "withdrawal", "ofs": 0})
+        except Exception as e:
+            log(f"ledgers fetch FAIL {e!r}")
+            return []
+        out = []
+        for res_d in (res, res2):
+            for lid, e in (res_d.get("ledger") or {}).items():
+                if e.get("asset") not in ("ZUSD", "USD", "USD.F"):
+                    continue
+                try:
+                    amt = float(e.get("amount", 0))     # +deposit / -withdrawal
+                    ts = float(e.get("time", 0))
+                except (TypeError, ValueError):
+                    continue
+                if amt == 0 or ts == 0:
+                    continue
+                out.append({"ts": ts, "usd": round(amt, 2),
+                            "refid": e.get("refid", lid)})
+        out.sort(key=lambda x: x["ts"])
+        return out
+
     def price(self, symbol: str) -> float:
         t = self._pub("/0/public/Ticker", {"pair": self.pair[symbol]})
         return float(next(iter(t.values()))["c"][0])
@@ -431,6 +461,18 @@ def main() -> None:
     if not broker.ready(st, suppressed_notify):
         save_state(st)
         return
+
+    # Refresh the deposit/withdrawal ledger for the chart's transfer
+    # adjustment (Robert 2026-08-20). Best-effort — a ledger hiccup never
+    # blocks trading. Written to state/transfers.json for /api/crypto/summary.
+    if hasattr(broker, "transfers"):
+        try:
+            tfs = broker.transfers()
+            if tfs:
+                (ROOT / "state" / "transfers.json").write_text(
+                    json.dumps({"ts": int(time.time()), "transfers": tfs}))
+        except Exception as e:
+            log(f"transfers refresh FAIL {e!r}")
 
     if not st.get("seen_active"):
         st["seen_active"] = True

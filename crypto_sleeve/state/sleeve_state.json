@@ -5,32 +5,32 @@
       "notional": 800.0,
       "opened": "2026-08-14T23:30:44+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.53)",
-      "mv": 809.56,
-      "cur": 7.526
+      "mv": 808.49,
+      "cur": 7.516
     },
     "ETH/USD": {
       "entry_price": 2347.02927704,
       "notional": 800.0,
       "opened": "2026-08-15T22:39:36+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.50)",
-      "mv": 809.17,
-      "cur": 2385.85
+      "mv": 807.6,
+      "cur": 2381.22
     },
     "SOL/USD": {
       "entry_price": 89.13179988,
       "notional": 713.0,
       "opened": "2026-08-17T15:00:36+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.80)",
-      "mv": 722.71,
-      "cur": 90.8
+      "mv": 727.1,
+      "cur": 91.35
     },
     "XRP/USD": {
       "entry_price": 1.28917722,
       "notional": 799.9977,
       "opened": "2026-08-20T11:37:40+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.86)",
-      "mv": 824.53,
-      "cur": 1.33538
+      "mv": 826.78,
+      "cur": 1.33902
     }
   },
   "frozen": false,
@@ -47,37 +47,37 @@
     "AVAX/USD": 800.0,
     "CRV/USD": 17.0
   },
-  "targets_ts": "2026-08-21T08:09:46+00:00",
+  "targets_ts": "2026-08-21T08:25:20+00:00",
   "targets_gate": "whale-confirmed (risk_on=0.86)",
   "trail_peaks": {
-    "ETH/USD": 2385.85,
-    "SOL/USD": 91.11,
-    "XRP/USD": 1.33538,
-    "AVAX/USD": 7.526
+    "ETH/USD": 2389.0,
+    "SOL/USD": 91.35,
+    "XRP/USD": 1.35278,
+    "AVAX/USD": 7.531
   },
   "trails": {
     "ETH/USD": {
       "width_pct": 16.26,
-      "peak": 2385.85,
-      "stop_px": 1997.80890901,
+      "peak": 2389.0,
+      "stop_px": 2000.58459908,
       "armed": false
     },
     "SOL/USD": {
-      "width_pct": 10.52,
-      "peak": 91.11,
-      "stop_px": 81.52846539,
+      "width_pct": 10.61,
+      "peak": 91.35,
+      "stop_px": 81.6569942,
       "armed": true
     },
     "XRP/USD": {
       "width_pct": 18.0,
-      "peak": 1.33538,
-      "stop_px": 1.0950116,
+      "peak": 1.35278,
+      "stop_px": 1.1092796,
       "armed": true
     },
     "AVAX/USD": {
-      "width_pct": 11.03,
-      "peak": 7.526,
-      "stop_px": 6.69591248,
+      "width_pct": 11.01,
+      "peak": 7.531,
+      "stop_px": 6.70160794,
       "armed": false
     }
   }

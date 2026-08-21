@@ -523,6 +523,19 @@ def close_position(broker, pos: Position, st: dict, reason: str) -> None:
                    "reason": reason, "signal_mode": meta.get("signal_mode", "?")})
     save_state(st)   # persist immediately: a later failure this tick must not
     log(f"CLOSED {pos.symbol} reason={reason} pl={pos.unrealized_pl:+.2f}")  # roll back a close that already executed on the exchange
+    # Exits page in plain English (Robert 2026-08-21 "let me know if anything
+    # changes overnight") — a stop rotating a coin out IS the change he means.
+    _why = {"trail_stop": "its trailing stop fired (profit-protecting rotation)",
+            "stop": "its hard -8% stop hit",
+            "take_profit": "it hit the take-profit level",
+            "momentum_flip": "its momentum turned down",
+            "freeze_liquidation": "the book-level freeze rail liquidated it"}
+    _r = next((v for k, v in _why.items() if reason.startswith(k)), reason)
+    notify("action", f"Crypto exit: {pos.symbol.replace('/USD','')} "
+           f"{pos.unrealized_pl:+.2f}",
+           f"Sold {pos.symbol} for {pos.unrealized_pl:+.2f} because {_r}. "
+           "Freed cash redeploys into the remaining winners automatically. "
+           "Nothing you need to do.")
 
 
 _LOCK_FH = None
@@ -693,9 +706,18 @@ def main() -> None:
             elif armed and cur <= peak * (1 - trail):
                 close_position(broker, p, st,
                                f"trail_stop({trail * 100:.1f}%_off_{peak:.6g})")
+                # Peak-sell → dip-rebuy (Robert 2026-08-21: "exiting before
+                # the dips ... targeting dips for buys"): reserve these
+                # proceeds for a cheaper re-entry on the SAME coin.
+                st.setdefault("reentry", {})[p.symbol] = {
+                    "exit_px": cur, "usd": round(p.market_value, 2),
+                    "ts": datetime.now(timezone.utc).isoformat(timespec="seconds")}
                 peaks.pop(p.symbol, None)
             elif chg >= CFG["take_pct"]:
                 close_position(broker, p, st, "take_profit")
+                st.setdefault("reentry", {})[p.symbol] = {
+                    "exit_px": cur, "usd": round(p.market_value, 2),
+                    "ts": datetime.now(timezone.utc).isoformat(timespec="seconds")}
                 peaks.pop(p.symbol, None)
             elif momentum_ok(broker.closes(p.symbol)) is False:
                 close_position(broker, p, st, "momentum_flip")
@@ -788,6 +810,67 @@ def main() -> None:
 
     bought = 0.0
     _max_pos = int(CFG.get("max_positions", 999))
+
+    # DIP-BUY RE-ENTRIES (Robert 2026-08-21: "targeting dips for buys").
+    # A trail/take exit sold near a peak; its proceeds are RESERVED for up
+    # to reentry_ttl_h, waiting for that same coin to dip a vol-scaled
+    # discount below the exit price. Dip fills -> rebuy cheaper than we
+    # sold. No dip before the TTL (price ran away) -> reserve releases to
+    # the concentrated adds below. Trend-break exits (hard stop / momentum
+    # flip) never dip-buy — they wait for fresh momentum like any new name.
+    reserved = 0.0
+    _reentry = st.setdefault("reentry", {})
+    for _sym in list(_reentry.keys()):
+        r = _reentry[_sym]
+        try:
+            _age_h = (datetime.now(timezone.utc)
+                      - datetime.fromisoformat(r["ts"])).total_seconds() / 3600
+        except Exception:
+            _age_h = 999
+        if _sym in held or _age_h > float(CFG.get("reentry_ttl_h", 24)):
+            _reentry.pop(_sym)
+            save_state(st)
+            continue
+        try:
+            _cur = broker.price(_sym)
+            _dip = max(0.015, trail_width(broker, _sym) / 3.0)
+        except Exception:
+            reserved += float(r.get("usd") or 0)
+            continue
+        _want = round(min(float(r.get("usd") or 0), room, cash_avail - 0.5), 2)
+        if (allowed and len(st.get("positions") or {}) < _max_pos
+                and _cur <= float(r["exit_px"]) * (1 - _dip)
+                and _want >= CFG["min_order_usd"]
+                and momentum_ok(broker.closes(_sym)) is not False):
+            try:
+                _px = broker.buy(_sym, _want)
+            except Exception as e:
+                log(f"DIPBUY {_sym} ${_want:.2f} FAIL {e!r}")
+                reserved += float(r.get("usd") or 0)
+                continue
+            st["positions"][_sym] = {
+                "entry_price": _px, "notional": _want,
+                "opened": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                "signal_mode": "dip_rebuy"}
+            st.setdefault("trail_peaks", {})[_sym] = _px
+            _reentry.pop(_sym)
+            save_state(st)
+            room -= _want
+            cash_avail -= _want
+            bought += _want
+            held.add(_sym)
+            log(f"DIPBUY {_sym} ${_want:.2f} @ ~{_px} "
+                f"({(1 - _px / float(r['exit_px'])) * 100:.1f}% below the exit)")
+            notify("action", f"Dip rebuy: {_sym.replace('/USD','')}",
+                   f"Bought back ${_want:.2f} of {_sym} at about {_px} — "
+                   f"{(1 - _px / float(r['exit_px'])) * 100:.1f}% cheaper than we "
+                   "sold it. Sell-the-peak, buy-the-dip rotation working as asked.")
+        else:
+            reserved += float(r.get("usd") or 0)
+    if reserved > 0:
+        cash_avail -= reserved   # dip reserves are not spendable this tick
+        log(f"dip-buy reserve holding ${reserved:.2f} "
+            f"for {', '.join(_reentry.keys())}")
 
     # CONCENTRATED ADD (Robert 2026-08-20 "redeploy freed cash into winners"):
     # when the book already holds winners, grow THEM with any freed cash —

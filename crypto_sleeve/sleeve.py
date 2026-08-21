@@ -587,12 +587,27 @@ def main() -> None:
                 peaks.pop(p.symbol, None)
             else:
                 still_open.append(p)
+                # Surface the case-by-case protection (Robert 2026-08-21:
+                # per-holding vol-adaptive stops ARE the defense, not a stiff
+                # floor) so the app can show each coin's live trail + stop px.
+                st.setdefault("trails", {})[p.symbol] = {
+                    "width_pct": round(trail * 100, 2),
+                    "peak": peak,
+                    "stop_px": round(peak * (1 - trail), 8),
+                    "armed": bool(armed),
+                }
         except Exception as e:
             # One symbol's API hiccup must not block the other exits or the
             # rails. Treat it as still open; next tick re-reads real balances
             # (the adoption design), so even a half-completed close reconciles.
             log(f"exit check {p.symbol} FAIL {e!r}")
             still_open.append(p)
+    # prune trails for anything no longer open
+    if isinstance(st.get("trails"), dict):
+        _open_syms = {p.symbol for p in still_open}
+        for _s in list(st["trails"]):
+            if _s not in _open_syms:
+                st["trails"].pop(_s, None)
 
     # Cap accounting on COST BASIS, not market value: a drawdown must not
     # free up "room" to buy more (that would let total spend exceed the cap).

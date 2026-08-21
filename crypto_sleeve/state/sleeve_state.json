@@ -1,36 +1,36 @@
 {
   "positions": {
     "AVAX/USD": {
-      "entry_price": 7.31078352,
-      "notional": 382.42,
+      "entry_price": 7.3630005,
+      "notional": 550.0,
       "opened": "2026-08-14T23:30:44+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.53)",
-      "mv": 197.78,
-      "cur": 7.485
+      "mv": 555.2,
+      "cur": 7.47
     },
     "ETH/USD": {
-      "entry_price": 2328.6148868,
-      "notional": 477.49,
+      "entry_price": 2335.30765859,
+      "notional": 550.0,
       "opened": "2026-08-15T22:39:36+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.50)",
-      "mv": 329.1,
-      "cur": 2382.19
+      "mv": 555.85,
+      "cur": 2372.0
     },
     "SOL/USD": {
-      "entry_price": 88.16647835,
-      "notional": 411.82,
+      "entry_price": 88.42765752,
+      "notional": 464.11,
       "opened": "2026-08-17T15:00:36+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.80)",
-      "mv": 278.89,
-      "cur": 90.38
+      "mv": 471.93,
+      "cur": 90.37
     },
     "XRP/USD": {
       "entry_price": 1.27898155,
       "notional": 549.9977,
       "opened": "2026-08-20T11:37:40+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.86)",
-      "mv": 347.48,
-      "cur": 1.3138
+      "mv": 562.0,
+      "cur": 1.31346
     }
   },
   "frozen": false,
@@ -41,23 +41,20 @@
   },
   "seen_active": true,
   "targets": {
-    "ETH/USD": 320.0,
-    "SOL/USD": 270.0,
-    "XRP/USD": 334.35,
-    "AVAX/USD": 190.0,
-    "CRV/USD": 300.0,
-    "PEPE/USD": 282.92,
-    "FET/USD": 261.82,
-    "PENGU/USD": 170.91
+    "ETH/USD": 550.0,
+    "SOL/USD": 464.11,
+    "XRP/USD": 550.0,
+    "AVAX/USD": 550.0,
+    "CRV/USD": 15.89
   },
-  "targets_ts": "2026-08-21T07:40:15+00:00",
-  "targets_gate": "whale-confirmed (risk_on=0.91)",
+  "targets_ts": "2026-08-21T07:55:45+00:00",
+  "targets_gate": "whale-confirmed (risk_on=0.86)",
   "trail_peaks": {
     "BTC/USD": 72924.4,
     "ETH/USD": 2385.23,
     "SOL/USD": 91.11,
     "XRP/USD": 1.32,
-    "AVAX/USD": 7.485,
+    "AVAX/USD": 7.487,
     "ADA/USD": 0.198392,
     "XLM/USD": 0.181776,
     "SUI/USD": 0.7359,
@@ -66,5 +63,31 @@
     "DOGE/USD": 0.0806032,
     "PENGU/USD": 0.007198,
     "VVV/USD": 14.561
+  },
+  "trails": {
+    "ETH/USD": {
+      "width_pct": 16.25,
+      "peak": 2385.23,
+      "stop_px": 1997.61290853,
+      "armed": true
+    },
+    "SOL/USD": {
+      "width_pct": 10.52,
+      "peak": 91.11,
+      "stop_px": 81.52445851,
+      "armed": true
+    },
+    "XRP/USD": {
+      "width_pct": 18.0,
+      "peak": 1.32,
+      "stop_px": 1.0824,
+      "armed": true
+    },
+    "AVAX/USD": {
+      "width_pct": 11.04,
+      "peak": 7.487,
+      "stop_px": 6.66028369,
+      "armed": false
+    }
   }
 }

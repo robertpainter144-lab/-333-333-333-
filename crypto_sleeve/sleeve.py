@@ -743,11 +743,81 @@ def main() -> None:
     # peak surviving a close causes an instant false stop on re-entry
     # (ultra-audit 2026-08-21: 9 orphaned peaks found live)
     _open_syms = {p.symbol for p in still_open}
-    for _d in ("trails", "trail_peaks"):
+    for _d in ("trails", "trail_peaks", "px_hist"):
         if isinstance(st.get(_d), dict):
             for _s in list(st[_d]):
                 if _s not in _open_syms:
                     st[_d].pop(_s, None)
+
+    # SPIKE HARVEST (Robert 2026-08-21 03:17 after the 03:00 $84 round-trip:
+    # "be more on top of taking profit at peaks"): sell a SLICE into abnormal
+    # upward acceleration instead of waiting for the trail to confirm the
+    # turn. Trigger = a coin in profit moving >max(2%, trail/3) in ~15 min —
+    # roughly 3 sigma of its own short-window vol, so normal hours never
+    # fire. 75% keeps riding; proceeds join the dip-rebuy reserve (skim=True
+    # records ADD BACK to the still-held coin on a retrace). One live record
+    # per coin at a time = natural cooldown.
+    _hist = st.setdefault("px_hist", {})
+    _now_dt = datetime.now(timezone.utc)
+    for p in still_open:
+        try:
+            h = _hist.setdefault(p.symbol, [])
+            h.append([_now_dt.isoformat(timespec="seconds"), p.current_price])
+            del h[:-24]                                   # ~2h of 5-min marks
+            if p.symbol in st.get("reentry", {}) or not hasattr(broker, "_priv"):
+                continue
+            base_px = None
+            for _ts, _hpx in reversed(h[:-1]):            # newest mark >=14min old
+                _age = (_now_dt - datetime.fromisoformat(_ts)).total_seconds()
+                if 14 * 60 <= _age <= 40 * 60:
+                    base_px = float(_hpx)
+                    break
+            if not base_px:
+                continue
+            spike = p.current_price / base_px - 1
+            thr = max(0.02, trail_width(broker, p.symbol) / 3.0)
+            if spike < thr or p.current_price <= p.entry_price:
+                continue
+            frac = float(CFG.get("spike_harvest_frac", 0.25))
+            skim_usd = round(p.market_value * frac, 2)
+            if skim_usd < CFG["min_order_usd"] * 2:
+                continue
+            vol = p.qty * frac * 0.9995
+            broker._priv("/0/private/AddOrder",
+                         {"pair": broker.pair[p.symbol], "type": "sell",
+                          "ordertype": "market", "volume": f"{vol:.8f}"})
+            _sold_pl = (p.market_value - p.notional) * frac
+            row = st["positions"].get(p.symbol, {})
+            row["notional"] = round(float(row.get("notional", p.notional)) * (1 - frac), 4)
+            st["positions"][p.symbol] = row
+            append_ledger({"closed_at": _now_dt.isoformat(timespec="seconds"),
+                           "symbol": p.symbol, "entry_time": row.get("opened", ""),
+                           "entry_price": f"{p.entry_price:.4f}",
+                           "exit_price": f"{p.current_price:.4f}",
+                           "notional": f"{p.notional * frac:.2f}",
+                           "realized_pl": f"{_sold_pl:.4f}",
+                           "pl_pct": f"{_sold_pl / (p.notional * frac):.4f}" if p.notional else "0",
+                           "reason": f"spike_harvest({spike * 100:.1f}%_in_15m)",
+                           "signal_mode": row.get("signal_mode", "?")})
+            st.setdefault("reentry", {})[p.symbol] = {
+                "exit_px": p.current_price, "usd": skim_usd,
+                "ts": _now_dt.isoformat(timespec="seconds"), "skim": True}
+            # keep the in-memory Position consistent for the accounting below
+            p.qty *= (1 - frac)
+            p.market_value *= (1 - frac)
+            p.notional = row["notional"]
+            p.unrealized_pl = p.market_value - p.notional
+            save_state(st)
+            log(f"SPIKE HARVEST {p.symbol}: sold ${skim_usd:.2f} ({frac * 100:.0f}%) "
+                f"into a {spike * 100:.1f}%/15min rip, pl {_sold_pl:+.2f}; "
+                f"reserve targets the retrace")
+            notify("action", f"Spike harvest: {p.symbol.replace('/USD','')} {_sold_pl:+.2f}",
+                   f"Sold ${skim_usd:.2f} ({frac * 100:.0f}% of the position) INTO a "
+                   f"{spike * 100:.1f}% fifteen-minute spike, locking {_sold_pl:+.2f}. "
+                   "The rest keeps riding; the proceeds wait to buy the retrace "
+                   "back cheaper. Peak-taking working as you asked.")
+        except Exception as e:
+            log(f"spike check {p.symbol} FAIL {e!r}")
 
     # Cap accounting on COST BASIS, not market value: a drawdown must not
     # free up "room" to buy more (that would let total spend exceed the cap).
@@ -828,7 +898,10 @@ def main() -> None:
                       - datetime.fromisoformat(r["ts"])).total_seconds() / 3600
         except Exception:
             _age_h = 999
-        if _sym in held or _age_h > float(CFG.get("reentry_ttl_h", 24)):
+        # skim records stay live while the coin is held (they add BACK to
+        # it); full-exit records die if the coin somehow got re-held
+        if _age_h > float(CFG.get("reentry_ttl_h", 24)) or \
+                (_sym in held and not r.get("skim")):
             _reentry.pop(_sym)
             save_state(st)
             continue
@@ -842,8 +915,10 @@ def main() -> None:
         except Exception:
             reserved += float(r.get("usd") or 0)
             continue
+        _is_skim = bool(r.get("skim")) and _sym in st.get("positions", {})
         _want = round(min(float(r.get("usd") or 0), room, cash_avail - 0.5), 2)
-        if (allowed and len(st.get("positions") or {}) < _max_pos
+        if (allowed
+                and (len(st.get("positions") or {}) < _max_pos or _is_skim)
                 and _cur <= float(r["exit_px"]) * (1 - _dip)
                 and _want >= CFG["min_order_usd"]
                 and _mom is True):
@@ -853,11 +928,14 @@ def main() -> None:
                 log(f"DIPBUY {_sym} ${_want:.2f} FAIL {e!r}")
                 reserved += float(r.get("usd") or 0)
                 continue
-            st["positions"][_sym] = {
-                "entry_price": _px, "notional": _want,
-                "opened": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-                "signal_mode": "dip_rebuy"}
-            st.setdefault("trail_peaks", {})[_sym] = _px
+            if _is_skim:
+                add_to_position(st, _sym, _want, _px)   # grow the held coin back
+            else:
+                st["positions"][_sym] = {
+                    "entry_price": _px, "notional": _want,
+                    "opened": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                    "signal_mode": "dip_rebuy"}
+                st.setdefault("trail_peaks", {})[_sym] = _px
             _reentry.pop(_sym)
             save_state(st)
             room -= _want

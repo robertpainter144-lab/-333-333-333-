@@ -5,32 +5,32 @@
       "notional": 800.0,
       "opened": "2026-08-14T23:30:44+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.53)",
-      "mv": 801.07,
-      "cur": 7.447
+      "mv": 801.82,
+      "cur": 7.454
     },
     "ETH/USD": {
       "entry_price": 2347.02927704,
       "notional": 800.0,
       "opened": "2026-08-15T22:39:36+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.50)",
-      "mv": 811.41,
-      "cur": 2392.46
+      "mv": 810.82,
+      "cur": 2390.72
     },
     "SOL/USD": {
       "entry_price": 89.13179988,
       "notional": 713.0,
       "opened": "2026-08-17T15:00:36+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.80)",
-      "mv": 728.37,
-      "cur": 91.51
+      "mv": 726.14,
+      "cur": 91.23
     },
     "XRP/USD": {
       "entry_price": 1.28917722,
       "notional": 799.9977,
       "opened": "2026-08-20T11:37:40+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.86)",
-      "mv": 840.01,
-      "cur": 1.36046
+      "mv": 842.89,
+      "cur": 1.36512
     }
   },
   "frozen": false,
@@ -45,9 +45,9 @@
     "SOL/USD": 713.0,
     "XRP/USD": 800.0,
     "AVAX/USD": 800.0,
-    "CRV/USD": 17.0
+    "FET/USD": 17.0
   },
-  "targets_ts": "2026-08-21T09:10:11+00:00",
+  "targets_ts": "2026-08-21T09:21:22+00:00",
   "targets_gate": "whale-confirmed (risk_on=0.86)",
   "trail_peaks": {
     "ETH/USD": 2442.0,
@@ -63,9 +63,9 @@
       "armed": true
     },
     "SOL/USD": {
-      "width_pct": 7.36,
+      "width_pct": 7.49,
       "peak": 93.15,
-      "stop_px": 86.29516401,
+      "stop_px": 86.17696489,
       "armed": true
     },
     "XRP/USD": {
@@ -75,11 +75,37 @@
       "armed": true
     },
     "AVAX/USD": {
-      "width_pct": 7.99,
+      "width_pct": 7.95,
       "peak": 7.685,
-      "stop_px": 7.07091009,
+      "stop_px": 7.074241,
       "armed": true
     }
   },
-  "reentry": {}
+  "reentry": {},
+  "px_hist": {
+    "ETH/USD": [
+      [
+        "2026-08-21T09:21:17+00:00",
+        2390.72
+      ]
+    ],
+    "SOL/USD": [
+      [
+        "2026-08-21T09:21:17+00:00",
+        91.23
+      ]
+    ],
+    "XRP/USD": [
+      [
+        "2026-08-21T09:21:17+00:00",
+        1.36512
+      ]
+    ],
+    "AVAX/USD": [
+      [
+        "2026-08-21T09:21:17+00:00",
+        7.454
+      ]
+    ]
+  }
 }

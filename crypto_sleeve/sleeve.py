@@ -657,6 +657,25 @@ def main() -> None:
         return
 
     sleeve_pl = realized_total() + sum(p.unrealized_pl for p in positions)
+
+    # "Alert me if anything big happens" (Robert 2026-08-21 15:15): exits and
+    # skims already push, but a big move that trips NOTHING (a rip, or a
+    # slide still inside the trails) was silent. Page each ±$ pl_alert_step
+    # leg from the last alerted level, either direction.
+    _step = float(CFG.get("pl_alert_step", 75.0))
+    _anchor = st.get("pl_alert_anchor")
+    if _anchor is None:
+        st["pl_alert_anchor"] = sleeve_pl
+    elif abs(sleeve_pl - float(_anchor)) >= _step:
+        _dirn = "up" if sleeve_pl > float(_anchor) else "down"
+        notify("action", f"Crypto book moved ${abs(sleeve_pl - float(_anchor)):.0f} {_dirn}",
+               f"Sleeve P/L is {sleeve_pl:+.2f} (was {float(_anchor):+.2f} at the last "
+               f"alert). No exit rule has triggered — the {_dirn}-move is inside the "
+               "normal rails. Nothing you need to do; this is just the heads-up you "
+               "asked for on big moves.")
+        st["pl_alert_anchor"] = sleeve_pl
+        save_state(st)
+
     if sleeve_pl <= CFG["freeze_pnl_usd"]:
         # Fault-isolated liquidation (ultra-audit 2026-08-21: a single failed
         # close — e.g. an Earn-locked remainder — must not abort the halt,

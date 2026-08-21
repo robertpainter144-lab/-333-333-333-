@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """D39 live crypto sleeve — whale-gated momentum, broker-pluggable (Kraken/Alpaca).
 
-Rails (DIRECTIVES.md D39): $50 hard cap, freeze + liquidate at sleeve P/L
-<= -$15, per-trade ledger in state/closed_trades.csv (D7-scoreable).
+Rails (DIRECTIVES.md D39/D58): cap + freeze thresholds live in config.json
+(cap_total_usd; freeze + liquidate at sleeve P/L <= freeze_pnl_usd —
+catastrophe-only, per-holding vol trails are the primary defense), per-trade
+ledger in state/closed_trades.csv (D7-scoreable).
 Entries need EMA momentum AND (whale risk-on gate OR stale whale feed).
 
 config.json "broker" selects the venue:
@@ -102,7 +104,23 @@ class KrakenBroker:
         self.sec = env.get("KRAKEN_API_SECRET", "")
         self.pair = dict(self.PAIR)
         self.asset = dict(self.ASSET)
+        # Last-known-good registry from disk FIRST, so one slow AssetPairs
+        # call can't forget symbols we already manage (ultra-audit 2026-08-21:
+        # a discovery timeout on 8/18 KeyError-crashed the tick on XRP/USD
+        # with half the book in discovered pairs).
+        self._cache_f = ROOT / "state" / "pair_cache.json"
+        try:
+            c = json.loads(self._cache_f.read_text())
+            self.pair.update(c.get("pair", {}))
+            self.asset.update({k: tuple(v) for k, v in c.get("asset", {}).items()})
+        except Exception:
+            pass
         self._discover_pairs()
+        try:
+            self._cache_f.write_text(json.dumps(
+                {"pair": self.pair, "asset": {k: list(v) for k, v in self.asset.items()}}))
+        except Exception:
+            pass
 
     def _discover_pairs(self) -> None:
         """Fill self.pair/self.asset for universe symbols the seed map doesn't
@@ -214,7 +232,11 @@ class KrakenBroker:
         bal = self._priv("/0/private/Balance")
         out = []
         for sym in CFG["universe"]:
-            qty = sum(float(bal.get(a, 0)) for a in self.asset[sym])
+            aliases = self.asset.get(sym)
+            if aliases is None:   # unresolvable symbol degrades, never crashes
+                log(f"positions: no Kraken mapping for {sym} this tick — skipped")
+                continue
+            qty = sum(float(bal.get(a, 0)) for a in aliases)
             if qty <= 0:
                 continue
             cur = self.price(sym)
@@ -230,9 +252,23 @@ class KrakenBroker:
         # 0.5% haircut: market fill can be worse than the quote; without it the
         # real USD spent could silently exceed the intended size (and the cap).
         vol = round(usd * 0.995 / price, 8)
-        self._priv("/0/private/AddOrder",
-                   {"pair": self.pair[symbol], "type": "buy",
-                    "ordertype": "market", "volume": f"{vol:.8f}"})
+        r = self._priv("/0/private/AddOrder",
+                       {"pair": self.pair[symbol], "type": "buy",
+                        "ordertype": "market", "volume": f"{vol:.8f}"})
+        # Prefer the ACTUAL average fill over the pre-trade quote — every
+        # stop/trail/freeze downstream keys off this basis, and slippage on a
+        # $500+ market order is no longer noise (ultra-audit 2026-08-21).
+        try:
+            txid = (r.get("txid") or [None])[0]
+            if txid:
+                time.sleep(1)
+                o = (self._priv("/0/private/QueryOrders", {"txid": txid})
+                     .get(txid) or {})
+                fp = float(o.get("price") or 0)
+                if fp > 0:
+                    return fp
+        except Exception:
+            pass
         return price
 
     def close(self, pos: Position) -> None:
@@ -378,6 +414,19 @@ def tilt_size(strength: float, strongest: float) -> float:
     return min(CFG.get("tilt_max_usd", base * 2), base * mult)
 
 
+def dollar_vol_24h(broker, symbol: str) -> float:
+    """Kraken 24h $-volume for the pair (base volume x vwap). Returns 0 on
+    any failure — the NEW-entry screen fails CLOSED (Robert 2026-08-21: 'be
+    more careful with low volume stuff like pepe'); held positions are never
+    screened, only fresh names."""
+    try:
+        r = broker._pub("/0/public/Ticker", {"pair": broker.pair[symbol]})
+        t = next(iter(r.values()))
+        return float(t["v"][1]) * float(t["p"][1])
+    except Exception:
+        return 0.0
+
+
 def add_to_position(st: dict, symbol: str, add_usd: float, price: float) -> float:
     """Grow a HELD position by add_usd at `price`, blending the entry price
     on cost basis (Robert 2026-08-20 concentrated_add). Returns new notional."""
@@ -519,13 +568,33 @@ def main() -> None:
                "It buys when momentum/whale signals line up and cash is available; "
                "entries get logged silently, rails page you.")
 
-    positions = broker.positions(st)
+    try:
+        positions = broker.positions(st)
+        if st.pop("unprotected_ticks", None):
+            save_state(st)
+    except Exception as e:
+        # A dead positions fetch means NO stop/trail/freeze ran this tick.
+        # Track the streak and escalate in plain English once it's real
+        # (ultra-audit 2026-08-21: four outage windows on 8/16 paged nothing).
+        st["unprotected_ticks"] = int(st.get("unprotected_ticks", 0)) + 1
+        n = st["unprotected_ticks"]
+        if n >= 3:
+            suppressed_notify(st, "unprotected", "action",
+                              "Crypto positions UNPROTECTED — Kraken unreachable",
+                              f"The sleeve has failed to read balances for {n} straight "
+                              f"ticks (~{n*5} min). No stops or freeze checks are running "
+                              "on the crypto book. If Kraken is up for you, check the Mac's "
+                              "network; otherwise watch the positions by hand.", hours=2)
+        save_state(st)
+        log(f"positions fetch FAIL ({n} straight): {e!r}")
+        return
 
     # Persist adopted positions (balances with no state entry — from a prior
     # state loss or coins bought outside the sleeve). Without this the entry
     # price re-baselines to the current price EVERY tick, which permanently
     # disables the stop/take checks for that position.
-    adopted = [p for p in positions if p.symbol not in st["positions"]]
+    adopted = [] if st.get("frozen") else \
+        [p for p in positions if p.symbol not in st["positions"]]
     for p in adopted:
         st["positions"][p.symbol] = {
             "entry_price": p.entry_price, "notional": p.market_value,
@@ -535,26 +604,72 @@ def main() -> None:
     if adopted:
         save_state(st)
 
+    # Reverse reconciliation (ultra-audit 2026-08-21): if state tracks a
+    # position the exchange no longer shows (a close whose HTTP response was
+    # lost after the fill, or a balance drained outside the sleeve), record
+    # it as closed instead of leaving a phantom entry that concentrated_add
+    # could blend fresh money against at a stale cost basis.
+    _live_syms = {p.symbol for p in positions}
+    for _sym in list(st["positions"].keys()):
+        if _sym not in _live_syms:
+            _meta = st["positions"].pop(_sym)
+            try:
+                _xp = broker.price(_sym)
+            except Exception:
+                _xp = float(_meta.get("entry_price") or 0)
+            _n = float(_meta.get("notional") or 0)
+            _e = float(_meta.get("entry_price") or 0) or _xp
+            _pl = (_xp / _e - 1) * _n if _e else 0.0
+            append_ledger({"closed_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                           "symbol": _sym, "entry_time": _meta.get("opened", ""),
+                           "entry_price": f"{_e:.4f}", "exit_price": f"{_xp:.4f}",
+                           "notional": f"{_n:.2f}", "realized_pl": f"{_pl:.4f}",
+                           "pl_pct": f"{_pl / _n:.4f}" if _n else "0",
+                           "reason": "reconciled_close",
+                           "signal_mode": _meta.get("signal_mode", "?")})
+            st.get("trail_peaks", {}).pop(_sym, None)
+            st.get("trails", {}).pop(_sym, None)
+            save_state(st)
+            log(f"RECONCILED {_sym}: state had a position, exchange shows none "
+                f"— recorded as closed (~{_pl:+.2f})")
+
     if st.get("frozen"):
         suppressed_notify(st, "frozen", "action", "Crypto sleeve is FROZEN",
-                          "The crypto sleeve hit its -$15 freeze rail and is halted flat. "
-                          "It will not trade again until you review the ledger "
-                          "(~/crypto_sleeve/state/closed_trades.csv) and delete the frozen "
-                          "flag in sleeve_state.json.")
+                          f"The crypto sleeve hit its {CFG['freeze_pnl_usd']:+.0f} freeze "
+                          "rail and is halted. It will not trade again until you review "
+                          "the ledger (~/crypto_sleeve/state/closed_trades.csv) and delete "
+                          "the frozen flag in sleeve_state.json.")
         save_state(st)
         log("idle: frozen")
         return
 
     sleeve_pl = realized_total() + sum(p.unrealized_pl for p in positions)
     if sleeve_pl <= CFG["freeze_pnl_usd"]:
+        # Fault-isolated liquidation (ultra-audit 2026-08-21: a single failed
+        # close — e.g. an Earn-locked remainder — must not abort the halt,
+        # leave 'frozen' unset, and strand the rest of the book unprotected).
+        failed = []
         for p in positions:
-            close_position(broker, p, st, "freeze_liquidation")
+            try:
+                close_position(broker, p, st, "freeze_liquidation")
+            except Exception as e:
+                failed.append(p.symbol)
+                log(f"freeze close {p.symbol} FAIL {e!r}")
         st["frozen"] = True
-        notify("action", "Crypto sleeve froze at its loss rail",
-               f"Sleeve P/L hit {sleeve_pl:+.2f} (rail {CFG['freeze_pnl_usd']:+.0f}). "
-               "All sleeve positions were liquidated and it is halted until you review "
-               "it. Nothing else was touched.")
+        st["trail_peaks"] = {}
+        st["trails"] = {}
         save_state(st)
+        if failed:
+            notify("critical", "Crypto sleeve froze — SOME POSITIONS DID NOT SELL",
+                   f"Sleeve P/L hit {sleeve_pl:+.2f} (rail {CFG['freeze_pnl_usd']:+.0f}). "
+                   f"Liquidation FAILED for: {', '.join(failed)} — likely Kraken Earn "
+                   "(.F) balances a market order cannot touch. Sell or unstake these "
+                   "on kraken.com NOW; the sleeve is halted and cannot protect them.")
+        else:
+            notify("action", "Crypto sleeve froze at its loss rail",
+                   f"Sleeve P/L hit {sleeve_pl:+.2f} (rail {CFG['freeze_pnl_usd']:+.0f}). "
+                   "All sleeve positions were liquidated and it is halted until you review "
+                   "it. Nothing else was touched.")
         return
 
     # ---- exits ----
@@ -602,12 +717,15 @@ def main() -> None:
             # (the adoption design), so even a half-completed close reconciles.
             log(f"exit check {p.symbol} FAIL {e!r}")
             still_open.append(p)
-    # prune trails for anything no longer open
-    if isinstance(st.get("trails"), dict):
-        _open_syms = {p.symbol for p in still_open}
-        for _s in list(st["trails"]):
-            if _s not in _open_syms:
-                st["trails"].pop(_s, None)
+    # prune trails AND trail_peaks for anything no longer open — a stale
+    # peak surviving a close causes an instant false stop on re-entry
+    # (ultra-audit 2026-08-21: 9 orphaned peaks found live)
+    _open_syms = {p.symbol for p in still_open}
+    for _d in ("trails", "trail_peaks"):
+        if isinstance(st.get(_d), dict):
+            for _s in list(st[_d]):
+                if _s not in _open_syms:
+                    st[_d].pop(_s, None)
 
     # Cap accounting on COST BASIS, not market value: a drawdown must not
     # free up "room" to buy more (that would let total spend exceed the cap).
@@ -669,13 +787,15 @@ def main() -> None:
         log(f"targets calc FAIL {e!r}")
 
     bought = 0.0
+    _max_pos = int(CFG.get("max_positions", 999))
 
     # CONCENTRATED ADD (Robert 2026-08-20 "redeploy freed cash into winners"):
     # when the book already holds winners, grow THEM with any freed cash —
     # tilt-weighted by momentum, up to each position's tilt_max — instead of
     # opening a new (possibly meme) name. Keeps the concentration intact when
-    # a trailing stop frees capital. Only bootstraps new names when the book
-    # is empty (falls through to the open-new loop below).
+    # a trailing stop frees capital. Falls through to the (liquidity-screened)
+    # open-new loop only when a slot is free AND the adds deployed nothing —
+    # so freed cash can't strand once the survivors hit their tilt caps.
     if (allowed and CFG.get("concentrated_add") and st.get("positions")
             and cash_avail - 0.5 >= CFG["min_order_usd"]):
         pos_cap = CFG.get("tilt_max_usd", CFG["per_trade_usd"] * 2)
@@ -685,7 +805,10 @@ def main() -> None:
                 s = momentum_strength(broker.closes(sym))
             except Exception:
                 s = None
-            held_scored.append((s if (s and s > 0) else 1e-4, sym))
+            # None = data gap (momentum-flip exits already culled true losers
+            # this tick) — skip rather than default to max-multiplier sizing
+            if s is not None and s > 0:
+                held_scored.append((s, sym))
         held_scored.sort(reverse=True)
         strongest = held_scored[0][0] if held_scored else 1.0
         for s, sym in held_scored:
@@ -713,13 +836,13 @@ def main() -> None:
             notify("routine", "Crypto sleeve — grew a winner",
                    f"Added ${size:.2f} to {sym} (freed cash redeployed into a "
                    f"held winner, now ${new_n:.2f}). Momentum-weighted.")
-        allowed = False   # concentrated mode never opens NEW names this tick
+        if bought > 0 or len(st.get("positions") or {}) >= _max_pos:
+            allowed = False   # grew winners (or book full) — no new names
 
     # Position cap (Robert 2026-08-20): a concentrated winners book must not
     # be re-sprayed into new names every time cash frees — once the sleeve
     # holds max_positions coins, the buy loop opens no new ones (freed cash
     # sits until a slot opens or is manually deployed into a held winner).
-    _max_pos = int(CFG.get("max_positions", 999))
     if allowed and len(st.get("positions") or {}) >= _max_pos:
         allowed = False
         log(f"position cap: holding {len(st['positions'])}/{_max_pos} — no new entries")
@@ -746,13 +869,26 @@ def main() -> None:
             order = [(sym, CFG["per_trade_usd"]) for sym in CFG["universe"]
                      if sym not in held]
 
+        _min_dvol = float(CFG.get("min_dollar_vol_24h", 20e6))
         for sym, want in order:
+            # Running cap check (ultra-audit 2026-08-21): a cold-start tick
+            # must not open more than max_positions names in one pass.
+            if len(st.get("positions") or {}) >= _max_pos:
+                log(f"position cap reached mid-tick ({_max_pos}) — done opening")
+                break
             size = round(min(want, room, cash_avail - 0.5), 2)
             if size < CFG["min_order_usd"]:
                 # room/cash exhausted, or this leader's slot is too small —
                 # in ranked mode the strong ones came first, so break
                 if room < CFG["min_order_usd"] or cash_avail - 0.5 < CFG["min_order_usd"]:
                     break
+                continue
+            # Liquidity screen for NEW names only (Robert 2026-08-21: "be
+            # more careful with low volume stuff like pepe") — fails closed.
+            dvol = dollar_vol_24h(broker, sym)
+            if dvol < _min_dvol:
+                log(f"BUY {sym} skipped: 24h $vol ${dvol/1e6:.1f}M < "
+                    f"${_min_dvol/1e6:.0f}M liquidity floor")
                 continue
             try:
                 # momentum already confirmed for ranked mode; re-check in flat
@@ -770,6 +906,10 @@ def main() -> None:
                 "entry_price": price, "notional": size,
                 "opened": datetime.now(timezone.utc).isoformat(timespec="seconds"),
                 "signal_mode": mode}
+            # Fresh entry = fresh peak. A stale trail_peak from a PRIOR hold
+            # of this symbol would arm instantly and stop the new position
+            # out on tick one (ultra-audit 2026-08-21: 9 orphaned peaks live).
+            st.setdefault("trail_peaks", {})[sym] = price
             save_state(st)   # persist before touching the next symbol — a
             room -= size     # later failure must not orphan this filled buy
             cash_avail -= size

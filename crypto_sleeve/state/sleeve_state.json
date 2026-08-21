@@ -5,32 +5,32 @@
       "notional": 190.0,
       "opened": "2026-08-14T23:30:44+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.53)",
-      "mv": 192.39,
-      "cur": 7.281
+      "mv": 193.21,
+      "cur": 7.312
     },
     "ETH/USD": {
       "entry_price": 2304.72245465,
       "notional": 320.0,
       "opened": "2026-08-15T22:39:36+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.50)",
-      "mv": 325.72,
-      "cur": 2357.7
+      "mv": 324.42,
+      "cur": 2348.31
     },
     "SOL/USD": {
       "entry_price": 87.06131045,
       "notional": 270.0,
       "opened": "2026-08-17T15:00:36+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.80)",
-      "mv": 276.24,
-      "cur": 89.52
+      "mv": 275.77,
+      "cur": 89.37
     },
     "XRP/USD": {
       "entry_price": 1.25784739,
       "notional": 334.3477,
       "opened": "2026-08-20T11:37:40+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.86)",
-      "mv": 343.37,
-      "cur": 1.29828
+      "mv": 342.21,
+      "cur": 1.29387
     }
   },
   "frozen": false,
@@ -47,12 +47,12 @@
     "AVAX/USD": 190.0,
     "CRV/USD": 15.65
   },
-  "targets_ts": "2026-08-21T02:36:46+00:00",
+  "targets_ts": "2026-08-21T02:52:21+00:00",
   "targets_gate": "whale-confirmed (risk_on=0.91)",
   "trail_peaks": {
     "BTC/USD": 72924.4,
     "ETH/USD": 2372.75,
-    "SOL/USD": 89.52,
+    "SOL/USD": 89.73,
     "XRP/USD": 1.29865,
     "AVAX/USD": 7.342,
     "ADA/USD": 0.198392,

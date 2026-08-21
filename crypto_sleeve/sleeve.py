@@ -808,8 +808,9 @@ def main() -> None:
     except Exception as e:
         log(f"targets calc FAIL {e!r}")
 
-    bought = 0.0
-    _max_pos = int(CFG.get("max_positions", 999))
+    bought = 0.0       # concentrated adds + fresh opens
+    dip_bought = 0.0   # dip-rebuys tracked separately: a rebuy must not veto
+    _max_pos = int(CFG.get("max_positions", 999))  # the fresh-name loop (verify-fleet 2026-08-21)
 
     # DIP-BUY RE-ENTRIES (Robert 2026-08-21: "targeting dips for buys").
     # A trail/take exit sold near a peak; its proceeds are RESERVED for up
@@ -834,6 +835,10 @@ def main() -> None:
         try:
             _cur = broker.price(_sym)
             _dip = max(0.015, trail_width(broker, _sym) / 3.0)
+            # Entries fail CLOSED on missing data, everywhere in this file:
+            # a data gap defers the rebuy to next tick, never green-lights it
+            # (verify-fleet 2026-08-21; `is True`, not `is not False`).
+            _mom = momentum_ok(broker.closes(_sym))
         except Exception:
             reserved += float(r.get("usd") or 0)
             continue
@@ -841,7 +846,7 @@ def main() -> None:
         if (allowed and len(st.get("positions") or {}) < _max_pos
                 and _cur <= float(r["exit_px"]) * (1 - _dip)
                 and _want >= CFG["min_order_usd"]
-                and momentum_ok(broker.closes(_sym)) is not False):
+                and _mom is True):
             try:
                 _px = broker.buy(_sym, _want)
             except Exception as e:
@@ -857,14 +862,22 @@ def main() -> None:
             save_state(st)
             room -= _want
             cash_avail -= _want
-            bought += _want
+            dip_bought += _want
             held.add(_sym)
+            # Cap room is cost-basis, proceeds include profit — a near-cap
+            # book can only partially refill. Say so instead of silently
+            # keeping the "bought it all back" story (verify-fleet).
+            _short = round(float(r.get("usd") or 0) - _want, 2)
             log(f"DIPBUY {_sym} ${_want:.2f} @ ~{_px} "
-                f"({(1 - _px / float(r['exit_px'])) * 100:.1f}% below the exit)")
+                f"({(1 - _px / float(r['exit_px'])) * 100:.1f}% below the exit)"
+                + (f" — ${_short:.2f} of the reserve didn't fit under the cap,"
+                   " freed to winner-adds" if _short >= CFG["min_order_usd"] else ""))
             notify("action", f"Dip rebuy: {_sym.replace('/USD','')}",
                    f"Bought back ${_want:.2f} of {_sym} at about {_px} — "
                    f"{(1 - _px / float(r['exit_px'])) * 100:.1f}% cheaper than we "
-                   "sold it. Sell-the-peak, buy-the-dip rotation working as asked.")
+                   "sold it."
+                   + (f" (${_short:.2f} of the proceeds didn't fit under the cap "
+                      "and grows the other winners instead.)" if _short >= CFG["min_order_usd"] else ""))
         else:
             reserved += float(r.get("usd") or 0)
     if reserved > 0:
@@ -1004,7 +1017,7 @@ def main() -> None:
 
     # Equity curve for the dashboard (owner-only /api/equity/crypto_sleeve).
     # New buys are valued at notional this tick; next tick reprices them.
-    equity = cash_avail + sum(p.market_value for p in still_open) + bought
+    equity = cash_avail + sum(p.market_value for p in still_open) + bought + dip_bought
     new_f = not EQUITY_F.exists()
     with EQUITY_F.open("a") as f:
         if new_f:
@@ -1012,7 +1025,7 @@ def main() -> None:
         f.write("%s,%.4f,%.4f,%.4f,%.4f\n"
                 % (datetime.now(timezone.utc).isoformat(timespec="seconds"),
                    equity, cash_avail,
-                   sum(p.market_value for p in still_open) + bought,
+                   sum(p.market_value for p in still_open) + bought + dip_bought,
                    realized_total()))
 
     save_state(st)

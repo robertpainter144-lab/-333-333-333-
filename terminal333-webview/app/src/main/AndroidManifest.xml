@@ -25,6 +25,18 @@
             </intent-filter>
         </activity>
 
+        <!-- App-settings screen: shows up in Android Settings > Apps >
+             Terminal 333 and on launcher-icon long-press (2026-08-22) -->
+        <activity
+            android:name=".SettingsActivity"
+            android:exported="true"
+            android:label="Terminal 333 settings">
+            <intent-filter>
+                <action android:name="android.intent.action.APPLICATION_PREFERENCES" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
         <!-- Quick Settings tile: arm/disarm the fingerprint gate (2026-08-22) -->
         <service
             android:name=".LockTileService"

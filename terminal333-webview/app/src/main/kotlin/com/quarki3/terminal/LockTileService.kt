@@ -22,14 +22,14 @@ class LockTileService : TileService() {
 
     override fun onClick() {
         super.onClick()
-        val armed = prefs.getBoolean(MainActivity.KEY_BIOMETRIC, true)
+        val armed = prefs.getBoolean(MainActivity.KEY_BIOMETRIC, false)
         prefs.edit().putBoolean(MainActivity.KEY_BIOMETRIC, !armed).apply()
         refresh()
     }
 
     private fun refresh() {
         val tile = qsTile ?: return
-        val armed = prefs.getBoolean(MainActivity.KEY_BIOMETRIC, true)
+        val armed = prefs.getBoolean(MainActivity.KEY_BIOMETRIC, false)
         tile.state = if (armed) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
         tile.label = "333 Lock"
         if (android.os.Build.VERSION.SDK_INT >= 29)

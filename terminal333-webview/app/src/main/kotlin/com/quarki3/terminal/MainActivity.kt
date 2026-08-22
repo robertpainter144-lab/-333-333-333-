@@ -117,7 +117,7 @@ class MainActivity : AppCompatActivity() {
         BiometricManager.Authenticators.DEVICE_CREDENTIAL
 
     private fun requireBiometric() {
-        if (!prefs.getBoolean(KEY_BIOMETRIC, true)) {
+        if (!prefs.getBoolean(KEY_BIOMETRIC, false)) {
             // Gate disarmed via the 333 Lock Quick Settings tile.
             buildApp()
             return

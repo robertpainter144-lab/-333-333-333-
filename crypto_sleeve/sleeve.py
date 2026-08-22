@@ -696,6 +696,94 @@ def acquire_lock() -> bool:
         return False
 
 
+def auto_universe(broker, st: dict) -> None:
+    """Exchange-wide spike detection (Robert 2026-08-22: "not missing any
+    spikes across the whole crypto industry"). Batch Ticker calls screen
+    EVERY online Kraken USD pair; this tick's working universe becomes
+    seed-config + held + top 24h gainers + top dollar-volume, all above the
+    min_dollar_vol_24h floor. Detection is whole-exchange while the
+    per-symbol OHLC momentum scan stays bounded (universe_max). Any failure
+    leaves the static seed universe - never blocks the tick."""
+    if not CFG.get("universe_auto") or not hasattr(broker, "_pub"):
+        return
+    try:
+        seed = list(CFG["universe"])
+        cache_f = ROOT / "state" / "assetpairs_cache.json"
+        codes = None
+        try:
+            c = json.loads(cache_f.read_text())
+            if time.time() - c["ts"] < float(CFG.get("universe_refresh_h", 6)) * 3600:
+                codes = c["codes"]
+        except Exception:
+            codes = None
+        if codes is None:
+            reg = broker._pub("/0/public/AssetPairs", {})
+            codes = {}
+            # Legacy aliases (XBT=BTC, XDG=DOGE) would double-adopt coins
+            # the seed already manages (bit us live 2026-08-22: XDG/USD
+            # phantom-adopted the DOGE balance); fiat/stables are high-dvol
+            # noise that can never "spike".
+            _skip = {"XBT", "XDG", "EUR", "GBP", "AUD", "CAD", "CHF", "JPY",
+                     "USDT", "USDC", "DAI", "TUSD", "PYUSD", "EURT", "USDS",
+                     "USDG", "EURR", "RLUSD", "USDQ", "USTS", "EURQ"}
+            for code, meta in reg.items():
+                ws = meta.get("wsname") or ""
+                if (meta.get("status") == "online" and ws.endswith("/USD")
+                        and meta.get("quote") in ("ZUSD", "USD")
+                        and "." not in code
+                        and ws.split("/")[0] not in _skip):
+                    codes[ws] = code
+            cache_f.write_text(json.dumps({"ts": time.time(), "codes": codes}))
+        if not codes:
+            return
+        # belt-and-suspenders: apply the same skip to CACHED code lists
+        _skip2 = {"XBT", "XDG", "EUR", "GBP", "AUD", "CAD", "CHF", "JPY",
+                  "USDT", "USDC", "DAI", "TUSD", "PYUSD", "EURT", "USDS",
+                  "USDG", "EURR", "RLUSD", "USDQ", "USTS", "EURQ"}
+        codes = {w: c for w, c in codes.items() if w.split("/")[0] not in _skip2}
+        res = {}
+        vals = list(codes.values())
+        for i in range(0, len(vals), 100):
+            res.update(broker._pub("/0/public/Ticker",
+                                   {"pair": ",".join(vals[i:i + 100])}))
+        floor = float(CFG.get("min_dollar_vol_24h", 2e7))
+        rows = []
+        for ws, code in codes.items():
+            t = res.get(code)
+            if not t:
+                continue
+            try:
+                last = float(t["c"][0])
+                op = float(t["o"])
+                dvol = float(t["v"][1]) * float(t["p"][1])
+            except Exception:
+                continue
+            if dvol < floor or last <= 0 or op <= 0:
+                continue
+            rows.append((last / op - 1.0, dvol, ws))
+        gain = [ws for _, _, ws in sorted(rows, key=lambda r: -r[0])
+                [:int(CFG.get("universe_top_gainers", 15))]]
+        big = [ws for _, _, ws in sorted(rows, key=lambda r: -r[1])
+               [:int(CFG.get("universe_top_dvol", 8))]]
+        held = list((st.get("positions") or {}).keys())
+        merged, seen = [], set()
+        for ws in seed + held + gain + big:  # seed+held first: never truncated
+            if ws not in seen:
+                seen.add(ws)
+                merged.append(ws)
+        cap = int(CFG.get("universe_max", 42))
+        CFG["universe"] = merged[:max(cap, len(seed) + len(held))]
+        added = [x for x in CFG["universe"] if x not in seed]
+        if added:
+            log("auto-universe: %d syms (+%d screened in: %s%s)" % (
+                len(CFG["universe"]), len(added), ", ".join(added[:8]),
+                "..." if len(added) > 8 else ""))
+        if hasattr(broker, "_discover_pairs"):
+            broker._discover_pairs()
+    except Exception as e:
+        log(f"auto-universe failed ({e!r}); static universe this tick")
+
+
 def main() -> None:
     # Leader gate (D59, 2026-08-21 "no part of this depends on the Mac"):
     # config.json names the engine host; every other machine running this
@@ -713,6 +801,7 @@ def main() -> None:
         return
     st = load_state()
     broker = KrakenBroker() if CFG.get("broker", "kraken") == "kraken" else AlpacaBroker()
+    auto_universe(broker, st)
 
     if not broker.ready(st, suppressed_notify):
         save_state(st)

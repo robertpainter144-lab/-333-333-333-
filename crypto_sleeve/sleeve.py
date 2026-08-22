@@ -643,8 +643,10 @@ def note_stop_close(st: dict, reason: str) -> None:
     """Track stop-family exits for CASCADE detection (Robert 2026-08-22:
     'if you sold everything else at that point we would've made a killing'
     — multiple stops firing within minutes is itself the exit signal)."""
-    if not (reason.startswith("trail_stop") or reason == "stop"
-            or reason == "reconciled_close"):
+    # reconciled_close EXCLUDED (2026-08-22 incident: reconciliation
+    # mismatches are bookkeeping, not market crashes — counting them let a
+    # mapping bug fire a false cascade that flattened the whole book)
+    if not (reason.startswith("trail_stop") or reason == "stop"):
         return
     lst = st.setdefault("recent_stop_closes", [])
     lst.append(datetime.now(timezone.utc).isoformat(timespec="seconds"))
@@ -712,7 +714,8 @@ def auto_universe(broker, st: dict) -> None:
     if not CFG.get("universe_auto") or not hasattr(broker, "_pub"):
         return
     try:
-        seed = list(CFG["universe"])
+        seed = list(CFG.get("_universe_seed") or CFG["universe"])
+        CFG["_universe_seed"] = seed   # adoption guard reads this (F5)
         cache_f = ROOT / "state" / "assetpairs_cache.json"
         codes = None
         try:
@@ -788,7 +791,7 @@ def auto_universe(broker, st: dict) -> None:
                 "ts": int(time.time()),
                 "rows": [{"sym": ws, "gain": round(g * 100, 2),
                           "dvol_m": round(d / 1e6, 1),
-                          "watched": ws in seen,
+                          "watched": ws in set(CFG["universe"]),
                           "held": ws in held} for g, d, ws in _top]}))
         except Exception:
             pass
@@ -799,6 +802,16 @@ def auto_universe(broker, st: dict) -> None:
                 "..." if len(added) > 8 else ""))
         if hasattr(broker, "_discover_pairs"):
             broker._discover_pairs()
+            # persist the enriched maps: fine_recorder + /api/crypto/spark
+            # read pair_cache.json, and a cache missing auto-screened
+            # symbols froze the recorder + phantom-marked the book on
+            # 2026-08-22. pair+asset are written TOGETHER, atomically.
+            try:
+                broker._cache_f.write_text(json.dumps(
+                    {"pair": broker.pair,
+                     "asset": {k: list(v) for k, v in broker.asset.items()}}))
+            except Exception:
+                pass
     except Exception as e:
         log(f"auto-universe failed ({e!r}); static universe this tick")
 
@@ -870,8 +883,14 @@ def main() -> None:
     # state loss or coins bought outside the sleeve). Without this the entry
     # price re-baselines to the current price EVERY tick, which permanently
     # disables the stop/take checks for that position.
+    _seed_set = set(CFG.get("_universe_seed") or CFG["universe"])
     adopted = [] if st.get("frozen") else \
-        [p for p in positions if p.symbol not in st["positions"]]
+        [p for p in positions
+         if p.symbol not in st["positions"] and p.symbol in _seed_set]
+    for p in positions:
+        if p.symbol not in st["positions"] and p.symbol not in _seed_set:
+            log(f"stray balance {p.symbol} (~${p.market_value:.2f}) NOT "
+                "adopted — auto-screened symbol, not in the seed universe")
     for p in adopted:
         st["positions"][p.symbol] = {
             "entry_price": p.entry_price, "notional": p.market_value,
@@ -907,7 +926,6 @@ def main() -> None:
             st.get("trail_peaks", {}).pop(_sym, None)
             st.get("trails", {}).pop(_sym, None)
             save_state(st)
-            note_stop_close(st, "reconciled_close")
             log(f"RECONCILED {_sym}: state had a position, exchange shows none "
                 f"— recorded as closed (~{_pl:+.2f})")
 
@@ -1196,21 +1214,28 @@ def main() -> None:
                     broker.cancel_order(_exm.get("txid"))
                 except Exception:
                     pass
-            _tvol = (_over / _mt.current_price) * 0.9995
+            # cap at what the position actually holds (review 2026-08-22:
+            # aggregate overage can exceed the largest position; the old
+            # formula requested an impossible volume, Kraken rejected it,
+            # and the overage was never corrected). Remainder trims next
+            # tick from the then-largest meme.
+            _take = min(_over, _mt.market_value * 0.95)
+            _tvol = (_take / _mt.current_price) * 0.9995
             broker._priv("/0/private/AddOrder",
                          {"pair": broker.pair[_mt.symbol], "type": "sell",
                           "ordertype": "market", "volume": f"{_tvol:.8f}"})
             _trow = st["positions"].get(_mt.symbol, {})
-            _tfrac = min(0.99, _over / max(_mt.market_value, 1e-9))
+            _tfrac = min(0.99, _take / max(_mt.market_value, 1e-9))
             _tpl = (_mt.market_value - _mt.notional) * _tfrac
-            _trow["notional"] = round(float(_trow.get("notional", _mt.notional)) - _over, 4)
+            # cost basis shrinks by the SOLD FRACTION, not the raw dollars
+            _trow["notional"] = round(float(_trow.get("notional", _mt.notional)) * (1 - _tfrac), 4)
             st["positions"][_mt.symbol] = _trow
             append_ledger({"closed_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
                            "symbol": _mt.symbol, "entry_time": _trow.get("opened", ""),
                            "entry_price": f"{_mt.entry_price:.4f}",
                            "exit_price": f"{_mt.current_price:.4f}",
-                           "notional": f"{_over:.2f}", "realized_pl": f"{_tpl:.4f}",
-                           "pl_pct": f"{_tpl / _over:.4f}",
+                           "notional": f"{_take:.2f}", "realized_pl": f"{_tpl:.4f}",
+                           "pl_pct": f"{_tpl / _take:.4f}",
                            "reason": "meme_trim(25pct_budget)",
                            "signal_mode": _trow.get("signal_mode", "?")})
             _mt.qty *= (1 - _tfrac)
@@ -1218,7 +1243,7 @@ def main() -> None:
             _mt.notional = _trow["notional"]
             _mt.unrealized_pl = _mt.market_value - _mt.notional
             save_state(st)
-            log(f"MEME TRIM {_mt.symbol}: sold ${_over:.2f} back inside the 25% budget")
+            log(f"MEME TRIM {_mt.symbol}: sold ${_take:.2f} back toward the 25% budget")
     except Exception as e:
         log(f"meme trim FAIL {e!r}")
 
@@ -1244,6 +1269,8 @@ def main() -> None:
                     log(f"cascade exit {p.symbol} FAIL {e!r}")
             st["sentinel_until"] = (_now2 + timedelta(
                 hours=float(CFG.get("cascade_pause_h", 2.0)))).isoformat(timespec="seconds")
+            _sentinel = True   # review 2026-08-22: the pause must bind THIS
+            #                    tick's entry gate, not just the next run
             st["recent_stop_closes"] = []
             for _rs in list((st.get("reentry") or {}).keys()):
                 st["reentry"].pop(_rs, None)   # no dip-buying the cascade
@@ -1421,13 +1448,16 @@ def main() -> None:
         _is_skim = bool(r.get("skim")) and _sym in st.get("positions", {})
         _want = round(min(float(r.get("usd") or 0), room, cash_avail - 0.5), 2)
         _meme_ok = True
-        if not _is_skim and is_meme(_sym):
+        if is_meme(_sym):
             _mr, _ms = meme_room(st)
-            _meme_ok = _ms > 0 and _mr >= CFG["min_order_usd"]
+            # skims add BACK to a held coin (no new slot needed) but the
+            # 25% dollar budget clamps them too (review 2026-08-22: skims
+            # silently bypassed the cap)
+            _meme_ok = (_ms > 0 or _is_skim) and _mr >= CFG["min_order_usd"]
             if _meme_ok:
                 _want = round(min(_want, _mr), 2)
         if (allowed
-                and (_is_skim or _meme_ok)
+                and _meme_ok
                 and (len(st.get("positions") or {}) < _max_pos or _is_skim)
                 and _cur <= float(r["exit_px"]) * (1 - _dip)
                 and _want >= CFG["min_order_usd"]

@@ -22,9 +22,14 @@ class LockTileService : TileService() {
 
     override fun onClick() {
         super.onClick()
-        val armed = prefs.getBoolean(MainActivity.KEY_BIOMETRIC, false)
-        prefs.edit().putBoolean(MainActivity.KEY_BIOMETRIC, !armed).apply()
-        refresh()
+        // unlockAndRun: a LOCKED phone must not be able to disarm the
+        // fingerprint gate from the pull-down shade (review 2026-08-22) —
+        // the device unlocks first, then the toggle runs.
+        unlockAndRun {
+            val armed = prefs.getBoolean(MainActivity.KEY_BIOMETRIC, false)
+            prefs.edit().putBoolean(MainActivity.KEY_BIOMETRIC, !armed).apply()
+            refresh()
+        }
     }
 
     private fun refresh() {

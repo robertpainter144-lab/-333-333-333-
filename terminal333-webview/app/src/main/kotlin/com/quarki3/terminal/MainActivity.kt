@@ -44,9 +44,9 @@ class MainActivity : AppCompatActivity() {
         // System picture-in-picture (Robert 2026-08-19): keep the equity
         // chart floating over other apps when the Terminal is minimized.
         private const val KEY_PIP = "pip_enabled"
-        // Quick Settings "333 Lock" tile (Robert 2026-08-22) flips this so
-        // the fingerprint gate can be disarmed for a work session without
-        // opening the app. Default stays armed.
+        // Quick Settings "333 Lock" tile + SettingsActivity flip this.
+        // Default is DISARMED (Robert 2026-08-22: "make it default off");
+        // arming is an explicit opt-in via either toggle.
         const val KEY_BIOMETRIC = "biometric_gate"
     }
 
@@ -283,12 +283,16 @@ class MainActivity : AppCompatActivity() {
 
             @android.webkit.JavascriptInterface
             fun copyText(text: String) {
-                try {
-                    val cm = getSystemService(Context.CLIPBOARD_SERVICE)
-                        as android.content.ClipboardManager
-                    cm.setPrimaryClip(
-                        android.content.ClipData.newPlainText("terminal", text))
-                } catch (_: Exception) { }
+                // JS-bridge threads aren't the UI thread; clipboard writes
+                // belong there (review 2026-08-22, matches openUrl above)
+                runOnUiThread {
+                    try {
+                        val cm = getSystemService(Context.CLIPBOARD_SERVICE)
+                            as android.content.ClipboardManager
+                        cm.setPrimaryClip(
+                            android.content.ClipData.newPlainText("terminal", text))
+                    } catch (_: Exception) { }
+                }
             }
         }, "QTNative")
 

@@ -116,3 +116,10 @@ closed_at,symbol,entry_time,entry_price,exit_price,notional,realized_pl,pl_pct,r
 2026-08-22T15:54:21+00:00,DOGE/USD,2026-08-22T08:05:41+00:00,0.0925,0.0902,17.50,-0.5314,-0.0304,meme_trim(25pct_budget),whale-confirmed (risk_on=0.78)
 2026-08-22T21:15:39+00:00,SOL/USD,2026-08-22T05:10:37+00:00,93.0964,93.6400,800.00,1.1905,0.0015,momentum_flip,dip_rebuy
 2026-08-22T21:40:12+00:00,ADA/USD,2026-08-22T05:35:13+00:00,0.2312,0.2255,800.00,-23.6232,-0.0295,momentum_flip,whale-confirmed (risk_on=0.79)
+2026-08-22T21:45:24+00:00,ZEC/USD,2026-08-22T21:20:21+00:00,811.2843,806.1400,800.00,-5.0728,-0.0063,reconciled_close,whale-confirmed (risk_on=0.76)
+2026-08-22T21:45:25+00:00,HYPE/USD,2026-08-22T21:20:24+00:00,78.5352,78.3700,262.05,-0.5513,-0.0021,reconciled_close,whale-confirmed (risk_on=0.76)
+2026-08-22T21:45:26+00:00,XRP/USD,2026-08-22T10:30:46+00:00,1.4823,1.4688,800.00,-10.9429,-0.0137,cascade_exit,whale-confirmed (risk_on=0.84)
+2026-08-22T21:45:26+00:00,DOGE/USD,2026-08-22T08:05:41+00:00,0.0925,0.0928,782.50,-2.0456,-0.0026,cascade_exit,whale-confirmed (risk_on=0.78)
+2026-08-22T21:48:18+00:00,ZEC/USD,2026-08-22T21:45:36+00:00,802.9900,800.7400,700.00,0.0000,0,milestone_bank_FALSE(corrected: phantom basis),whale-confirmed (risk_on=0.76)
+2026-08-22T21:55:47+00:00,ZEC/USD,2026-08-22T21:45:36+00:00,797.9300,799.0200,200.00,0.2717,0.0014,milestone_bank(hwm_683),whale-confirmed (risk_on=0.76)
+2026-08-22T21:58:49+00:00,DOGE/USD,2026-08-22T21:45:40+00:00,0.0918,0.0917,237.84,-0.8510,-0.0036,momentum_flip,whale-confirmed (risk_on=0.76)

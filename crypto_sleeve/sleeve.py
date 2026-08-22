@@ -126,7 +126,12 @@ class KrakenBroker:
         """Fill self.pair/self.asset for universe symbols the seed map doesn't
         cover, from Kraken's own registry. Failure leaves the seed map — the
         sleeve keeps managing whatever it already knows, never crashes here."""
-        missing = [s for s in CFG["universe"] if s not in self.pair]
+        # Check BOTH maps (2026-08-22: a cache with a 'pair' entry but no
+        # matching 'asset' entry left new rotations unreconcilable — the
+        # engine dropped ZEC/HYPE from the book and mismarked equity. A
+        # half-populated symbol must re-discover, not be treated as known.)
+        missing = [s for s in CFG["universe"]
+                   if s not in self.pair or s not in self.asset]
         if not missing:
             return
         try:

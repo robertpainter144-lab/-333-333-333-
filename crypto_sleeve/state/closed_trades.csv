@@ -106,3 +106,10 @@ closed_at,symbol,entry_time,entry_price,exit_price,notional,realized_pl,pl_pct,r
 2026-08-20T22:39:07+00:00,FET/USD,2026-08-20T22:36:41+00:00,0.1437,0.1439,271.02,-0.9798,-0.0036,unwind_spray_to_winners,whale-confirmed (risk_on=0.82)
 2026-08-20T22:39:08+00:00,LTC/USD,2026-08-20T22:36:48+00:00,47.9900,47.9500,135.56,-0.7843,-0.0058,unwind_spray_to_winners,whale-confirmed (risk_on=0.82)
 2026-08-20T22:41:10+00:00,PEPE/USD,2026-08-20T22:40:21+00:00,0.0000,0.0000,35.11,-0.0042,-0.0001,remove_pepe_low_vol,whale-confirmed (risk_on=0.82)
+2026-08-22T04:35:14+00:00,SOL/USD,2026-08-17T15:00:36+00:00,89.1318,99.8400,178.25,20.4187,0.1146,spike_harvest(3.1%_in_15m),whale-confirmed (risk_on=0.80)
+2026-08-22T04:35:14+00:00,XRP/USD,2026-08-20T11:37:40+00:00,1.2892,1.6385,200.00,52.9305,0.2647,spike_harvest(3.4%_in_15m),whale-confirmed (risk_on=0.86)
+2026-08-22T05:10:30+00:00,SOL/USD,2026-08-17T15:00:36+00:00,89.1318,92.9000,534.75,22.6075,0.0423,reconciled_close,whale-confirmed (risk_on=0.80)
+2026-08-22T05:10:30+00:00,XRP/USD,2026-08-20T11:37:40+00:00,1.2892,1.5200,600.00,107.4183,0.1790,reconciled_close,whale-confirmed (risk_on=0.86)
+2026-08-22T05:15:12+00:00,AVAX/USD,2026-08-14T23:30:44+00:00,7.3999,7.6630,800.00,28.4389,0.0355,reconciled_close,whale-confirmed (risk_on=0.53)
+2026-08-22T08:00:17+00:00,ETH/USD,2026-08-15T22:39:36+00:00,2347.0293,2433.0900,800.00,25.1919,0.0315,momentum_flip,whale-confirmed (risk_on=0.50)
+2026-08-22T10:25:15+00:00,XRP/USD,2026-08-22T05:10:40+00:00,1.4993,1.4339,800.00,-34.9060,-0.0436,reconciled_close,dip_rebuy

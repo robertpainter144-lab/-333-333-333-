@@ -55,5 +55,6 @@
   "engine_host": "gcp",
   "spike_tighten_factor": 0.5,
   "spike_tighten_h": 2.0,
-  "ratchet_giveback_usd": 500.0
+  "ratchet_giveback_usd": 500.0,
+  "sentinel_btc_drop": 0.02
 }

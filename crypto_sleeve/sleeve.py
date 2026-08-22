@@ -28,7 +28,7 @@ import sys
 import time
 import urllib.parse
 import urllib.request
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 HOME = Path.home()
@@ -543,6 +543,12 @@ def trail_width(broker, symbol: str, st: dict | None = None) -> float:
         w = max(float(CFG.get("trail_min", 0.05)),
                 min(float(CFG.get("trail_max", 0.18)), w))
         if st:
+            try:
+                if st.get("sentinel_until") and datetime.fromisoformat(
+                        st["sentinel_until"]) > datetime.now(timezone.utc):
+                    return float(CFG.get("trail_min", 0.05))
+            except Exception:
+                pass
             _sts = (st.get("spike_ts") or {}).get(symbol)
             if _sts:
                 _age_h = (datetime.now(timezone.utc)
@@ -762,6 +768,47 @@ def main() -> None:
             save_state(st)
             log(f"RECONCILED {_sym}: state had a position, exchange shows none "
                 f"— recorded as closed (~{_pl:+.2f})")
+
+    # CASCADE SENTINEL (Robert 2026-08-22 "would a governor help the
+    # drawdowns?"): BTC leads liquidation cascades (8/21: BTC -3.5% while
+    # alts fell 15-21%). A >2% BTC drop inside ~15 min flips the whole book
+    # defensive for 45 min: every trail clamps to trail_min and ALL buying
+    # (adds, dip-rebuys, new names) pauses. Exits and floors stay live.
+    try:
+        _btc = broker.price("BTC/USD")
+        _now = datetime.now(timezone.utc)
+        bh = st.setdefault("btc_hist", [])
+        bh.append([_now.isoformat(timespec="seconds"), _btc])
+        del bh[:-24]
+        _base = None
+        for _bts, _bpx in reversed(bh[:-1]):
+            _base = float(_bpx)
+            if (_now - datetime.fromisoformat(_bts)).total_seconds() >= 14 * 60:
+                break
+        if _base and _btc / _base - 1 <= -float(CFG.get("sentinel_btc_drop", 0.02)):
+            _prev_active = False
+            try:
+                _prev_active = bool(st.get("sentinel_until")) and \
+                    datetime.fromisoformat(st["sentinel_until"]) > _now
+            except Exception:
+                pass
+            st["sentinel_until"] = (_now + timedelta(minutes=45)).isoformat(timespec="seconds")
+            save_state(st)
+            if not _prev_active:
+                notify("action", "Cascade sentinel tripped - book defensive",
+                       f"BTC dropped {(_btc / _base - 1) * 100:.1f}% in ~15 minutes - the "
+                       "liquidation-cascade signature. All trails are clamped to their "
+                       "tightest and buying is paused for 45 minutes. Exits stay live.")
+    except Exception as e:
+        log(f"sentinel FAIL {e!r}")
+    _sentinel = False
+    try:
+        _sentinel = bool(st.get("sentinel_until")) and \
+            datetime.fromisoformat(st["sentinel_until"]) > datetime.now(timezone.utc)
+    except Exception:
+        pass
+    if _sentinel:
+        log("sentinel ACTIVE: trails clamped to minimum, all buying paused")
 
     if st.get("frozen"):
         suppressed_notify(st, "frozen", "action", "Crypto sleeve is FROZEN",
@@ -999,6 +1046,9 @@ def main() -> None:
 
     # ---- entries ----
     allowed, mode = whale_gate()
+    if _sentinel:
+        allowed = False
+        mode = 'sentinel-defensive' 
     try:
         cash_avail = broker.cash()
     except Exception as e:

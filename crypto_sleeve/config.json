@@ -51,5 +51,6 @@
   "concentrated_add": true,
   "min_dollar_vol_24h": 20000000.0,
   "reentry_ttl_h": 24,
-  "spike_harvest_frac": 0.25
+  "spike_harvest_frac": 0.25,
+  "engine_host": "gcp"
 }

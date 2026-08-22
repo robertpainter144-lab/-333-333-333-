@@ -643,6 +643,17 @@ def acquire_lock() -> bool:
 
 
 def main() -> None:
+    # Leader gate (D59, 2026-08-21 "no part of this depends on the Mac"):
+    # config.json names the engine host; every other machine running this
+    # file is a standby viewer. Hostname-keyed on BOTH sides, so two hosts
+    # can never trade the same book even if both jobs fire.
+    _eh = str(CFG.get("engine_host", "")).lower()
+    if _eh:
+        import platform as _plat
+        _on_gcp = "quarki-stack" in _plat.node().lower()
+        if (_eh == "gcp") != _on_gcp:
+            log(f"standby: engine_host={_eh}, this host only displays")
+            return
     if not acquire_lock():
         log("skip: previous run still active (lock held)")
         return

@@ -519,12 +519,18 @@ def append_ledger(row: dict) -> None:
         w.writerow(row)
 
 
-def trail_width(broker, symbol: str) -> float:
+def trail_width(broker, symbol: str, st: dict | None = None) -> float:
     """Per-asset trailing-stop width from ITS OWN recent volatility (Robert
     2026-08-20: 'a safe trailing stop that makes sense for each individual
     holding analyzed separately'): stdev of the last 48 hourly returns,
-    scaled to a day, times a multiplier, clamped. BTC lands ~5-7%; high-beta
-    alts 12-18%. Data failure = widest (safest against whipsaw exits)."""
+    scaled to a day, times a multiplier, clamped. Data failure = widest
+    (safest against whipsaw exits).
+
+    POST-SPIKE TIGHTENING (Robert 2026-08-22 00:26, after the 05:05Z blow-
+    off): a 3-sigma rip inflates the vol estimate and WIDENS the trail at
+    exactly the moment reversal odds peak — backwards. For spike_tighten_h
+    hours after a spike-harvest fires on this coin, the width is cut by
+    spike_tighten_factor (still floored at trail_min). Pass st to enable."""
     try:
         closes = broker.closes(symbol)[-49:]
         rets = [closes[i + 1] / closes[i] - 1
@@ -534,8 +540,17 @@ def trail_width(broker, symbol: str) -> float:
         import statistics
         w = (float(CFG.get("trail_vol_mult", 2.5))
              * statistics.pstdev(rets) * (24 ** 0.5))
-        return max(float(CFG.get("trail_min", 0.05)),
-                   min(float(CFG.get("trail_max", 0.18)), w))
+        w = max(float(CFG.get("trail_min", 0.05)),
+                min(float(CFG.get("trail_max", 0.18)), w))
+        if st:
+            _sts = (st.get("spike_ts") or {}).get(symbol)
+            if _sts:
+                _age_h = (datetime.now(timezone.utc)
+                          - datetime.fromisoformat(_sts)).total_seconds() / 3600
+                if _age_h <= float(CFG.get("spike_tighten_h", 2.0)):
+                    w = max(float(CFG.get("trail_min", 0.05)),
+                            w * float(CFG.get("spike_tighten_factor", 0.5)))
+        return w
     except Exception:
         return float(CFG.get("trail_max", 0.18))
 
@@ -819,7 +834,7 @@ def main() -> None:
             peaks[p.symbol] = max(peaks.get(p.symbol, 0.0), cur, p.entry_price)
             peak = peaks[p.symbol]
             chg = cur / p.entry_price - 1
-            trail = trail_width(broker, p.symbol)
+            trail = trail_width(broker, p.symbol, st)
             armed = peak >= p.entry_price * (1 + float(CFG.get("trail_arm_pct", 0.02)))
             if chg <= CFG["stop_pct"]:
                 close_position(broker, p, st, "stop")
@@ -864,7 +879,7 @@ def main() -> None:
     # peak surviving a close causes an instant false stop on re-entry
     # (ultra-audit 2026-08-21: 9 orphaned peaks found live)
     _open_syms = {p.symbol for p in still_open}
-    for _d in ("trails", "trail_peaks", "px_hist"):
+    for _d in ("trails", "trail_peaks", "px_hist", "spike_ts"):
         if isinstance(st.get(_d), dict):
             for _s in list(st[_d]):
                 if _s not in _open_syms:
@@ -885,8 +900,22 @@ def main() -> None:
             h = _hist.setdefault(p.symbol, [])
             h.append([_now_dt.isoformat(timespec="seconds"), p.current_price])
             del h[:-24]                                   # ~2h of 5-min marks
-            if p.symbol in st.get("reentry", {}) or not hasattr(broker, "_priv"):
+            if not hasattr(broker, "_priv"):
                 continue
+            _r0 = (st.get("reentry") or {}).get(p.symbol)
+            if _r0 is not None:
+                # ESCALATING SKIM (Robert 2026-08-22 00:28 "take profit
+                # before the top ... still as much as possible"): a spike
+                # still making higher highs 15+ min after the last skim gets
+                # skimmed AGAIN — harvest depth adapts to each spike's real
+                # duration instead of guessing an average length.
+                try:
+                    _r_age = (_now_dt - datetime.fromisoformat(_r0["ts"])).total_seconds()
+                except Exception:
+                    _r_age = 0
+                if not (_r0.get("skim") and _r_age >= 900
+                        and p.current_price > float(_r0.get("exit_px", 1e18))):
+                    continue
             base_px = None
             for _ts, _hpx in reversed(h[:-1]):            # newest mark >=14min old
                 _age = (_now_dt - datetime.fromisoformat(_ts)).total_seconds()
@@ -928,9 +957,11 @@ def main() -> None:
                            "pl_pct": f"{_sold_pl / (p.notional * frac):.4f}" if p.notional else "0",
                            "reason": f"spike_harvest({spike * 100:.1f}%_in_15m)",
                            "signal_mode": row.get("signal_mode", "?")})
+            _prev_usd = float(_r0.get("usd", 0)) if _r0 else 0.0
             st.setdefault("reentry", {})[p.symbol] = {
-                "exit_px": p.current_price, "usd": skim_usd,
+                "exit_px": p.current_price, "usd": round(skim_usd + _prev_usd, 2),
                 "ts": _now_dt.isoformat(timespec="seconds"), "skim": True}
+            st.setdefault("spike_ts", {})[p.symbol] = _now_dt.isoformat(timespec="seconds")
             # keep the in-memory Position consistent for the accounting below
             p.qty *= (1 - frac)
             p.market_value *= (1 - frac)

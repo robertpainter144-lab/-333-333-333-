@@ -52,5 +52,7 @@
   "min_dollar_vol_24h": 20000000.0,
   "reentry_ttl_h": 24,
   "spike_harvest_frac": 0.25,
-  "engine_host": "gcp"
+  "engine_host": "gcp",
+  "spike_tighten_factor": 0.5,
+  "spike_tighten_h": 2.0
 }

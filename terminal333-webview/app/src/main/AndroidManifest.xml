@@ -24,5 +24,17 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Quick Settings tile: arm/disarm the fingerprint gate (2026-08-22) -->
+        <service
+            android:name=".LockTileService"
+            android:exported="true"
+            android:label="333 Lock"
+            android:icon="@drawable/ic_lock_tile"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
     </application>
 </manifest>

@@ -44,6 +44,10 @@ class MainActivity : AppCompatActivity() {
         // System picture-in-picture (Robert 2026-08-19): keep the equity
         // chart floating over other apps when the Terminal is minimized.
         private const val KEY_PIP = "pip_enabled"
+        // Quick Settings "333 Lock" tile (Robert 2026-08-22) flips this so
+        // the fingerprint gate can be disarmed for a work session without
+        // opening the app. Default stays armed.
+        const val KEY_BIOMETRIC = "biometric_gate"
     }
 
     private var pipEnabled: Boolean
@@ -113,6 +117,11 @@ class MainActivity : AppCompatActivity() {
         BiometricManager.Authenticators.DEVICE_CREDENTIAL
 
     private fun requireBiometric() {
+        if (!prefs.getBoolean(KEY_BIOMETRIC, true)) {
+            // Gate disarmed via the 333 Lock Quick Settings tile.
+            buildApp()
+            return
+        }
         val canAuth = BiometricManager.from(this).canAuthenticate(authAllowed)
         if (canAuth != BiometricManager.BIOMETRIC_SUCCESS) {
             // No biometric AND no device lock configured: fail OPEN rather

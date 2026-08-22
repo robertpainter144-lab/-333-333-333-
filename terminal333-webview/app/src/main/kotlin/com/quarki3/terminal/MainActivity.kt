@@ -269,6 +269,27 @@ class MainActivity : AppCompatActivity() {
                     v.vibrate(eff)
                 } catch (_: Exception) { }
             }
+
+            // Terminal login helpers (2026-08-22): the terminal card's
+            // "open last URL" / "copy" buttons hand off through here —
+            // native clipboard + system browser beat WebView popups.
+            @android.webkit.JavascriptInterface
+            fun openUrl(url: String) {
+                if (!url.startsWith("http://") && !url.startsWith("https://")) return
+                runOnUiThread {
+                    try { openExternally(Uri.parse(url)) } catch (_: Exception) { }
+                }
+            }
+
+            @android.webkit.JavascriptInterface
+            fun copyText(text: String) {
+                try {
+                    val cm = getSystemService(Context.CLIPBOARD_SERVICE)
+                        as android.content.ClipboardManager
+                    cm.setPrimaryClip(
+                        android.content.ClipData.newPlainText("terminal", text))
+                } catch (_: Exception) { }
+            }
         }, "QTNative")
 
         // PiP bridge: the web PiP panel toggles auto-PiP and can enter PiP

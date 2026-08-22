@@ -494,6 +494,11 @@ def add_to_position(st: dict, symbol: str, add_usd: float, price: float) -> floa
     new_e = round(new_n / (qty_old + qty_new), 8) if (qty_old + qty_new) else price
     row["notional"] = new_n
     row["entry_price"] = new_e
+    # keep the display mark self-consistent IMMEDIATELY (review 2026-08-22:
+    # mv/cur lagging a fresh add made the fine recorder undercount the leg
+    # until the next 5-min mark — visible chart dips during rotations)
+    row["mv"] = round(float(row.get("mv") or old_n) + add_usd, 2)
+    row["cur"] = price
     st["positions"][symbol] = row
     return new_n
 

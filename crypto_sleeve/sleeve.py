@@ -1225,16 +1225,24 @@ def main() -> None:
                    f"Sleeve deployed ${deployed + size:.2f} of ${CFG['cap_total_usd']:.0f} cap.")
 
     # Equity curve for the dashboard (owner-only /api/equity/crypto_sleeve).
-    # New buys are valued at notional this tick; next tick reprices them.
-    equity = cash_avail + sum(p.market_value for p in still_open) + bought + dip_bought
+    # Mark-to-EXCHANGE at tick end (2026-08-22: the old incremental
+    # cash+mv+bought arithmetic double-counted a position whose Kraken-side
+    # stop filled mid-tick — proceeds in cash while the balance still
+    # showed — printing a phantom $4,170 candle). One fresh Balance read is
+    # authoritative through any rotation.
+    try:
+        cash_avail = broker.cash()
+        _mv_end = sum(p.market_value for p in broker.positions(st))
+        equity = cash_avail + _mv_end
+    except Exception:
+        equity = cash_avail + sum(p.market_value for p in still_open) + bought + dip_bought
     new_f = not EQUITY_F.exists()
     with EQUITY_F.open("a") as f:
         if new_f:
             f.write("ts,equity,cash,positions_mv,realized\n")
         f.write("%s,%.4f,%.4f,%.4f,%.4f\n"
                 % (datetime.now(timezone.utc).isoformat(timespec="seconds"),
-                   equity, cash_avail,
-                   sum(p.market_value for p in still_open) + bought + dip_bought,
+                   equity, cash_avail, equity - cash_avail,
                    realized_total()))
 
     save_state(st)

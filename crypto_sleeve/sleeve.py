@@ -295,6 +295,36 @@ class KrakenBroker:
             log(f"{pos.symbol}: sold spot {vol:.8f}; ~{pos.qty - spot:.8f} "
                 f"remains in Earn (.F) — unstake to fully exit")
 
+    def place_stop(self, symbol: str, vol: float, price: float) -> str:
+        """Resting stop-loss SELL at the exchange — survives this machine
+        (2026-08-21 power-outage postmortem). Returns the order txid.
+        Kraken enforces per-pair price decimals (ETH 2, SOL 2, AVAX 3,
+        XRP 5...); on an 'up to N decimals' reject, retry rounded to N."""
+        px = f"{price:.6g}"
+        for _ in range(2):
+            try:
+                r = self._priv("/0/private/AddOrder",
+                               {"pair": self.pair[symbol], "type": "sell",
+                                "ordertype": "stop-loss", "price": px,
+                                "volume": f"{vol:.8f}"})
+                return (r.get("txid") or [""])[0]
+            except RuntimeError as e:
+                import re as _re
+                m = _re.search(r"up to (\d+) decimals", str(e))
+                if not m:
+                    raise
+                px = f"{price:.{int(m.group(1))}f}"
+        raise RuntimeError(f"{symbol}: stop price {px} still rejected")
+
+    def cancel_order(self, txid: str) -> None:
+        if not txid:
+            return
+        try:
+            self._priv("/0/private/CancelOrder", {"txid": txid})
+        except Exception as e:
+            if "Unknown order" not in str(e):   # already gone = fine
+                raise
+
 
 class AlpacaBroker:
     DATA = "https://data.alpaca.markets"
@@ -510,7 +540,68 @@ def trail_width(broker, symbol: str) -> float:
         return float(CFG.get("trail_max", 0.18))
 
 
+def sync_exchange_stops(broker, st: dict, still_open) -> None:
+    """Dead-man protection (2026-08-21 power-outage postmortem: the Mac was
+    dark 4h16m with $3.1k soft-stopped only): keep a REAL resting stop-loss
+    order at Kraken for every open position, tracking the engine's effective
+    stop (hard -8%, or the armed trail if higher). If this machine dies, the
+    EXCHANGE enforces the exits; reverse reconciliation books any fills on
+    revival. The engine cancels a position's resting stop before its own
+    market exits (a working sell order reserves the balance)."""
+    if not hasattr(broker, "place_stop"):
+        return
+    ex = st.setdefault("ex_stops", {})
+    open_syms = {p.symbol for p in still_open}
+    for sym in list(ex.keys()):
+        if sym not in open_syms:
+            try:
+                broker.cancel_order(ex[sym].get("txid"))
+            except Exception:
+                pass
+            ex.pop(sym, None)
+    for p in still_open:
+        try:
+            eff = p.entry_price * (1 + float(CFG["stop_pct"]))
+            tr = (st.get("trails") or {}).get(p.symbol) or {}
+            if tr.get("armed") and tr.get("stop_px"):
+                eff = max(eff, float(tr["stop_px"]))
+            vol = p.qty * 0.9995
+            cur = ex.get(p.symbol)
+            if cur and abs(eff - float(cur["stop_px"])) / max(eff, 1e-9) < 0.004 \
+                    and abs(vol - float(cur["vol"])) / max(vol, 1e-9) < 0.01:
+                continue   # close enough — don't churn cancel/replace
+            if cur:
+                try:
+                    broker.cancel_order(cur.get("txid"))
+                except Exception:
+                    pass
+            txid = broker.place_stop(p.symbol, vol, eff)
+            ex[p.symbol] = {"txid": txid, "stop_px": round(eff, 8),
+                            "vol": round(vol, 8)}
+            log(f"EXCH STOP {p.symbol}: resting stop-loss @ {eff:.6g} "
+                f"(vol {vol:.6g}) — enforced by Kraken, survives this machine")
+        except Exception as e:
+            log(f"exch stop {p.symbol} FAIL {e!r}")
+    save_state(st)
+    if ex and not st.get("ex_stops_announced"):
+        st["ex_stops_announced"] = True
+        save_state(st)
+        notify("info", "Crypto book now protected AT the exchange",
+               "Every open position carries a real resting stop-loss order at "
+               "Kraken, tracking the engine's levels. If the Mac loses power "
+               "again, Kraken itself enforces the exits — the book is no "
+               "longer dependent on this machine for downside protection.")
+
+
 def close_position(broker, pos: Position, st: dict, reason: str) -> None:
+    # cancel the resting exchange stop FIRST — its open sell order reserves
+    # the balance and would make the market close reject
+    _ex = (st.get("ex_stops") or {}).pop(pos.symbol, None)
+    if _ex and hasattr(broker, "cancel_order"):
+        try:
+            broker.cancel_order(_ex.get("txid"))
+        except Exception as e:
+            log(f"cancel resting stop {pos.symbol} FAIL {e!r}")
     broker.close(pos)
     meta = st["positions"].pop(pos.symbol, {})
     append_ledger({"closed_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -802,6 +893,14 @@ def main() -> None:
             if skim_usd < CFG["min_order_usd"] * 2:
                 continue
             vol = p.qty * frac * 0.9995
+            # the resting exchange stop reserves the balance — clear it, the
+            # post-harvest sync re-places it at the reduced size
+            _exst = (st.get("ex_stops") or {}).pop(p.symbol, None)
+            if _exst:
+                try:
+                    broker.cancel_order(_exst.get("txid"))
+                except Exception:
+                    pass
             broker._priv("/0/private/AddOrder",
                          {"pair": broker.pair[p.symbol], "type": "sell",
                           "ordertype": "market", "volume": f"{vol:.8f}"})
@@ -837,6 +936,8 @@ def main() -> None:
                    "back cheaper. Peak-taking working as you asked.")
         except Exception as e:
             log(f"spike check {p.symbol} FAIL {e!r}")
+
+    sync_exchange_stops(broker, st, still_open)
 
     # Cap accounting on COST BASIS, not market value: a drawdown must not
     # free up "room" to buy more (that would let total spend exceed the cap).

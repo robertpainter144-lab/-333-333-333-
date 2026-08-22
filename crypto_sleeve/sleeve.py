@@ -793,7 +793,18 @@ def main() -> None:
         st["pl_alert_anchor"] = sleeve_pl
         save_state(st)
 
-    if sleeve_pl <= CFG["freeze_pnl_usd"]:
+    # PROFIT-RATCHET FLOOR (Robert 2026-08-22 01:30 "protect the profit not
+    # just the deposit"): the catastrophe rail RISES with the P/L high-water
+    # mark, trailing by ratchet_giveback_usd — deliberately WIDE (~15% of
+    # book) so it sits outside everything trails/stops/skims handle (the
+    # floor-width sim: wide floors cost ~zero profit, tight ones sell
+    # bottoms). Once P/L has touched +$500, breakeven is locked for good.
+    _hwm = max(float(st.get("pl_hwm") or 0.0), sleeve_pl)
+    st["pl_hwm"] = round(_hwm, 2)
+    _floor = max(float(CFG["freeze_pnl_usd"]),
+                 _hwm - float(CFG.get("ratchet_giveback_usd", 500.0)))
+    st["effective_floor"] = round(_floor, 2)
+    if sleeve_pl <= _floor:
         # Fault-isolated liquidation (ultra-audit 2026-08-21: a single failed
         # close — e.g. an Earn-locked remainder — must not abort the halt,
         # leave 'frozen' unset, and strand the rest of the book unprotected).
@@ -810,13 +821,13 @@ def main() -> None:
         save_state(st)
         if failed:
             notify("critical", "Crypto sleeve froze — SOME POSITIONS DID NOT SELL",
-                   f"Sleeve P/L hit {sleeve_pl:+.2f} (rail {CFG['freeze_pnl_usd']:+.0f}). "
+                   f"Sleeve P/L hit {sleeve_pl:+.2f} (ratcheted floor {_floor:+.0f}). "
                    f"Liquidation FAILED for: {', '.join(failed)} — likely Kraken Earn "
                    "(.F) balances a market order cannot touch. Sell or unstake these "
                    "on kraken.com NOW; the sleeve is halted and cannot protect them.")
         else:
             notify("action", "Crypto sleeve froze at its loss rail",
-                   f"Sleeve P/L hit {sleeve_pl:+.2f} (rail {CFG['freeze_pnl_usd']:+.0f}). "
+                   f"Sleeve P/L hit {sleeve_pl:+.2f} (ratcheted floor {_floor:+.0f}). "
                    "All sleeve positions were liquidated and it is halted until you review "
                    "it. Nothing else was touched.")
         return

@@ -773,6 +773,20 @@ def auto_universe(broker, st: dict) -> None:
                 merged.append(ws)
         cap = int(CFG.get("universe_max", 42))
         CFG["universe"] = merged[:max(cap, len(seed) + len(held))]
+        # Screener Radar (Robert 2026-08-22 "watch for profit opportunities
+        # across the whole industry"): persist the top movers this screen
+        # found so the app can show what the machine is watching — owning
+        # dust adds nothing, seeing the radar adds everything.
+        try:
+            _top = sorted(rows, key=lambda r: -r[0])[:12]
+            (ROOT / "state" / "radar.json").write_text(json.dumps({
+                "ts": int(time.time()),
+                "rows": [{"sym": ws, "gain": round(g * 100, 2),
+                          "dvol_m": round(d / 1e6, 1),
+                          "watched": ws in seen,
+                          "held": ws in held} for g, d, ws in _top]}))
+        except Exception:
+            pass
         added = [x for x in CFG["universe"] if x not in seed]
         if added:
             log("auto-universe: %d syms (+%d screened in: %s%s)" % (

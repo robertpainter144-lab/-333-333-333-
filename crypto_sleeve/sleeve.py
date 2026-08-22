@@ -444,6 +444,14 @@ def tilt_size(strength: float, strongest: float) -> float:
     return min(CFG.get("tilt_max_usd", base * 2), base * mult)
 
 
+def meme_blocked(symbol: str) -> bool:
+    """Meme-culture names excluded from NEW entries (Robert 2026-08-22,
+    third DOGE objection — volume-liquid but unwanted). Held positions are
+    never force-sold by this; their own exits govern."""
+    base = str(symbol).split("/")[0].upper()
+    return base in {str(x).upper() for x in CFG.get("meme_blocklist", [])}
+
+
 def dollar_vol_24h(broker, symbol: str) -> float:
     """Kraken 24h $-volume for the pair (base volume x vwap). Returns 0 on
     any failure — the NEW-entry screen fails CLOSED (Robert 2026-08-21: 'be
@@ -614,6 +622,18 @@ def sync_exchange_stops(broker, st: dict, still_open) -> None:
                "longer dependent on this machine for downside protection.")
 
 
+def note_stop_close(st: dict, reason: str) -> None:
+    """Track stop-family exits for CASCADE detection (Robert 2026-08-22:
+    'if you sold everything else at that point we would've made a killing'
+    — multiple stops firing within minutes is itself the exit signal)."""
+    if not (reason.startswith("trail_stop") or reason == "stop"
+            or reason == "reconciled_close"):
+        return
+    lst = st.setdefault("recent_stop_closes", [])
+    lst.append(datetime.now(timezone.utc).isoformat(timespec="seconds"))
+    del lst[:-8]
+
+
 def close_position(broker, pos: Position, st: dict, reason: str) -> None:
     # cancel the resting exchange stop FIRST — its open sell order reserves
     # the balance and would make the market close reject
@@ -633,6 +653,7 @@ def close_position(broker, pos: Position, st: dict, reason: str) -> None:
                    "realized_pl": f"{pos.unrealized_pl:.4f}",
                    "pl_pct": f"{pos.unrealized_pl / pos.notional:.4f}" if pos.notional else "0",
                    "reason": reason, "signal_mode": meta.get("signal_mode", "?")})
+    note_stop_close(st, reason)
     save_state(st)   # persist immediately: a later failure this tick must not
     log(f"CLOSED {pos.symbol} reason={reason} pl={pos.unrealized_pl:+.2f}")  # roll back a close that already executed on the exchange
     # Exits page in plain English (Robert 2026-08-21 "let me know if anything
@@ -766,6 +787,7 @@ def main() -> None:
             st.get("trail_peaks", {}).pop(_sym, None)
             st.get("trails", {}).pop(_sym, None)
             save_state(st)
+            note_stop_close(st, "reconciled_close")
             log(f"RECONCILED {_sym}: state had a position, exchange shows none "
                 f"— recorded as closed (~{_pl:+.2f})")
 
@@ -1037,6 +1059,98 @@ def main() -> None:
         except Exception as e:
             log(f"spike check {p.symbol} FAIL {e!r}")
 
+    # CASCADE EXIT COORDINATION (Robert 2026-08-22): if 2+ stop-family
+    # exits fired within cascade_window_min, the remaining legs exit too and
+    # ALL buying pauses cascade_pause_h via the sentinel — captured crash
+    # profits stay captured instead of being instantly redeployed into the
+    # fade (8/21 lesson: rebuys after the 05:10Z triple-stop cost ~$290).
+    try:
+        _now2 = datetime.now(timezone.utc)
+        _win = float(CFG.get("cascade_window_min", 20)) * 60
+        _recent = [t for t in st.get("recent_stop_closes", [])
+                   if (_now2 - datetime.fromisoformat(t)).total_seconds() <= _win]
+        if len(_recent) >= int(CFG.get("cascade_min_closes", 2)) and still_open:
+            _names = [p.symbol for p in still_open]
+            for p in list(still_open):
+                try:
+                    close_position(broker, p, st, "cascade_exit")
+                    still_open.remove(p)
+                    st.get("trail_peaks", {}).pop(p.symbol, None)
+                    st.get("trails", {}).pop(p.symbol, None)
+                except Exception as e:
+                    log(f"cascade exit {p.symbol} FAIL {e!r}")
+            st["sentinel_until"] = (_now2 + timedelta(
+                hours=float(CFG.get("cascade_pause_h", 2.0)))).isoformat(timespec="seconds")
+            st["recent_stop_closes"] = []
+            for _rs in list((st.get("reentry") or {}).keys()):
+                st["reentry"].pop(_rs, None)   # no dip-buying the cascade
+            save_state(st)
+            notify("action", "Cascade exit — whole book to cash",
+                   f"Multiple stops fired within {int(_win/60)} minutes, so the "
+                   f"remaining positions ({', '.join(n.replace('/USD','') for n in _names)}) "
+                   f"were sold too and ALL buying is paused for "
+                   f"{CFG.get('cascade_pause_h', 2.0):g}h. Crash profits stay banked; "
+                   "the engine re-enters when genuine momentum returns.")
+    except Exception as e:
+        log(f"cascade check FAIL {e!r}")
+
+    # MILESTONE BANKING (Robert 2026-08-22 "automatic profit taking every
+    # $100, make it the new floor"): each NEW +$100 of P/L high-water sells
+    # $100 from the largest holding and PERMANENTLY retires that cash from
+    # play (banked_usd is subtracted from spendable cash forever) — a floor
+    # made of cash instead of a tripwire, so nothing can ever trip at a
+    # bottom. Starts from today's high-water; history is not retro-sold.
+    try:
+        _mstep = float(CFG.get("milestone_step", 100.0))
+        _mhwm = float(st.get("pl_hwm") or 0)
+        _mbase = st.get("milestone_base")
+        if _mbase is None:
+            st["milestone_base"] = _mhwm
+            save_state(st)
+        elif _mhwm >= float(_mbase) + _mstep and still_open:
+            _take = float(int((_mhwm - float(_mbase)) // _mstep) * _mstep)
+            _big = max(still_open, key=lambda q: q.market_value)
+            if _big.market_value > _take * 1.5 and hasattr(broker, "_priv"):
+                _exb = (st.get("ex_stops") or {}).pop(_big.symbol, None)
+                if _exb:
+                    try:
+                        broker.cancel_order(_exb.get("txid"))
+                    except Exception:
+                        pass
+                _mvol = (_take / _big.current_price) * 0.9995
+                broker._priv("/0/private/AddOrder",
+                             {"pair": broker.pair[_big.symbol], "type": "sell",
+                              "ordertype": "market", "volume": f"{_mvol:.8f}"})
+                _mrow = st["positions"].get(_big.symbol, {})
+                _mfrac = _take / _big.market_value
+                _mpl = (_big.market_value - _big.notional) * _mfrac
+                _mrow["notional"] = round(float(_mrow.get("notional", _big.notional)) * (1 - _mfrac), 4)
+                st["positions"][_big.symbol] = _mrow
+                append_ledger({"closed_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                               "symbol": _big.symbol, "entry_time": _mrow.get("opened", ""),
+                               "entry_price": f"{_big.entry_price:.4f}",
+                               "exit_price": f"{_big.current_price:.4f}",
+                               "notional": f"{_take:.2f}", "realized_pl": f"{_mpl:.4f}",
+                               "pl_pct": f"{_mpl / _take:.4f}",
+                               "reason": f"milestone_bank(hwm_{_mhwm:.0f})",
+                               "signal_mode": _mrow.get("signal_mode", "?")})
+                _big.qty *= (1 - _mfrac)
+                _big.market_value *= (1 - _mfrac)
+                _big.notional = _mrow["notional"]
+                _big.unrealized_pl = _big.market_value - _big.notional
+                st["milestone_base"] = float(_mbase) + _take
+                st["banked_usd"] = round(float(st.get("banked_usd") or 0) + _take, 2)
+                save_state(st)
+                log(f"MILESTONE BANK: sold ${_take:.0f} of {_big.symbol} at P/L "
+                    f"high-water {_mhwm:.0f} — banked_usd now ${st['banked_usd']:.0f}")
+                notify("action", f"Profit banked: ${_take:.0f} off the table",
+                       f"P/L made a new high (+{_mhwm:.0f}), so ${_take:.0f} of "
+                       f"{_big.symbol.replace('/USD','')} was sold and permanently "
+                       f"retired from trading. Total banked and untouchable: "
+                       f"${st['banked_usd']:.0f}. The rest keeps riding.")
+    except Exception as e:
+        log(f"milestone bank FAIL {e!r}")
+
     sync_exchange_stops(broker, st, still_open)
 
     # Cap accounting on COST BASIS, not market value: a drawdown must not
@@ -1055,6 +1169,9 @@ def main() -> None:
         log(f"cash check FAIL {e!r} — skipping entries this tick")
         save_state(st)
         return
+    _banked = float(st.get("banked_usd") or 0)
+    if _banked > 0:
+        cash_avail -= _banked   # banked profit is permanently off the table
     room = CFG["cap_total_usd"] - deployed
     log(f"pl={sleeve_pl:+.2f} deployed={deployed:.2f} room={room:.2f} "
         f"cash={cash_avail:.2f} gate={mode}")
@@ -1141,6 +1258,7 @@ def main() -> None:
         _is_skim = bool(r.get("skim")) and _sym in st.get("positions", {})
         _want = round(min(float(r.get("usd") or 0), room, cash_avail - 0.5), 2)
         if (allowed
+                and (_is_skim or not meme_blocked(_sym))
                 and (len(st.get("positions") or {}) < _max_pos or _is_skim)
                 and _cur <= float(r["exit_px"]) * (1 - _dip)
                 and _want >= CFG["min_order_usd"]
@@ -1279,6 +1397,9 @@ def main() -> None:
                 # in ranked mode the strong ones came first, so break
                 if room < CFG["min_order_usd"] or cash_avail - 0.5 < CFG["min_order_usd"]:
                     break
+                continue
+            if meme_blocked(sym):
+                log(f"BUY {sym} skipped: meme blocklist")
                 continue
             # Liquidity screen for NEW names only (Robert 2026-08-21: "be
             # more careful with low volume stuff like pepe") — fails closed.

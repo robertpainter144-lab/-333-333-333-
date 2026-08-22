@@ -56,5 +56,20 @@
   "spike_tighten_factor": 0.5,
   "spike_tighten_h": 2.0,
   "ratchet_giveback_usd": 500.0,
-  "sentinel_btc_drop": 0.02
+  "sentinel_btc_drop": 0.02,
+  "cascade_window_min": 20,
+  "cascade_min_closes": 2,
+  "cascade_pause_h": 2.0,
+  "milestone_step": 100.0,
+  "meme_blocklist": [
+    "DOGE",
+    "PEPE",
+    "SHIB",
+    "PENGU",
+    "WIF",
+    "BONK",
+    "FLOKI",
+    "TRUMP",
+    "MEME"
+  ]
 }

@@ -71,5 +71,7 @@
     "FLOKI",
     "TRUMP",
     "MEME"
-  ]
+  ],
+  "meme_cap_pct": 0.25,
+  "max_meme_positions": 999
 }

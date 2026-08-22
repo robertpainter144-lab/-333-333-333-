@@ -444,12 +444,24 @@ def tilt_size(strength: float, strongest: float) -> float:
     return min(CFG.get("tilt_max_usd", base * 2), base * mult)
 
 
-def meme_blocked(symbol: str) -> bool:
-    """Meme-culture names excluded from NEW entries (Robert 2026-08-22,
-    third DOGE objection — volume-liquid but unwanted). Held positions are
-    never force-sold by this; their own exits govern."""
+def is_meme(symbol: str) -> bool:
     base = str(symbol).split("/")[0].upper()
     return base in {str(x).upper() for x in CFG.get("meme_blocklist", [])}
+
+
+def meme_room(st: dict) -> tuple:
+    """(usd_headroom, slots_open) under the meme exposure cap (Robert
+    2026-08-22: 'just limiting them in order to mitigate downside is
+    smart' — no exclusion, a budget: max_meme_positions slots and
+    meme_cap_pct of the cap in total meme notional)."""
+    cap = float(CFG.get("cap_total_usd", 0)) * float(CFG.get("meme_cap_pct", 0.25))
+    used = 0.0
+    count = 0
+    for sym, meta in (st.get("positions") or {}).items():
+        if is_meme(sym):
+            used += float(meta.get("notional") or 0)
+            count += 1
+    return max(0.0, cap - used), max(0, int(CFG.get("max_meme_positions", 1)) - count)
 
 
 def dollar_vol_24h(broker, symbol: str) -> float:
@@ -1257,8 +1269,14 @@ def main() -> None:
             continue
         _is_skim = bool(r.get("skim")) and _sym in st.get("positions", {})
         _want = round(min(float(r.get("usd") or 0), room, cash_avail - 0.5), 2)
+        _meme_ok = True
+        if not _is_skim and is_meme(_sym):
+            _mr, _ms = meme_room(st)
+            _meme_ok = _ms > 0 and _mr >= CFG["min_order_usd"]
+            if _meme_ok:
+                _want = round(min(_want, _mr), 2)
         if (allowed
-                and (_is_skim or not meme_blocked(_sym))
+                and (_is_skim or _meme_ok)
                 and (len(st.get("positions") or {}) < _max_pos or _is_skim)
                 and _cur <= float(r["exit_px"]) * (1 - _dip)
                 and _want >= CFG["min_order_usd"]
@@ -1335,6 +1353,9 @@ def main() -> None:
                 continue
             size = round(min(tilt_size(s, strongest), headroom,
                              room, cash_avail - 0.5), 2)
+            if is_meme(sym):
+                _mroom2, _ = meme_room(st)
+                size = round(min(size, _mroom2), 2)
             if size < CFG["min_order_usd"]:
                 continue
             try:
@@ -1398,9 +1419,14 @@ def main() -> None:
                 if room < CFG["min_order_usd"] or cash_avail - 0.5 < CFG["min_order_usd"]:
                     break
                 continue
-            if meme_blocked(sym):
-                log(f"BUY {sym} skipped: meme blocklist")
-                continue
+            if is_meme(sym):
+                _mroom, _mslots = meme_room(st)
+                if _mslots <= 0 or _mroom < CFG["min_order_usd"]:
+                    log(f"BUY {sym} skipped: meme cap (headroom ${_mroom:.0f}, slots {_mslots})")
+                    continue
+                size = round(min(size, _mroom), 2)
+                if size < CFG["min_order_usd"]:
+                    continue
             # Liquidity screen for NEW names only (Robert 2026-08-21: "be
             # more careful with low volume stuff like pepe") — fails closed.
             dvol = dollar_vol_24h(broker, sym)

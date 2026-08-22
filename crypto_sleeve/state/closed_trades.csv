@@ -113,3 +113,4 @@ closed_at,symbol,entry_time,entry_price,exit_price,notional,realized_pl,pl_pct,r
 2026-08-22T05:15:12+00:00,AVAX/USD,2026-08-14T23:30:44+00:00,7.3999,7.6630,800.00,28.4389,0.0355,reconciled_close,whale-confirmed (risk_on=0.53)
 2026-08-22T08:00:17+00:00,ETH/USD,2026-08-15T22:39:36+00:00,2347.0293,2433.0900,800.00,25.1919,0.0315,momentum_flip,whale-confirmed (risk_on=0.50)
 2026-08-22T10:25:15+00:00,XRP/USD,2026-08-22T05:10:40+00:00,1.4993,1.4339,800.00,-34.9060,-0.0436,reconciled_close,dip_rebuy
+2026-08-22T15:54:21+00:00,DOGE/USD,2026-08-22T08:05:41+00:00,0.0925,0.0902,17.50,-0.5314,-0.0304,meme_trim(25pct_budget),whale-confirmed (risk_on=0.78)

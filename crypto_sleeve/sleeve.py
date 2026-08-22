@@ -1071,6 +1071,49 @@ def main() -> None:
         except Exception as e:
             log(f"spike check {p.symbol} FAIL {e!r}")
 
+    # MEME TRIM (fleet 2026-08-22): the 25% meme budget is enforced at buy
+    # time, but a pre-cap position (DOGE $800 vs $782.50) or any clamp gap
+    # would otherwise stay silently over budget. Reconcile each tick: sell
+    # the overage from the largest meme holding (skip dust < min_order).
+    try:
+        _mcap = float(CFG.get("cap_total_usd", 0)) * float(CFG.get("meme_cap_pct", 0.25))
+        _memes = [p for p in still_open if is_meme(p.symbol)]
+        _mused = sum(float((st["positions"].get(p.symbol) or {}).get("notional") or 0) for p in _memes)
+        _over = _mused - _mcap
+        if _over >= CFG["min_order_usd"] and _memes and hasattr(broker, "_priv"):
+            _mt = max(_memes, key=lambda q: q.market_value)
+            _exm = (st.get("ex_stops") or {}).pop(_mt.symbol, None)
+            if _exm:
+                try:
+                    broker.cancel_order(_exm.get("txid"))
+                except Exception:
+                    pass
+            _tvol = (_over / _mt.current_price) * 0.9995
+            broker._priv("/0/private/AddOrder",
+                         {"pair": broker.pair[_mt.symbol], "type": "sell",
+                          "ordertype": "market", "volume": f"{_tvol:.8f}"})
+            _trow = st["positions"].get(_mt.symbol, {})
+            _tfrac = min(0.99, _over / max(_mt.market_value, 1e-9))
+            _tpl = (_mt.market_value - _mt.notional) * _tfrac
+            _trow["notional"] = round(float(_trow.get("notional", _mt.notional)) - _over, 4)
+            st["positions"][_mt.symbol] = _trow
+            append_ledger({"closed_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                           "symbol": _mt.symbol, "entry_time": _trow.get("opened", ""),
+                           "entry_price": f"{_mt.entry_price:.4f}",
+                           "exit_price": f"{_mt.current_price:.4f}",
+                           "notional": f"{_over:.2f}", "realized_pl": f"{_tpl:.4f}",
+                           "pl_pct": f"{_tpl / _over:.4f}",
+                           "reason": "meme_trim(25pct_budget)",
+                           "signal_mode": _trow.get("signal_mode", "?")})
+            _mt.qty *= (1 - _tfrac)
+            _mt.market_value *= (1 - _tfrac)
+            _mt.notional = _trow["notional"]
+            _mt.unrealized_pl = _mt.market_value - _mt.notional
+            save_state(st)
+            log(f"MEME TRIM {_mt.symbol}: sold ${_over:.2f} back inside the 25% budget")
+    except Exception as e:
+        log(f"meme trim FAIL {e!r}")
+
     # CASCADE EXIT COORDINATION (Robert 2026-08-22): if 2+ stop-family
     # exits fired within cascade_window_min, the remaining legs exit too and
     # ALL buying pauses cascade_pause_h via the sentinel — captured crash

@@ -164,7 +164,7 @@ class KrakenBroker:
 
     def _priv(self, path: str, params: dict | None = None) -> dict:
         params = dict(params or {})
-        params["nonce"] = str(int(time.time() * 1000))
+        params["nonce"] = str(int(time.time() * 1000000))  # us-nonce (2026-08-23: ms watermark poisoned)
         post = urllib.parse.urlencode(params)
         digest = hashlib.sha256((params["nonce"] + post).encode()).digest()
         mac = hmac.new(base64.b64decode(self.sec), path.encode() + digest, hashlib.sha512)
@@ -236,7 +236,13 @@ class KrakenBroker:
     def positions(self, st: dict) -> list[Position]:
         bal = self._priv("/0/private/Balance")
         out = []
-        for sym in CFG["universe"]:
+        # held symbols stay visible even when the auto-universe rebuild
+        # fails back to the static seed (2026-08-23: an SSL timeout hid
+        # screened-in ZEC from this list and reverse reconciliation booked
+        # a phantom close while 0.97 ZEC sat on Kraken)
+        syms = list(dict.fromkeys(
+            list(CFG["universe"]) + list((st.get("positions") or {}).keys())))
+        for sym in syms:
             aliases = self.asset.get(sym)
             if aliases is None:   # unresolvable symbol degrades, never crashes
                 log(f"positions: no Kraken mapping for {sym} this tick — skipped")
@@ -913,6 +919,26 @@ def main() -> None:
     _live_syms = {p.symbol for p in positions}
     for _sym in list(st["positions"].keys()):
         if _sym not in _live_syms:
+            # never book a close off a derived list alone (2026-08-23
+            # phantom ZEC close): re-verify against a fresh Balance read,
+            # and treat unverifiable as KEEP — a stale entry is
+            # recoverable, a phantom close of a live position is not.
+            try:
+                _al = getattr(broker, "asset", {}).get(_sym) or []
+                if not _al:
+                    log(f"reconcile: no asset mapping for {_sym} — "
+                        "keeping position (unverifiable)")
+                    continue
+                _b = broker._priv("/0/private/Balance")
+                _q = sum(float(_b.get(a, 0)) for a in _al)
+                if _q * broker.price(_sym) >= 2:
+                    log(f"reconcile: {_sym} missing from tracked set but "
+                        f"balance {_q:.8f} still on exchange — keeping")
+                    continue
+            except Exception as _e:
+                log(f"reconcile: balance re-check failed for {_sym} ({_e}) "
+                    "— skipping close this tick (fail-safe)")
+                continue
             _meta = st["positions"].pop(_sym)
             try:
                 _xp = broker.price(_sym)

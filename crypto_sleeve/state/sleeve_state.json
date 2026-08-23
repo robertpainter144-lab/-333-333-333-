@@ -1,5 +1,14 @@
 {
-  "positions": {},
+  "positions": {
+    "ZEC/USD": {
+      "entry_price": 810.77718918,
+      "notional": 800.0,
+      "opened": "2026-08-23T08:00:25+00:00",
+      "signal_mode": "whale-confirmed (risk_on=0.76)",
+      "mv": 795.87,
+      "cur": 810.31
+    }
+  },
   "frozen": false,
   "last_notified": {
     "crypto_inactive": 1786306737.674485,
@@ -8,32 +17,53 @@
   },
   "seen_active": true,
   "targets": {
-    "VVV/USD": 300.0
+    "ZEC/USD": 800.0,
+    "VVV/USD": 300.0,
+    "AAVE/USD": 141.77,
+    "LTC/USD": 77.86
   },
-  "targets_ts": "2026-08-23T07:55:14+00:00",
+  "targets_ts": "2026-08-23T08:15:09+00:00",
   "targets_gate": "whale-confirmed (risk_on=0.76)",
-  "trail_peaks": {},
-  "trails": {},
+  "trail_peaks": {
+    "ZEC/USD": 820.04
+  },
+  "trails": {
+    "ZEC/USD": {
+      "width_pct": 10.0,
+      "peak": 820.04,
+      "stop_px": 738.036,
+      "armed": false
+    }
+  },
   "reentry": {},
-  "px_hist": {},
+  "px_hist": {
+    "ZEC/USD": [
+      [
+        "2026-08-23T08:05:14+00:00",
+        808.69
+      ],
+      [
+        "2026-08-23T08:10:20+00:00",
+        820.04
+      ],
+      [
+        "2026-08-23T08:15:05+00:00",
+        810.31
+      ]
+    ]
+  },
   "pl_alert_anchor": 172.90787922827974,
-  "ex_stops": {},
+  "ex_stops": {
+    "ZEC/USD": {
+      "txid": "ONPJEJ-WQ6CK-ZDT42U",
+      "stop_px": 745.91501405,
+      "vol": 0.98168883
+    }
+  },
   "ex_stops_announced": true,
   "pl_hwm": 451.0,
   "effective_floor": -49.0,
   "btc_hist": [
-    [
-      "2026-08-23T06:05:20+00:00",
-      76089.2
-    ],
-    [
-      "2026-08-23T06:10:04+00:00",
-      75909.3
-    ],
-    [
-      "2026-08-23T06:15:04+00:00",
-      76073.7
-    ],
     [
       "2026-08-23T06:20:08+00:00",
       76271.8
@@ -117,6 +147,18 @@
     [
       "2026-08-23T08:00:15+00:00",
       75983.3
+    ],
+    [
+      "2026-08-23T08:05:14+00:00",
+      76021.7
+    ],
+    [
+      "2026-08-23T08:10:20+00:00",
+      76254.3
+    ],
+    [
+      "2026-08-23T08:15:05+00:00",
+      76177.8
     ]
   ],
   "milestone_base": 450.9,

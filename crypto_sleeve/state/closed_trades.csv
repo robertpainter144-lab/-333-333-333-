@@ -135,3 +135,5 @@ closed_at,symbol,entry_time,entry_price,exit_price,notional,realized_pl,pl_pct,r
 2026-08-23T09:10:23+00:00,DOGE/USD,2026-08-23T09:00:42+00:00,0.0909,0.0907,260.75,-1.5778,-0.0061,momentum_flip,whale-confirmed (risk_on=0.76)
 2026-08-23T09:35:09+00:00,DOGE/USD,2026-08-23T09:10:33+00:00,0.0908,0.0906,613.91,-4.3486,-0.0071,momentum_flip,whale-confirmed (risk_on=0.76)
 2026-08-23T11:00:39+00:00,ETH/USD,2026-08-23T10:10:25+00:00,2415.7410,2415.7500,642.05,-2.7588,-0.0043,momentum_flip,whale-confirmed (risk_on=0.76)
+2026-08-23T12:00:13+00:00,BTC/USD,2026-08-23T11:20:55+00:00,77196.0935,77273.9000,222.34,-0.8753,-0.0039,momentum_flip,whale-confirmed (risk_on=0.76)
+2026-08-23T12:00:14+00:00,XRP/USD,2026-08-23T11:20:53+00:00,1.4960,1.4943,525.16,-2.7263,-0.0052,momentum_flip,whale-confirmed (risk_on=0.76)

@@ -141,3 +141,5 @@ closed_at,symbol,entry_time,entry_price,exit_price,notional,realized_pl,pl_pct,r
 2026-08-23T13:40:11+00:00,ZEC/USD,2026-08-23T08:00:25+00:00,810.7772,860.7500,200.00,11.3528,0.0568,spike_harvest(3.6%_in_15m),whale-confirmed (risk_on=0.76)
 2026-08-23T17:00:30+00:00,DOGE/USD,2026-08-23T09:40:15+00:00,0.0911,0.0927,782.50,10.1928,0.0130,momentum_flip,whale-confirmed (risk_on=0.76)
 2026-08-23T19:10:05+00:00,XRP/USD,2026-08-23T13:10:19+00:00,1.5097,1.4967,800.00,-10.5187,-0.0131,momentum_flip,whale-confirmed (risk_on=0.76)
+2026-08-23T19:55:06+00:00,XRP/USD,2026-08-23T19:40:16+00:00,1.5059,1.4986,372.08,-3.2131,-0.0086,momentum_flip,whale-confirmed (risk_on=0.82)
+2026-08-23T20:05:14+00:00,BTC/USD,2026-08-23T20:00:20+00:00,77322.5000,77214.6000,67.29,-0.3210,-0.0048,momentum_flip,whale-confirmed (risk_on=0.82)

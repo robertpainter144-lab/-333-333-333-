@@ -132,3 +132,4 @@ closed_at,symbol,entry_time,entry_price,exit_price,notional,realized_pl,pl_pct,r
 2026-08-23T02:15:41+00:00,SOL/USD,2026-08-23T01:05:49+00:00,96.0996,94.7100,800.00,-15.1503,-0.0189,momentum_flip,whale-confirmed (risk_on=0.88)
 2026-08-23T05:30:07+00:00,ZEC/USD,2026-08-23T05:25:13+00:00,793.5500,789.2100,177.86,-1.4345,-0.0081,momentum_flip,whale-confirmed (risk_on=0.88)
 2026-08-23T05:40:15+00:00,ZEC/USD,2026-08-23T05:35:16+00:00,793.5300,788.8600,190.57,-1.8689,-0.0098,momentum_flip,whale-confirmed (risk_on=0.88)
+2026-08-23T09:10:23+00:00,DOGE/USD,2026-08-23T09:00:42+00:00,0.0909,0.0907,260.75,-1.5778,-0.0061,momentum_flip,whale-confirmed (risk_on=0.76)

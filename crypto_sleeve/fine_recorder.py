@@ -45,14 +45,30 @@ try:      # seed from the file so RESTARTS are guarded too (2026-08-22:
 except Exception:
     pass
 _pend = None      # held-back candidate awaiting confirmation
+_snap_row = None  # equity.csv row ts the current snapshot belongs to
+_snap = None      # (positions, cash) captured together at a tick boundary
 while True:
     t0 = time.time()
     try:
-        st = json.loads((ROOT / "state" / "sleeve_state.json").read_text())
-        pos = st.get("positions") or {}
-        pm = pairs()
+        # positions + cash form ONE snapshot, refreshed only when the
+        # engine finishes a tick (a new equity.csv row appears): reading
+        # sleeve_state mid-tick skewed 20-50s of samples at a time
+        # (2026-08-24 phantom spikes +83/+112/-386 while the market moved
+        # 0.1-0.3%) — the single-sample jump-guard can't catch multi-
+        # sample skew, so remove the skew source instead.
         last = (ROOT / "state" / "equity.csv").read_text().strip().rsplit("\n", 1)[-1].split(",")
-        cash = float(last[2]) if len(last) >= 3 else 0.0
+        if _snap is None or _snap_row != last[0]:
+            stp = ROOT / "state" / "sleeve_state.json"
+            # only adopt a new snapshot once the state file has been quiet
+            # a moment (the engine can still be mid-tick right after the
+            # equity row appears); until then keep pricing the old one
+            if _snap is None or time.time() - stp.stat().st_mtime > 15:
+                st = json.loads(stp.read_text())
+                _snap = (st.get("positions") or {},
+                         float(last[2]) if len(last) >= 3 else 0.0)
+                _snap_row = last[0]
+        pos, cash = _snap
+        pm = pairs()
         total = cash
         ok = True
         for sym, meta in pos.items():

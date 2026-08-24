@@ -1,13 +1,1 @@
-{
-  "program": "Kraken Funded",
-  "phase": "challenge",
-  "start_balance": 1000.0,
-  "balance": 1000.0,
-  "pass_target": 1120.0,
-  "kill_floor": 950.0,
-  "started": "2026-08-24",
-  "positions": [],
-  "trades": [],
-  "updated": "2026-08-24T15:35:00+00:00",
-  "note": "hand-entered ledger: Robert reports opens/closes in chat, Claude sessions update this file (source of truth = GCP copy)"
-}
+{"program": "Kraken Funded", "phase": "challenge", "start_balance": 1000.0, "balance": 1000.0, "pass_target": 1120.0, "kill_floor": 950.0, "started": "2026-08-24", "positions": [], "trades": [], "updated": "2026-08-24T15:35:00+00:00", "note": "hand-entered ledger: Robert reports opens/closes in chat, Claude sessions update this file (source of truth = GCP copy)"}

@@ -37,6 +37,20 @@
             </intent-filter>
         </activity>
 
+        <!-- Passive Kraken-activity capture (D62, 2026-08-24): mirrors the
+             Kraken app's own notifications (fills/orders Robert executed BY
+             HAND) to the owner ledger endpoint. Observe-only; requires the
+             Notification Access special permission. -->
+        <service
+            android:name=".KrakenCaptureService"
+            android:exported="true"
+            android:label="Terminal 333 Kraken capture"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
         <!-- Quick Settings tile: arm/disarm the fingerprint gate (2026-08-22) -->
         <service
             android:name=".LockTileService"

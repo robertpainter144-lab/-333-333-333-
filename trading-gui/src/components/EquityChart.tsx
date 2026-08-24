@@ -63,7 +63,13 @@ declare global {
     __qtOverlaySeries?: OverlaySeries[];
     /** Trade dots on the overlay line (Robert 2026-08-22): red=buy, blue=sell,
      *  tap for symbol + $ value. Keyed by channel like the series registry. */
-    __qtOverlayMarks?: { channel: string; t: number; side: string; sym: string; usd: number; pid?: string; pl?: number }[];
+    __qtOverlayMarks?: { channel: string; t: number; side: string; sym: string; usd: number; pid?: string; pl?: number;
+      /** anchor the dot to the overlay series with this id (default: first drawn) */
+      id?: string;
+      /** explicit value on that series' scale (skips time-interpolation) */
+      v?: number;
+      /** per-mark fill/outline colors + radius; fall back to side defaults */
+      color?: string; stroke?: string; r?: number }[];
     /** When true the chart skips its own base series (line+fill) so a
      *  registered overlay can be viewed alone. Neutral hook like the
      *  overlay registry above — nothing sets it in this repo. */
@@ -840,29 +846,36 @@ export default function EquityChart(props: {
     const _marksAll = (typeof window !== "undefined" && Array.isArray(window.__qtOverlayMarks))
       ? window.__qtOverlayMarks.filter((m) => m && m.channel === overlayChannel) : [];
     if (_marksAll.length && oDrawn.length) {
-      const od = oDrawn[0];
-      const seg = od.oseg;
-      const yAt = (t: number) => {
-        if (t <= seg[0].t) return od.OY(seg[0].v);
-        if (t >= seg[seg.length - 1].t) return od.OY(seg[seg.length - 1].v);
+      // A mark may anchor to a specific overlay series (m.id) and carry its
+      // own value/color/radius — falls back to the first drawn series and
+      // the classic side colors, so legacy marks render unchanged.
+      const yAtOn = (od2: typeof oDrawn[0], t: number, v?: number) => {
+        if (v != null) return od2.OY(v);
+        const seg = od2.oseg;
+        if (t <= seg[0].t) return od2.OY(seg[0].v);
+        if (t >= seg[seg.length - 1].t) return od2.OY(seg[seg.length - 1].v);
         for (let i = 1; i < seg.length; i++) {
           if (seg[i].t >= t) {
             const a = seg[i - 1], b = seg[i];
             const f = (t - a.t) / Math.max(b.t - a.t, 1);
-            return od.OY(a.v + (b.v - a.v) * f);
+            return od2.OY(a.v + (b.v - a.v) * f);
           }
         }
-        return od.OY(seg[seg.length - 1].v);
+        return od2.OY(seg[seg.length - 1].v);
       };
+      const od = oDrawn[0];
+      const yAt = (t: number) => yAtOn(od, t);
       const BUY_C = "#f85149", SELL_C = "#4d9dff";
       for (const m of _marksAll) {
         if (m.t < d0 || m.t > d1) continue;
-        const mx2 = X(m.t), my2 = yAt(m.t);
+        const mod = (m.id && oDrawn.find((d) => (d.o as { id?: string }).id === m.id)) || od;
+        if (m.id && (mod === od) && (od.o as { id?: string }).id !== m.id) continue; // anchored series not visible
+        const mx2 = X(m.t), my2 = yAtOn(mod, m.t, m.v);
         const isSel = markSel && markSel.t === m.t && markSel.sym === m.sym && markSel.side === m.side;
-        ctx.beginPath(); ctx.arc(mx2, my2, isSel ? 5 : 3.2, 0, Math.PI * 2);
-        ctx.fillStyle = m.side === "buy" ? BUY_C : SELL_C;
+        ctx.beginPath(); ctx.arc(mx2, my2, isSel ? 5 : (m.r ?? 3.2), 0, Math.PI * 2);
+        ctx.fillStyle = m.color ?? (m.side === "buy" ? BUY_C : SELL_C);
         ctx.fill();
-        ctx.lineWidth = 1; ctx.strokeStyle = "rgba(0,0,0,0.55)"; ctx.stroke();
+        ctx.lineWidth = 1; ctx.strokeStyle = m.stroke ?? "rgba(0,0,0,0.55)"; ctx.stroke();
         markHits.current.push({ x: mx2, y: my2, m: { side: m.side, sym: m.sym, usd: m.usd, t: m.t, pid: m.pid, pl: m.pl } });
       }
       // Pair line (Robert 2026-08-22): tapping a dot draws the trade's arc

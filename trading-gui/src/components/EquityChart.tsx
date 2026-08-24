@@ -41,6 +41,13 @@ export type OverlaySeries = {
   channel: string;
   color: string;
   topAxisColor?: string;
+  /** Draw the shared bottom time axis in this color (first overlay that
+   *  sets it wins) — lets a channel re-brand the bottom clock. */
+  bottomAxisColor?: string;
+  /** When any active overlay sets this, ONLY such overlays draw right-edge
+   *  value ticks — the others' are suppressed so one series can own the
+   *  right gutter outright. */
+  rightAxisExclusive?: boolean;
   /** Draw a dashed flat segment at the first point's value across any
    *  visible region BEFORE the series begins, so a young series still reads
    *  as a full line (dashed = pre-history, solid = real data). */
@@ -54,6 +61,13 @@ export type OverlaySeries = {
 declare global {
   interface Window {
     __qtOverlaySeries?: OverlaySeries[];
+    /** Trade dots on the overlay line (Robert 2026-08-22): red=buy, blue=sell,
+     *  tap for symbol + $ value. Keyed by channel like the series registry. */
+    __qtOverlayMarks?: { channel: string; t: number; side: string; sym: string; usd: number; pid?: string; pl?: number }[];
+    /** When true the chart skips its own base series (line+fill) so a
+     *  registered overlay can be viewed alone. Neutral hook like the
+     *  overlay registry above — nothing sets it in this repo. */
+    __qtBaseHidden?: boolean;
     /** Set by owner_zoom.js while a FAST pinch is hopping range presets —
      *  the chart's fluid zoom stands down until it expires. */
     __qtDetentUntil?: number;
@@ -86,8 +100,10 @@ export default function EquityChart(props: {
   transfers?: TransferPoint[];
   color?: string;
   overlayChannel?: string;
+  /** Range tab selected on mount (default "ALL"). */
+  defaultRange?: string;
 }) {
-  const [range, setRange] = useState("ALL");
+  const [range, setRange] = useState(props.defaultRange ?? "ALL");
   const overlayChannel = props.overlayChannel;
   // Bumped by the "qt-overlay-series" event so registry changes redraw.
   const [overlayRev, setOverlayRev] = useState(0);
@@ -177,6 +193,8 @@ export default function EquityChart(props: {
   // Visible time domain [t0, t1]; null = fit all data in range.
   const [domain, setDomain] = useState<[number, number] | null>(null);
   const [readout, setReadout] = useState<Pt | null>(null);
+  const markHits = useRef<{ x: number; y: number; m: { side: string; sym: string; usd: number; t: number; pid?: string; pl?: number } }[]>([]);
+  const [markSel, setMarkSel] = useState<{ side: string; sym: string; usd: number; t: number; pid?: string; pl?: number } | null>(null);
 
   // Overlay extent (within the selected range) folds into the pannable
   // domain, so a series that starts after — or runs past — the main data is
@@ -200,6 +218,20 @@ export default function EquityChart(props: {
   const padR = ovExtent ? 34 : 6;
   const padRRef = useRef(padR);
   padRRef.current = padR;
+
+  // Overlay-only mode is SCOPED to charts with an overlay channel — the
+  // page-wide flag must not blank unrelated EquityChart instances.
+  const baseHidden = !!(typeof window !== "undefined" && window.__qtBaseHidden && overlayChannel);
+  // Rows backing the header P/L + tap readout: the VISIBLE series. Overlay
+  // points are pre-transfer-adjusted by their injector, so adj === equity.
+  const activeRows = useMemo<Pt[]>(() => {
+    if (!baseHidden || !Array.isArray(window.__qtOverlaySeries)) return data;
+    const o = window.__qtOverlaySeries.find(
+      (q) => q && q.channel === overlayChannel && Array.isArray(q.points) && q.points.length >= 2);
+    if (!o) return data;
+    return o.points.map((q) => ({ t: q.t, equity: q.v, adj: q.v }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, baseHidden, overlayChannel, overlayRev]);
 
   let dataMin = data.length ? data[0].t : ovExtent ? ovExtent.mn : 0;
   let dataMax = data.length ? data[data.length - 1].t : ovExtent ? ovExtent.mx : 1;
@@ -279,7 +311,7 @@ export default function EquityChart(props: {
     return { u, inv };
   }, [dataMin, dataMax]);
   const LINEAR = { u: (t: number) => t, inv: (u: number) => u };
-  const activeClock = d1 - d0 > COMPRESS_MIN_SPAN ? clock : LINEAR;
+  const activeClock = !ovExtent && d1 - d0 > COMPRESS_MIN_SPAN ? clock : LINEAR;
   const clockRef = useRef(activeClock);
   clockRef.current = activeClock;
 
@@ -300,6 +332,20 @@ export default function EquityChart(props: {
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     const pts = [...pointers.current.values()];
     if (pts.length === 1) {
+      // Trade-dot hit-test first: a tap within 11px of a mark shows its
+      // symbol/$ tooltip and consumes the tap (no scrub/readout).
+      const wrapEl = wrapRef.current;
+      if (wrapEl) {
+        const rc = wrapEl.getBoundingClientRect();
+        const lx = pts[0].x - rc.left, ly = pts[0].y - rc.top;
+        let hit = null, hb = 13;
+        for (const h of markHits.current) {
+          const d = Math.hypot(h.x - lx, h.y - ly);
+          if (d < hb) { hb = d; hit = h.m; }
+        }
+        if (hit) { setMarkSel(hit); return; }
+        setMarkSel(null);
+      }
       // Double-tap reset — and start the follow-on gesture from the RESET
       // domain, not the pre-reset one, so tap-tap-drag doesn't jump.
       const now = Date.now();
@@ -327,7 +373,7 @@ export default function EquityChart(props: {
       // Mouse hover readout (no buttons pressed)
       if (e.pointerType === "mouse" && data.length) {
         const t = xToT(e.clientX - rect.left, rect.width);
-        setReadout(nearest(data, t));
+        setReadout(nearest(activeRows, t));
       }
       return;
     }
@@ -343,7 +389,7 @@ export default function EquityChart(props: {
       const gu0 = ck.u(g.d0), gu1 = ck.u(g.d1);
       const dxU = ((pts[0].x - g.x) / w) * (gu1 - gu0);
       setDomain(clampDomain(ck.inv(gu0 - dxU), ck.inv(gu1 - dxU)));
-      if (data.length) setReadout(nearest(data, xToT(pts[0].x - rect.left, rect.width)));
+      if (activeRows.length) setReadout(nearest(activeRows, xToT(pts[0].x - rect.left, rect.width)));
     } else if (pts.length >= 2) {
       // Two-tier zoom: a FAST pinch belongs to the preset-detent engine
       // (owner_zoom.js) — once it claims the gesture the fluid zoom stands
@@ -452,16 +498,17 @@ export default function EquityChart(props: {
 
   // ── Robinhood-style window P/L: equity change net of transfers ──
   const windowPL = useMemo(() => {
-    const vis = data.filter((p) => p.t >= d0 && p.t <= d1);
+    const vis = activeRows.filter((p) => p.t >= d0 && p.t <= d1);
     if (vis.length < 2 && !(vis.length === 1 && readout)) return null;
     const start = vis[0];
     const end = readout && readout.t >= start.t ? readout : vis[vis.length - 1];
     let netX = 0;
-    for (const x of xfers) if (x.t > start.t && x.t <= end.t) netX += x.amount;
+    if (!baseHidden)   // overlay rows are already transfer-adjusted
+      for (const x of xfers) if (x.t > start.t && x.t <= end.t) netX += x.amount;
     const pl = end.equity - start.equity - netX;
     const base = start.equity + Math.max(0, netX);
     return { pl, pct: base > 0 ? (pl / base) * 100 : 0, netX };
-  }, [data, d0, d1, readout, xfers]);
+  }, [activeRows, baseHidden, d0, d1, readout, xfers]);
 
   // ── Draw ──
   useEffect(() => {
@@ -531,6 +578,7 @@ export default function EquityChart(props: {
     const gridC = css.getPropertyValue("--bd").trim() || "#30363d";
     const mutedC = css.getPropertyValue("--muted").trim() || "#8b949e";
 
+    const bHid = !!(window.__qtBaseHidden && overlayChannel);
     ctx.strokeStyle = gridC; ctx.fillStyle = mutedC;
     ctx.font = "9px ui-monospace, Menlo, monospace";
     ctx.setLineDash([3, 3]); ctx.lineWidth = 1;
@@ -553,19 +601,33 @@ export default function EquityChart(props: {
     // in the main series color, right in the overlay's — so the two axes
     // read as a matched, color-coded pair.
     if (overlays.length) ctx.fillStyle = color;
-    for (let v = Math.ceil(lo / yStep) * yStep, n = 0; v <= hi && n < 14; v += yStep, n++) {
-      const y = Y(v);
-      if (y < padT - 1 || y > padT + plotH + 1) continue;
-      ctx.beginPath(); ctx.moveTo(PAD_L, y); ctx.lineTo(W - padR, y); ctx.stroke();
-      ctx.fillText(`$${v.toFixed(yDec)}`, 2, y + 3);
-    }
-    ctx.fillStyle = mutedC;
+    // Overlay-only view: skip the base grid+labels entirely — the overlay
+    // axis pass draws grid and $-labels at ITS OWN scale positions.
+    if (!bHid)
+      for (let v = Math.ceil(lo / yStep) * yStep, n = 0; v <= hi && n < 14; v += yStep, n++) {
+        const y = Y(v);
+        if (y < padT - 1 || y > padT + plotH + 1) continue;
+        ctx.beginPath(); ctx.moveTo(PAD_L, y); ctx.lineTo(W - padR, y); ctx.stroke();
+        ctx.fillText(`$${v.toFixed(yDec)}`, 2, y + 3);
+      }
+    // A channel overlay may re-brand the bottom clock (bottomAxisColor).
+    const bottomAxisC = overlays.find((o) => o.bottomAxisColor)?.bottomAxisColor;
+    ctx.fillStyle = bottomAxisC ?? mutedC;
 
     // ── X time ticks — nice time step aligned to clean boundaries: dates at
     // week+ zoom, hours at day zoom, minutes as you pinch further in. ──
     const spanMs = d1 - d0;
     const MIN = 60e3, HR = 3600e3, DAY = 24 * HR;
-    const tStep = niceStep(spanMs, [5 * MIN, 15 * MIN, 30 * MIN, HR, 2 * HR, 3 * HR, 6 * HR, 12 * HR, DAY, 2 * DAY, 7 * DAY, 14 * DAY, 30 * DAY], 4);
+    // Sub-day views get ~12 tick targets (Robert 2026-08-22: hourly markers
+    // on 12H instead of 3-hourly); wider views keep the sparse 4. The 40px
+    // spacing guard below thins any overflow on narrow screens.
+    // Sub-day views target one tick per hour (1D = all 24, 12H = 12, 6H = 6
+    // — Robert 2026-08-22); wider views keep the sparse 4. Bare-hour labels
+    // are narrow, so the spacing guard relaxes for them.
+    const tStep = niceStep(spanMs,
+      [5 * MIN, 15 * MIN, 30 * MIN, HR, 2 * HR, 3 * HR, 6 * HR, 12 * HR, DAY, 2 * DAY, 7 * DAY, 14 * DAY, 30 * DAY],
+      spanMs <= DAY + MIN ? Math.min(24, Math.max(4, Math.round(spanMs / HR))) : 4);
+    const labGap = spanMs <= DAY + MIN && tStep >= HR ? 22 : 40;
     const subDay = tStep < DAY;
     let tStart: number;
     if (subDay) {
@@ -575,27 +637,26 @@ export default function EquityChart(props: {
       while (d.getTime() < d0) d.setDate(d.getDate() + 1);
       tStart = d.getTime();
     }
-    let prevDay = "";
     let lastLabX = -1e9;
     for (let t = tStart, n = 0; t <= d1 && n < 40; t += tStep, n++) {
       const x = X(t);
       if (x < PAD_L - 1 || x > W - padR - 14) continue;
       // Compressed weekends bunch tick positions — keep labels legible.
-      if (x - lastLabX < 40) continue;
+      if (x - lastLabX < labGap) continue;
       lastLabX = x;
       const dt = new Date(t);
       let label: string;
       if (!subDay) {
         label = dt.toLocaleDateString([], { month: "short", day: "numeric" });
       } else {
-        const dayKey = dt.toDateString();
-        // First tick of each visible day shows the date; the rest show time.
-        label = dayKey !== prevDay
-          ? dt.toLocaleDateString([], { month: "short", day: "numeric" })
-          : dt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-        prevDay = dayKey;
+        // Dates live in their own line above the range chips now — the axis
+        // shows pure hour numbers (or HH:MM when zoomed under hour-steps).
+        label = tStep >= HR
+          ? String(dt.getHours())
+          : dt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
       }
-      ctx.fillText(label, Math.min(Math.max(x - 12, PAD_L), W - padR - 38), H - 6);
+      if (!(bHid && overlays.some((o) => o.topAxisColor)))
+        ctx.fillText(label, Math.min(Math.max(x - 12, PAD_L), W - padR - 38), H - 6);
     }
     // Lane divider between the overlay band and the main series
     if (laneFrac > 0) {
@@ -696,8 +757,10 @@ export default function EquityChart(props: {
       oDrawn.push({ o, oseg, OY, olo, ohi });
     }
 
-    // Main area fill + line — painted OVER the overlays (predominant)
-    if (seg.length >= 2) {
+    // Main area fill + line — painted OVER the overlays (predominant).
+    // __qtBaseHidden (see the Window decl) lets an injector show an
+    // overlay series alone.
+    if (seg.length >= 2 && !bHid) {
       ctx.save();
       ctx.beginPath(); ctx.rect(PAD_L, padT, plotW, plotH); ctx.clip();
       const grad = ctx.createLinearGradient(0, mainTop, 0, H - PAD_B);
@@ -717,7 +780,11 @@ export default function EquityChart(props: {
 
     // ── Overlay pass 2: axes — right-edge value ticks + top clock, drawn
     // last so the small colored labels stay crisp above both fills. ──
+    const rightExclusive = oDrawn.some(({ o }) => o.rightAxisExclusive);
     for (const { o, OY, olo, ohi } of oDrawn) {
+      // One overlay may own the right gutter outright (rightAxisExclusive):
+      // suppress the others' value ticks; top-clock rendering is unaffected.
+      const skipRightTicks = rightExclusive && !o.rightAxisExclusive;
       const oStep = niceStep(ohi - olo,
         [0.01, 0.02, 0.05, 0.1, 0.2, 0.25, 0.5, 1, 2, 2.5, 5, 10, 20, 25, 50, 100, 200, 250, 500],
         Math.max(3, Math.min(7, Math.floor(mainH / 56))));
@@ -728,50 +795,137 @@ export default function EquityChart(props: {
       // hard against the screen edge — mirrors the left gutter's flushness.
       ctx.font = "8px ui-monospace, Menlo, monospace";
       ctx.textAlign = "right";
-      for (let v = Math.ceil(olo / oStep) * oStep, n = 0; v <= ohi && n < 12; v += oStep, n++) {
+      for (let v = Math.ceil(olo / oStep) * oStep, n = 0; !skipRightTicks && v <= ohi && n < 12; v += oStep, n++) {
         const y = OY(v);
         if (y < padT - 1 || y > padT + plotH + 1) continue;
         ctx.fillText(`$${v.toFixed(oDec)}`, W - 2, y + 3);
+        if (bHid) {
+          ctx.strokeStyle = gridC; ctx.setLineDash([3, 3]); ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.moveTo(PAD_L, y); ctx.lineTo(W - padR, y); ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.textAlign = "left";
+          ctx.fillText(`$${v.toFixed(oDec)}`, 2, y + 3);
+          ctx.textAlign = "right";
+        }
       }
       ctx.textAlign = "left";
       // Top time axis in the overlay's topAxisColor
       if (o.topAxisColor) {
         ctx.fillStyle = o.topAxisColor;
-        let prevDayTop = "";
         let lastTopX = -1e9;
         for (let t = tStart, n = 0; t <= d1 && n < 40; t += tStep, n++) {
           const x = X(t);
           if (x < PAD_L - 1 || x > W - padR - 14) continue;
-          if (x - lastTopX < 40) continue;
+          if (x - lastTopX < labGap) continue;
           lastTopX = x;
           const dt = new Date(t);
           let label: string;
           if (!subDay) {
             label = dt.toLocaleDateString([], { month: "short", day: "numeric" });
           } else {
-            const dayKey = dt.toDateString();
-            label = dayKey !== prevDayTop
-              ? dt.toLocaleDateString([], { month: "short", day: "numeric" })
-              : dt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-            prevDayTop = dayKey;
+            label = tStep >= HR
+              ? String(dt.getHours())
+              : dt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
           }
           ctx.fillText(label, Math.min(Math.max(x - 12, PAD_L), W - padR - 38), 12);
         }
       }
       ctx.font = "9px ui-monospace, Menlo, monospace";
     }
+
+    // ── Trade dots (Robert 2026-08-22): red=buy, blue=sell, on the crypto
+    // overlay line; tap shows symbol + $ value. Y is interpolated onto the
+    // overlay so each dot rides the line at its trade time. ──
+    markHits.current = [];
+    const _marksAll = (typeof window !== "undefined" && Array.isArray(window.__qtOverlayMarks))
+      ? window.__qtOverlayMarks.filter((m) => m && m.channel === overlayChannel) : [];
+    if (_marksAll.length && oDrawn.length) {
+      const od = oDrawn[0];
+      const seg = od.oseg;
+      const yAt = (t: number) => {
+        if (t <= seg[0].t) return od.OY(seg[0].v);
+        if (t >= seg[seg.length - 1].t) return od.OY(seg[seg.length - 1].v);
+        for (let i = 1; i < seg.length; i++) {
+          if (seg[i].t >= t) {
+            const a = seg[i - 1], b = seg[i];
+            const f = (t - a.t) / Math.max(b.t - a.t, 1);
+            return od.OY(a.v + (b.v - a.v) * f);
+          }
+        }
+        return od.OY(seg[seg.length - 1].v);
+      };
+      const BUY_C = "#f85149", SELL_C = "#4d9dff";
+      for (const m of _marksAll) {
+        if (m.t < d0 || m.t > d1) continue;
+        const mx2 = X(m.t), my2 = yAt(m.t);
+        const isSel = markSel && markSel.t === m.t && markSel.sym === m.sym && markSel.side === m.side;
+        ctx.beginPath(); ctx.arc(mx2, my2, isSel ? 5 : 3.2, 0, Math.PI * 2);
+        ctx.fillStyle = m.side === "buy" ? BUY_C : SELL_C;
+        ctx.fill();
+        ctx.lineWidth = 1; ctx.strokeStyle = "rgba(0,0,0,0.55)"; ctx.stroke();
+        markHits.current.push({ x: mx2, y: my2, m: { side: m.side, sym: m.sym, usd: m.usd, t: m.t, pid: m.pid, pl: m.pl } });
+      }
+      // Pair line (Robert 2026-08-22): tapping a dot draws the trade's arc
+      // from entry to exit, green if the round-trip won, red if it lost.
+      if (markSel && markSel.pid) {
+        const partner = _marksAll.find((mm) => mm.pid === markSel.pid && mm.side !== markSel.side);
+        if (partner) {
+          const x1 = X(markSel.t), y1 = yAt(markSel.t);
+          const x2 = X(partner.t), y2 = yAt(partner.t);
+          const won = (markSel.pl ?? partner.pl ?? 0) >= 0;
+          ctx.save();
+          ctx.beginPath(); ctx.rect(PAD_L, padT, plotW, plotH); ctx.clip();
+          ctx.setLineDash([5, 4]); ctx.lineWidth = 1.6;
+          ctx.strokeStyle = won ? "#3fb950" : "#f85149";
+          ctx.beginPath(); ctx.moveTo(x2, y2); ctx.lineTo(x1, y1); ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.beginPath(); ctx.arc(x2, y2, 4.5, 0, Math.PI * 2);
+          ctx.fillStyle = partner.side === "buy" ? "#f85149" : "#4d9dff"; ctx.fill();
+          ctx.lineWidth = 1.4; ctx.strokeStyle = won ? "#3fb950" : "#f85149"; ctx.stroke();
+          ctx.restore();
+        }
+      }
+      // Selected-dot tooltip
+      if (markSel && markSel.t >= d0 && markSel.t <= d1) {
+        const tx = X(markSel.t), ty = yAt(markSel.t);
+        const label = (markSel.side === "buy" ? "BUY " : "SELL ") + markSel.sym +
+          "  $" + Math.abs(markSel.usd).toFixed(2) +
+          (markSel.pid && markSel.pl != null
+            ? "  (" + (markSel.pl >= 0 ? "+" : "") + markSel.pl.toFixed(2) + ")" : "");
+        ctx.font = "10px ui-monospace, Menlo, monospace";
+        const tw = ctx.measureText(label).width + 12;
+        let bx = tx + 8; if (bx + tw > W - 4) bx = tx - 8 - tw;
+        const by = Math.max(padT + 2, ty - 26);
+        ctx.fillStyle = "rgba(20,22,28,0.94)";
+        ctx.strokeStyle = markSel.side === "buy" ? "#f85149" : "#4d9dff";
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.rect(bx, by, tw, 18); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = "#e6edf3"; ctx.textAlign = "left";
+        ctx.fillText(label, bx + 6, by + 12);
+        ctx.font = "9px ui-monospace, Menlo, monospace";
+      }
+    }
     // Readout crosshair
     if (readout && readout.t >= d0 && readout.t <= d1) {
-      const x = X(readout.t), y = Y(val(readout));
+      const useO = bHid && oDrawn.length > 0;
+      const x = X(readout.t);
+      const y = useO ? oDrawn[0].OY(val(readout)) : Y(val(readout));
       ctx.strokeStyle = mutedC; ctx.setLineDash([2, 3]);
       ctx.beginPath(); ctx.moveTo(x, padT); ctx.lineTo(x, H - PAD_B); ctx.stroke();
       ctx.setLineDash([]);
       ctx.beginPath(); ctx.arc(x, y, 3.5, 0, Math.PI * 2);
-      ctx.fillStyle = color; ctx.fill();
+      ctx.fillStyle = useO ? oDrawn[0].o.color : color; ctx.fill();
     }
-  }, [data, d0, d1, color, readout, xfers, net, overlayChannel, overlayRev]);
+  }, [data, d0, d1, color, readout, xfers, net, overlayChannel, overlayRev, markSel]);
 
   const zoomed = domain !== null;
+  // Visible-window date(s) — shown above the range chips at EVERY span
+  // (Robert 2026-08-22: wanted the date range on 1W+ views too)
+  const dateLine = (() => {
+    const f = (t: number) => new Date(t).toLocaleDateString([], { month: "short", day: "numeric" });
+    const a = f(d0), b = f(d1);
+    return a === b ? a : `${a} – ${b}`;
+  })();
   const hasXfers = xfers.length > 0;
 
   return (
@@ -796,7 +950,7 @@ export default function EquityChart(props: {
               {net && Math.abs(readout.adj - readout.equity) > 0.005 && (
                 <span className="text-faint"> (acct {money(readout.equity)})</span>
               )}{" "}
-              <span className="text-faint">{new Date(readout.t).toLocaleString()}</span>
+              <span className="text-faint">{new Date(readout.t).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false })}</span>
             </span>
           )}
         </span>
@@ -824,6 +978,9 @@ export default function EquityChart(props: {
               ⟲ reset
             </button>
           )}
+          {dateLine && (
+            <div className="num w-full text-left text-[10px] text-muted">{dateLine}</div>
+          )}
           {/* 13 ranges don't fit a phone row — the strip scrolls sideways */}
           <div className="max-w-full overflow-x-auto">
             <Tabs small tabs={RANGES.map((r) => ({ id: r.id, label: r.label }))} active={range} onChange={setRange} />
@@ -836,7 +993,7 @@ export default function EquityChart(props: {
         <>
           <div
             ref={wrapRef}
-            className="relative h-44 w-full select-none"
+            className="relative h-32 w-full select-none sm:h-44"
             style={{ touchAction: "none" }}
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}

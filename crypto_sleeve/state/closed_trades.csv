@@ -155,3 +155,4 @@ closed_at,symbol,entry_time,entry_price,exit_price,notional,realized_pl,pl_pct,r
 2026-08-24T14:50:12+00:00,XRP/USD,2026-08-24T14:40:23+00:00,1.5228,1.5139,222.89,-2.1545,-0.0097,momentum_flip,whale-confirmed (risk_on=0.92)
 2026-08-24T15:55:07+00:00,ZEC/USD,2026-08-24T14:40:20+00:00,861.9183,834.4900,762.87,-27.4571,-0.0360,momentum_flip,whale-confirmed (risk_on=0.92)
 2026-08-24T16:00:30+00:00,XRP/USD,2026-08-24T15:55:20+00:00,1.4988,1.5050,86.46,0.0927,0.0011,momentum_flip,whale-confirmed (risk_on=0.91)
+2026-08-24T16:55:09+00:00,XRP/USD,2026-08-24T16:10:34+00:00,1.5149,1.4984,730.00,-11.3579,-0.0156,momentum_flip,whale-confirmed (risk_on=0.91)

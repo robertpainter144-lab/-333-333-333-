@@ -172,3 +172,4 @@ closed_at,symbol,entry_time,entry_price,exit_price,notional,realized_pl,pl_pct,r
 2026-08-25T21:00:19+00:00,SOL/USD,2026-08-25T13:35:22+00:00,97.6327,96.7800,800.00,-10.2152,-0.0128,momentum_flip,whale-confirmed (risk_on=0.82)
 2026-08-25T22:30:21+00:00,BTC/USD,2026-08-25T22:10:17+00:00,78883.8659,78629.3000,363.86,-2.5906,-0.0071,momentum_flip,whale-confirmed (risk_on=0.88)
 2026-08-25T22:30:23+00:00,SOL/USD,2026-08-25T22:10:16+00:00,97.6328,97.2700,327.36,-2.4963,-0.0076,momentum_flip,whale-confirmed (risk_on=0.88)
+2026-08-25T22:40:21+00:00,SOL/USD,2026-08-25T22:35:37+00:00,97.5200,97.3500,85.24,-0.4028,-0.0047,momentum_flip,whale-confirmed (risk_on=0.88)

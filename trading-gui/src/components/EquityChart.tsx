@@ -667,7 +667,10 @@ export default function EquityChart(props: {
           ? String(dt.getHours())
           : dt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
       }
-      if (!(bHid && overlays.some((o) => o.topAxisColor)))
+      // bottomAxisColor is an explicit request for the bottom clock
+      // (Robert: top yellow AND bottom green, redundancy intentional) —
+      // it overrides the old skip-when-top-clock-exists redundancy rule.
+      if (!(bHid && overlays.some((o) => o.topAxisColor)) || bottomAxisC)
         ctx.fillText(label, Math.min(Math.max(x - 12, PAD_L), W - padR - 38), H - 6);
     }
     // Lane divider between the overlay band and the main series

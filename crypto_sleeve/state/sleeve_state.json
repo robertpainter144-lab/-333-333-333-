@@ -5,26 +5,24 @@
       "notional": 1012.07,
       "opened": "2026-08-24T17:50:19+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.69)",
-      "mv": 1017.69,
-      "cur": 98.61
+      "mv": 1012.32,
+      "cur": 98.09
     },
     "HYPE/USD": {
-      "entry_price": 79.94,
-      "notional": 122.61,
+      "entry_price": 79.82207735,
+      "notional": 563.47,
       "opened": "2026-08-25T13:00:41+00:00",
-      "signal_mode": "whale-confirmed (risk_on=0.83)"
-    },
-    "ZEC/USD": {
-      "entry_price": 842.95,
-      "notional": 110.96,
-      "opened": "2026-08-25T13:00:42+00:00",
-      "signal_mode": "whale-confirmed (risk_on=0.83)"
+      "signal_mode": "whale-confirmed (risk_on=0.83)",
+      "mv": 558.51,
+      "cur": 79.45
     },
     "BTC/USD": {
-      "entry_price": 79001.1,
-      "notional": 102.6,
+      "entry_price": 78933.81683835,
+      "notional": 460.02,
       "opened": "2026-08-25T13:00:44+00:00",
-      "signal_mode": "whale-confirmed (risk_on=0.83)"
+      "signal_mode": "whale-confirmed (risk_on=0.83)",
+      "mv": 457.78,
+      "cur": 78774.3
     }
   },
   "frozen": false,
@@ -35,53 +33,47 @@
   },
   "seen_active": true,
   "targets": {
+    "BTC/USD": 345.37,
     "SOL/USD": 1012.07,
+    "HYPE/USD": 435.6,
     "JUP/USD": 300.0,
-    "PENGU/USD": 207.74,
-    "VVV/USD": 189.5,
-    "RENDER/USD": 157.53,
-    "HYPE/USD": 122.61,
-    "FET/USD": 117.14,
-    "ZEC/USD": 111.03,
-    "BTC/USD": 102.6,
-    "ALGO/USD": 95.56,
-    "WLD/USD": 83.59,
-    "DASH/USD": 80.26,
-    "LINK/USD": 73.44,
-    "CRV/USD": 68.52,
-    "AVAX/USD": 65.89
+    "PENGU/USD": 172.83,
+    "VVV/USD": 163.23,
+    "RENDER/USD": 135.89,
+    "DASH/USD": 80.22,
+    "ALGO/USD": 73.33,
+    "AVAX/USD": 66.72
   },
-  "targets_ts": "2026-08-25T13:00:29+00:00",
-  "targets_gate": "whale-confirmed (risk_on=0.83)",
+  "targets_ts": "2026-08-25T13:15:30+00:00",
+  "targets_gate": "whale-confirmed (risk_on=0.82)",
   "trail_peaks": {
     "SOL/USD": 102.52,
-    "HYPE/USD": 79.94,
-    "ZEC/USD": 842.95,
-    "BTC/USD": 79001.1
+    "HYPE/USD": 80.15,
+    "BTC/USD": 79058.7
   },
   "trails": {
     "SOL/USD": {
-      "width_pct": 5.73,
+      "width_pct": 5.77,
       "peak": 102.52,
-      "stop_px": 96.64141194,
+      "stop_px": 96.60414636,
       "armed": true
+    },
+    "BTC/USD": {
+      "width_pct": 4.0,
+      "peak": 79058.7,
+      "stop_px": 75896.352,
+      "armed": false
+    },
+    "HYPE/USD": {
+      "width_pct": 6.63,
+      "peak": 80.15,
+      "stop_px": 74.83988385,
+      "armed": false
     }
   },
   "reentry": {},
   "px_hist": {
     "SOL/USD": [
-      [
-        "2026-08-25T11:05:29+00:00",
-        99.35
-      ],
-      [
-        "2026-08-25T11:10:15+00:00",
-        99.41
-      ],
-      [
-        "2026-08-25T11:15:30+00:00",
-        98.91
-      ],
       [
         "2026-08-25T11:20:11+00:00",
         98.9
@@ -165,6 +157,46 @@
       [
         "2026-08-25T13:00:15+00:00",
         98.61
+      ],
+      [
+        "2026-08-25T13:05:15+00:00",
+        98.78
+      ],
+      [
+        "2026-08-25T13:10:49+00:00",
+        98.35
+      ],
+      [
+        "2026-08-25T13:15:24+00:00",
+        98.09
+      ]
+    ],
+    "BTC/USD": [
+      [
+        "2026-08-25T13:05:15+00:00",
+        79058.7
+      ],
+      [
+        "2026-08-25T13:10:49+00:00",
+        78876.3
+      ],
+      [
+        "2026-08-25T13:15:24+00:00",
+        78774.2
+      ]
+    ],
+    "HYPE/USD": [
+      [
+        "2026-08-25T13:05:15+00:00",
+        80.15
+      ],
+      [
+        "2026-08-25T13:10:49+00:00",
+        79.83
+      ],
+      [
+        "2026-08-25T13:15:24+00:00",
+        79.4
       ]
     ]
   },
@@ -174,24 +206,22 @@
       "txid": "OHL4K5-XLUK3-XVRUFX",
       "stop_px": 96.64312835,
       "vol": 10.31516016
+    },
+    "BTC/USD": {
+      "txid": "OV6LST-Z52NE-CONORK",
+      "stop_px": 72667.96034754,
+      "vol": 0.00435373
+    },
+    "HYPE/USD": {
+      "txid": "OACCZU-TXCHO-3RHMPG",
+      "stop_px": 73.53740588,
+      "vol": 5.42090909
     }
   },
   "ex_stops_announced": true,
   "pl_hwm": 451.0,
   "effective_floor": -49.0,
   "btc_hist": [
-    [
-      "2026-08-25T11:05:28+00:00",
-      79267.4
-    ],
-    [
-      "2026-08-25T11:10:14+00:00",
-      79260.5
-    ],
-    [
-      "2026-08-25T11:15:30+00:00",
-      79070.5
-    ],
     [
       "2026-08-25T11:20:10+00:00",
       79198.1
@@ -275,6 +305,18 @@
     [
       "2026-08-25T13:00:09+00:00",
       78985.3
+    ],
+    [
+      "2026-08-25T13:05:14+00:00",
+      79058.7
+    ],
+    [
+      "2026-08-25T13:10:47+00:00",
+      78876.3
+    ],
+    [
+      "2026-08-25T13:15:24+00:00",
+      78774.2
     ]
   ],
   "milestone_base": 450.9,

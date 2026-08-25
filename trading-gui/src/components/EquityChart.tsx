@@ -56,6 +56,13 @@ export type OverlaySeries = {
    *  the TOP for this series; the main line compresses into the remainder.
    *  Stacked lanes share the time axis but never visually tangle. */
   lane?: number;
+  /** True when points already have transfer steps collapsed (P/L view).
+   *  When false/absent AND this overlay drives the header (base hidden),
+   *  windowPL subtracts `transfers` in-window instead of assuming. */
+  transferAdjusted?: boolean;
+  /** This overlay's own cash-transfer ledger (epoch-ms t, signed amount)
+   *  so the header P/L can be transfer-aware for raw points. */
+  transfers?: { t: number; amount: number }[];
   points: { t: number; v: number }[];
 };
 declare global {
@@ -234,11 +241,14 @@ export default function EquityChart(props: {
   const baseHidden = !!(typeof window !== "undefined" && window.__qtBaseHidden && overlayChannel);
   // Rows backing the header P/L + tap readout: the VISIBLE series. Overlay
   // points are pre-transfer-adjusted by their injector, so adj === equity.
+  const activeOverlayRef = useRef<OverlaySeries | null>(null);
   const activeRows = useMemo<Pt[]>(() => {
+    activeOverlayRef.current = null;
     if (!baseHidden || !Array.isArray(window.__qtOverlaySeries)) return data;
     const o = window.__qtOverlaySeries.find(
       (q) => q && q.channel === overlayChannel && Array.isArray(q.points) && q.points.length >= 2);
     if (!o) return data;
+    activeOverlayRef.current = o;
     return o.points.map((q) => ({ t: q.t, equity: q.v, adj: q.v }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, baseHidden, overlayChannel, overlayRev]);
@@ -513,8 +523,17 @@ export default function EquityChart(props: {
     const start = vis[0];
     const end = readout && readout.t >= start.t ? readout : vis[vis.length - 1];
     let netX = 0;
-    if (!baseHidden)   // overlay rows are already transfer-adjusted
+    if (!baseHidden) {
       for (const x of xfers) if (x.t > start.t && x.t <= end.t) netX += x.amount;
+    } else {
+      // Overlay drives the header. If its points are transfer-adjusted
+      // (P/L view) there is nothing to subtract; if RAW ($ view), use the
+      // overlay's own transfer ledger so a withdrawal never reads as loss
+      // (2026-08-25: the $1,408 withdrawal printed as -47% window P/L).
+      const ao = activeOverlayRef.current;
+      if (ao && !ao.transferAdjusted && Array.isArray(ao.transfers))
+        for (const x of ao.transfers) if (x.t > start.t && x.t <= end.t) netX += x.amount;
+    }
     const pl = end.equity - start.equity - netX;
     const base = start.equity + Math.max(0, netX);
     return { pl, pct: base > 0 ? (pl / base) * 100 : 0, netX };

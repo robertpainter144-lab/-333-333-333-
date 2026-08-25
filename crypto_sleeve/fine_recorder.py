@@ -64,10 +64,23 @@ while True:
             # equity row appears); until then keep pricing the old one
             if _snap is None or time.time() - stp.stat().st_mtime > 15:
                 st = json.loads(stp.read_text())
+                # micro-meme mv is captured IN the same snapshot as cash
+                # (deep-fix 2026-08-25): reading it live while cash was
+                # stale printed a ~$25 dip for up to 5 min around every
+                # micro trade — same-instant capture makes disagreement
+                # structurally impossible.
+                try:
+                    _mm = json.loads(
+                        (ROOT / "state" / "micro_meme_state.json").read_text())
+                    _mmv = sum(float(q.get("mv") or 0)
+                               for q in (_mm.get("positions") or {}).values())
+                except Exception:
+                    _mmv = 0.0
                 _snap = (st.get("positions") or {},
-                         float(last[2]) if len(last) >= 3 else 0.0)
+                         float(last[2]) if len(last) >= 3 else 0.0,
+                         _mmv)
                 _snap_row = last[0]
-        pos, cash = _snap
+        pos, cash, micro_mv = _snap
         pm = pairs()
         total = cash
         ok = True
@@ -77,13 +90,7 @@ while True:
                 ok = False
                 break
             total += qty(meta) * px(k)
-        try:      # D63: count micro-meme carve-out holdings (marked
-                  # by its own 10-min engine) so the fine chart is whole
-            _mm = json.loads((ROOT / "state" / "micro_meme_state.json").read_text())
-            total += sum(float(q.get("mv") or 0)
-                         for q in (_mm.get("positions") or {}).values())
-        except Exception:
-            pass
+        total += micro_mv   # snapshot-coupled with cash (see above)
         if ok and total > 1:
             # confirmation jump-guard (2026-08-22; tightened 2026-08-23:
             # engine-tick cash-vs-positions skew is one trade-chunk,

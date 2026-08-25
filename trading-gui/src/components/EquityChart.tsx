@@ -209,16 +209,20 @@ export default function EquityChart(props: {
   // ticks over the plot.
   const ovExtent = useMemo(() => {
     if (!overlayChannel || !Array.isArray(window.__qtOverlaySeries)) return null;
-    let mn = Infinity, mx = -Infinity;
+    let mn = Infinity, mx = -Infinity, n = 0;
     for (const o of window.__qtOverlaySeries) {
       if (!o || o.channel !== overlayChannel || !Array.isArray(o.points)) continue;
       for (const p of o.points) {
-        if (!Number.isFinite(p.t)) continue;
+        if (!Number.isFinite(p.t) || !Number.isFinite(p.v)) continue;
+        n++;
         if (p.t < mn) mn = p.t;
         if (p.t > mx) mx = p.t;
       }
     }
-    return mx > mn ? { mn, mx } : null;
+    // Match the draw pass: a single valid point still gets a gutter (it now
+    // draws as a flat line), so reserve space whenever anything will
+    // actually be drawn instead of requiring 2 raw points up front.
+    return n >= 1 ? { mn, mx } : null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [overlayChannel, overlayRev]);
   const padR = ovExtent ? 34 : 6;
@@ -535,7 +539,7 @@ export default function EquityChart(props: {
     const overlays =
       overlayChannel && Array.isArray(window.__qtOverlaySeries)
         ? window.__qtOverlaySeries.filter(
-            (o) => o && o.channel === overlayChannel && Array.isArray(o.points) && o.points.length >= 2,
+            (o) => o && o.channel === overlayChannel && Array.isArray(o.points) && o.points.length >= 1,
           )
         : [];
     const padT = overlays.some((o) => o.topAxisColor) ? 18 : PAD_T;
@@ -616,9 +620,11 @@ export default function EquityChart(props: {
         ctx.beginPath(); ctx.moveTo(PAD_L, y); ctx.lineTo(W - padR, y); ctx.stroke();
         ctx.fillText(`$${v.toFixed(yDec)}`, 2, y + 3);
       }
-    // A channel overlay may re-brand the bottom clock (bottomAxisColor).
+    // A channel overlay may re-brand the bottom clock (bottomAxisColor); with
+    // none claiming it, an overlay-paired chart falls back to its OWN base
+    // color instead of losing its color the moment that overlay toggles off.
     const bottomAxisC = overlays.find((o) => o.bottomAxisColor)?.bottomAxisColor;
-    ctx.fillStyle = bottomAxisC ?? mutedC;
+    ctx.fillStyle = bottomAxisC ?? (overlayChannel ? color : mutedC);
 
     // ── X time ticks — nice time step aligned to clean boundaries: dates at
     // week+ zoom, hours at day zoom, minutes as you pinch further in. ──
@@ -714,16 +720,24 @@ export default function EquityChart(props: {
       const opts = o.points
         .filter((p) => Number.isFinite(p.t) && Number.isFinite(p.v))
         .sort((a, b) => a.t - b.t);
-      // Visible slice + one bracketing point each side (same policy as the
-      // main line) so the overlay reaches the plot edges while panning.
-      let of = 0;
-      while (of < opts.length && opts[of].t < d0) of++;
-      let ol = of;
-      while (ol < opts.length && opts[ol].t <= d1) ol++;
-      let os = Math.max(0, of - 1);
-      let oe = Math.min(opts.length, ol + 1);
-      if (oe - os < 2) { os = Math.max(0, oe - 2); oe = Math.min(opts.length, os + 2); }
-      const oseg = opts.slice(os, oe);
+      // A lone valid point still reads as a line: synthesize a flat sibling
+      // across the visible window (mirrors the Funded card's own
+      // single-point handling) instead of requiring 2 raw points to draw.
+      let oseg: { t: number; v: number }[];
+      if (opts.length === 1) {
+        oseg = [{ t: Math.min(opts[0].t, d0), v: opts[0].v }, { t: Math.max(opts[0].t, d1), v: opts[0].v }];
+      } else {
+        // Visible slice + one bracketing point each side (same policy as the
+        // main line) so the overlay reaches the plot edges while panning.
+        let of = 0;
+        while (of < opts.length && opts[of].t < d0) of++;
+        let ol = of;
+        while (ol < opts.length && opts[ol].t <= d1) ol++;
+        let os = Math.max(0, of - 1);
+        let oe = Math.min(opts.length, ol + 1);
+        if (oe - os < 2) { os = Math.max(0, oe - 2); oe = Math.min(opts.length, os + 2); }
+        oseg = opts.slice(os, oe);
+      }
       if (oseg.length < 2) continue;
       let omn = Infinity, omx = -Infinity;
       for (const p of oseg) { if (p.v < omn) omn = p.v; if (p.v > omx) omx = p.v; }
@@ -872,6 +886,10 @@ export default function EquityChart(props: {
       const BUY_C = "#f85149", SELL_C = "#4d9dff";
       for (const m of _marksAll) {
         if (m.t < d0 || m.t > d1) continue;
+        // Un-anchored (no m.id) marks are only unambiguous when exactly one
+        // overlay is drawn — with several, don't guess which one it belongs
+        // to (better hidden than plotted at a nonsensical Y on the wrong line).
+        if (!m.id && oDrawn.length !== 1) continue;
         const mod = (m.id && oDrawn.find((d) => (d.o as { id?: string }).id === m.id)) || od;
         if (m.id && (mod === od) && (od.o as { id?: string }).id !== m.id) continue; // anchored series not visible
         const mx2 = X(m.t), my2 = yAtOn(mod, m.t, m.v);

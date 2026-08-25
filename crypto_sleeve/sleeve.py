@@ -1687,6 +1687,15 @@ def main() -> None:
         equity = cash_avail + _mv_end
     except Exception:
         equity = cash_avail + sum(p.market_value for p in still_open) + bought + dip_bought
+    # D63 micro-meme carve-out holdings live in their own state file —
+    # add their marked value so the equity curve never draws the $100
+    # carve-out as a loss.
+    try:
+        _mm = json.loads((ROOT / "state" / "micro_meme_state.json").read_text())
+        equity += sum(float(q.get("mv") or 0)
+                      for q in (_mm.get("positions") or {}).values())
+    except Exception:
+        pass
     new_f = not EQUITY_F.exists()
     with EQUITY_F.open("a") as f:
         if new_f:

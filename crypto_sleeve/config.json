@@ -27,7 +27,7 @@
   "JUP/USD",
   "DOT/USD"
  ],
- "cap_total_usd": 3130.0,
+ "cap_total_usd": 3030.0,
  "per_trade_usd": 120.0,
  "min_order_usd": 5.0,
  "stop_pct": -0.08,

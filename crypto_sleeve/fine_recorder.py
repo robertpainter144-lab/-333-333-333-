@@ -77,6 +77,13 @@ while True:
                 ok = False
                 break
             total += qty(meta) * px(k)
+        try:      # D63: count micro-meme carve-out holdings (marked
+                  # by its own 10-min engine) so the fine chart is whole
+            _mm = json.loads((ROOT / "state" / "micro_meme_state.json").read_text())
+            total += sum(float(q.get("mv") or 0)
+                         for q in (_mm.get("positions") or {}).values())
+        except Exception:
+            pass
         if ok and total > 1:
             # confirmation jump-guard (2026-08-22; tightened 2026-08-23:
             # engine-tick cash-vs-positions skew is one trade-chunk,

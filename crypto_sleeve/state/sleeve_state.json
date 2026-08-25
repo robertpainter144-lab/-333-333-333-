@@ -5,8 +5,24 @@
       "notional": 800.0,
       "opened": "2026-08-25T13:00:41+00:00",
       "signal_mode": "whale-confirmed (risk_on=0.83)",
-      "mv": 798.73,
-      "cur": 79.9
+      "mv": 799.43,
+      "cur": 79.97
+    },
+    "SOL/USD": {
+      "entry_price": 97.57831835,
+      "notional": 201.36,
+      "opened": "2026-08-25T22:10:16+00:00",
+      "signal_mode": "whale-confirmed (risk_on=0.88)",
+      "mv": 201.42,
+      "cur": 97.62
+    },
+    "BTC/USD": {
+      "entry_price": 78885.1673779,
+      "notional": 172.35,
+      "opened": "2026-08-25T22:10:17+00:00",
+      "signal_mode": "whale-confirmed (risk_on=0.88)",
+      "mv": 172.47,
+      "cur": 78929.9
     }
   },
   "frozen": false,
@@ -17,35 +33,43 @@
   },
   "seen_active": true,
   "targets": {
+    "BTC/USD": 73.16,
+    "SOL/USD": 83.88,
     "HYPE/USD": 800.0,
     "VVV/USD": 300.0,
-    "JUP/USD": 129.61,
-    "RENDER/USD": 122.21
+    "RENDER/USD": 157.39,
+    "JUP/USD": 137.41
   },
-  "targets_ts": "2026-08-25T22:05:11+00:00",
+  "targets_ts": "2026-08-25T22:15:12+00:00",
   "targets_gate": "whale-confirmed (risk_on=0.88)",
   "trail_peaks": {
-    "HYPE/USD": 82.91
+    "HYPE/USD": 82.91,
+    "SOL/USD": 97.62,
+    "BTC/USD": 78921.8
   },
   "trails": {
     "HYPE/USD": {
       "width_pct": 7.84,
       "peak": 82.91,
-      "stop_px": 76.41217389,
+      "stop_px": 76.4068908,
       "armed": true
+    },
+    "BTC/USD": {
+      "width_pct": 4.0,
+      "peak": 78921.8,
+      "stop_px": 75764.21872862,
+      "armed": false
+    },
+    "SOL/USD": {
+      "width_pct": 6.27,
+      "peak": 97.62,
+      "stop_px": 91.49889438,
+      "armed": false
     }
   },
   "reentry": {},
   "px_hist": {
     "HYPE/USD": [
-      [
-        "2026-08-25T20:10:21+00:00",
-        81.22
-      ],
-      [
-        "2026-08-25T20:15:25+00:00",
-        81.21
-      ],
       [
         "2026-08-25T20:20:12+00:00",
         81.4
@@ -133,6 +157,26 @@
       [
         "2026-08-25T22:05:06+00:00",
         79.9
+      ],
+      [
+        "2026-08-25T22:10:05+00:00",
+        80.02
+      ],
+      [
+        "2026-08-25T22:15:07+00:00",
+        79.97
+      ]
+    ],
+    "BTC/USD": [
+      [
+        "2026-08-25T22:15:07+00:00",
+        78921.8
+      ]
+    ],
+    "SOL/USD": [
+      [
+        "2026-08-25T22:15:07+00:00",
+        97.62
       ]
     ]
   },
@@ -142,20 +186,22 @@
       "txid": "ORGMAN-JWMQ7-PRAZKP",
       "stop_px": 76.52522467,
       "vol": 9.9915985
+    },
+    "BTC/USD": {
+      "txid": "O7ZVCP-UQTGO-4TEY47",
+      "stop_px": 72518.632,
+      "vol": 0.00092809
+    },
+    "SOL/USD": {
+      "txid": "OFBYOI-GGG7V-ZT6KEK",
+      "stop_px": 89.7184,
+      "vol": 0.85939325
     }
   },
   "ex_stops_announced": true,
   "pl_hwm": 451.0,
   "effective_floor": -49.0,
   "btc_hist": [
-    [
-      "2026-08-25T20:10:21+00:00",
-      78862.2
-    ],
-    [
-      "2026-08-25T20:15:24+00:00",
-      78870.1
-    ],
     [
       "2026-08-25T20:20:11+00:00",
       78955.5
@@ -243,6 +289,14 @@
     [
       "2026-08-25T22:05:06+00:00",
       78693.4
+    ],
+    [
+      "2026-08-25T22:10:04+00:00",
+      78795.4
+    ],
+    [
+      "2026-08-25T22:15:06+00:00",
+      78930.0
     ]
   ],
   "milestone_base": 450.9,

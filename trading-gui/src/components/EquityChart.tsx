@@ -801,10 +801,14 @@ export default function EquityChart(props: {
       // hard against the screen edge — mirrors the left gutter's flushness.
       ctx.font = "8px ui-monospace, Menlo, monospace";
       ctx.textAlign = "right";
-      for (let v = Math.ceil(olo / oStep) * oStep, n = 0; !skipRightTicks && v <= ohi && n < 12; v += oStep, n++) {
+      for (let v = Math.ceil(olo / oStep) * oStep, n = 0; v <= ohi && n < 12; v += oStep, n++) {
         const y = OY(v);
         if (y < padT - 1 || y > padT + plotH + 1) continue;
-        ctx.fillText(`$${v.toFixed(oDec)}`, W - 2, y + 3);
+        // rightAxisExclusive elsewhere in the channel: this overlay yields
+        // the RIGHT gutter only — its left-gutter labels (bHid branch
+        // below) keep rendering. Robert's layout: left/top = portfolio
+        // green, right/bottom = funded yellow.
+        if (!skipRightTicks) ctx.fillText(`$${v.toFixed(oDec)}`, W - 2, y + 3);
         if (bHid) {
           ctx.strokeStyle = gridC; ctx.setLineDash([3, 3]); ctx.lineWidth = 1;
           ctx.beginPath(); ctx.moveTo(PAD_L, y); ctx.lineTo(W - padR, y); ctx.stroke();

@@ -167,3 +167,4 @@ closed_at,symbol,entry_time,entry_price,exit_price,notional,realized_pl,pl_pct,r
 2026-08-25T11:55:15+00:00,HYPE/USD,2026-08-25T11:25:42+00:00,80.2949,80.0000,671.72,-5.4836,-0.0082,momentum_flip,whale-confirmed (risk_on=0.83)
 2026-08-25T12:00:08+00:00,BTC/USD,2026-08-24T02:05:33+00:00,77382.2179,79111.8000,800.00,14.2661,0.0178,momentum_flip,whale-confirmed (risk_on=0.80)
 2026-08-25T13:10:49+00:00,ZEC/USD,2026-08-25T13:00:42+00:00,842.7679,830.5600,238.84,-4.5208,-0.0189,momentum_flip,whale-confirmed (risk_on=0.83)
+2026-08-25T13:30:32+00:00,SOL/USD,2026-08-24T17:50:19+00:00,97.5739,97.2000,1012.07,-3.8779,-0.0038,reconciled_close,whale-confirmed (risk_on=0.69)

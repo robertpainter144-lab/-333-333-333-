@@ -823,7 +823,11 @@ export default function EquityChart(props: {
         // below) keep rendering. Robert's layout: left/top = portfolio
         // green, right/bottom = funded yellow.
         if (!skipRightTicks) ctx.fillText(`$${v.toFixed(oDec)}`, W - 2, y + 3);
-        if (bHid) {
+        // The hidden-base LEFT duplicate is for the series that owns the
+        // left gutter — a rightAxisExclusive overlay (Funded) must never
+        // print there too, or both scales interleave into garble
+        // (Robert's screenshot 2026-08-25 06:54).
+        if (bHid && !o.rightAxisExclusive) {
           ctx.strokeStyle = gridC; ctx.setLineDash([3, 3]); ctx.lineWidth = 1;
           ctx.beginPath(); ctx.moveTo(PAD_L, y); ctx.lineTo(W - padR, y); ctx.stroke();
           ctx.setLineDash([]);

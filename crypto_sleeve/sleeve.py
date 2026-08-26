@@ -653,6 +653,18 @@ def trail_width(broker, symbol: str, st: dict | None = None) -> float:
                 if _age_h <= float(CFG.get("spike_tighten_h", 2.0)):
                     w = max(float(CFG.get("trail_min", 0.05)),
                             w * float(CFG.get("spike_tighten_factor", 0.5)))
+            # MEGA SPIKE (Robert 2026-08-25 "a true big spike should sell
+            # ALL of the holding as close to the top as possible"): while a
+            # mega flag is live the trail clamps to megaspike_trail_pct,
+            # deliberately BELOW the trail_min floor — the whole position
+            # rides the vertical and exits ~1% off the actual top, wherever
+            # that turns out to be. Expiry shares spike_tighten_h.
+            _mts = (st.get("mega_ts") or {}).get(symbol)
+            if _mts:
+                _mage_h = (datetime.now(timezone.utc)
+                           - datetime.fromisoformat(_mts)).total_seconds() / 3600
+                if _mage_h <= float(CFG.get("spike_tighten_h", 2.0)):
+                    w = min(w, float(CFG.get("megaspike_trail_pct", 0.012)))
         return w
     except Exception:
         return float(CFG.get("trail_max", 0.18))
@@ -1145,7 +1157,17 @@ def main() -> None:
             peak = peaks[p.symbol]
             chg = cur / p.entry_price - 1
             trail = trail_width(broker, p.symbol, st)
-            armed = peak >= p.entry_price * (1 + float(CFG.get("trail_arm_pct", 0.02)))
+            _mts2 = (st.get("mega_ts") or {}).get(p.symbol)
+            mega_active = False
+            if _mts2:
+                try:
+                    mega_active = ((datetime.now(timezone.utc)
+                                    - datetime.fromisoformat(_mts2)).total_seconds() / 3600
+                                   <= float(CFG.get("spike_tighten_h", 2.0)))
+                except Exception:
+                    mega_active = False
+            armed = (peak >= p.entry_price * (1 + float(CFG.get("trail_arm_pct", 0.02)))
+                     or mega_active)   # a mega spike arms instantly — the top IS the exit
             if chg <= CFG["stop_pct"]:
                 # cooldown BEFORE the close: close_position's own save_state
                 # persists both atomically — a crash between them must never
@@ -1155,7 +1177,9 @@ def main() -> None:
                 peaks.pop(p.symbol, None)
             elif armed and cur <= peak * (1 - trail):
                 close_position(broker, p, st,
-                               f"trail_stop({trail * 100:.1f}%_off_{peak:.6g})")
+                               (f"megaspike_top({trail * 100:.1f}%_off_{peak:.6g})"
+                                if mega_active else
+                                f"trail_stop({trail * 100:.1f}%_off_{peak:.6g})"))
                 # Peak-sell → dip-rebuy (Robert 2026-08-21: "exiting before
                 # the dips ... targeting dips for buys"): reserve these
                 # proceeds for a cheaper re-entry on the SAME coin.
@@ -1195,7 +1219,8 @@ def main() -> None:
     # peak surviving a close causes an instant false stop on re-entry
     # (ultra-audit 2026-08-21: 9 orphaned peaks found live)
     _open_syms = {p.symbol for p in still_open}
-    for _d in ("trails", "trail_peaks", "px_hist", "spike_ts", "flip_pending"):
+    for _d in ("trails", "trail_peaks", "px_hist", "spike_ts", "flip_pending",
+               "mega_ts"):
         if isinstance(st.get(_d), dict):
             for _s in list(st[_d]):
                 if _s not in _open_syms:
@@ -1218,6 +1243,40 @@ def main() -> None:
             del h[:-24]                                   # ~2h of 5-min marks
             if not hasattr(broker, "_priv"):
                 continue
+            base_px = None
+            for _ts, _hpx in reversed(h[:-1]):            # newest mark >=14min old
+                _age = (_now_dt - datetime.fromisoformat(_ts)).total_seconds()
+                if 14 * 60 <= _age <= 40 * 60:
+                    base_px = float(_hpx)
+                    break
+            if not base_px:
+                continue
+            spike = p.current_price / base_px - 1
+            if p.current_price <= p.entry_price:
+                continue
+            # TRUE BIG SPIKE (Robert 2026-08-25 "a true big spike should
+            # sell all of the holding as close to the top of the spike as
+            # possible"): no slice — flag the coin mega so trail_width
+            # clamps to megaspike_trail_pct off the running peak and the
+            # WHOLE holding sells the moment the vertical breaks; proceeds
+            # join the dip-rebuy reserve like any trail exit ("waiting for
+            # good dip opportunities"). Checked BEFORE the skim cooldown —
+            # a routine skim must never delay the sell-all on a real rip.
+            if spike >= float(CFG.get("megaspike_pct", 0.05)):
+                _prev_mega = (st.get("mega_ts") or {}).get(p.symbol)
+                st.setdefault("mega_ts", {})[p.symbol] = _now_dt.isoformat(timespec="seconds")
+                save_state(st)
+                if not _prev_mega:
+                    notify("action", "MEGA SPIKE — riding to the top, then selling ALL",
+                           f"{p.symbol} jumped {spike * 100:.1f}% in ~15 min. The whole "
+                           f"position (${p.market_value:.0f}) now trails "
+                           f"{float(CFG.get('megaspike_trail_pct', 0.012)) * 100:.1f}% off "
+                           "its running peak and sells in full the moment the spike "
+                           "breaks. Proceeds then wait for a dip re-entry.")
+                continue
+            thr = max(0.02, trail_width(broker, p.symbol) / 3.0)
+            if spike < thr:
+                continue
             _r0 = (st.get("reentry") or {}).get(p.symbol)
             if _r0 is not None:
                 # ESCALATING SKIM (Robert 2026-08-22 00:28 "take profit
@@ -1232,18 +1291,6 @@ def main() -> None:
                 if not (_r0.get("skim") and _r_age >= 900
                         and p.current_price > float(_r0.get("exit_px", 1e18))):
                     continue
-            base_px = None
-            for _ts, _hpx in reversed(h[:-1]):            # newest mark >=14min old
-                _age = (_now_dt - datetime.fromisoformat(_ts)).total_seconds()
-                if 14 * 60 <= _age <= 40 * 60:
-                    base_px = float(_hpx)
-                    break
-            if not base_px:
-                continue
-            spike = p.current_price / base_px - 1
-            thr = max(0.02, trail_width(broker, p.symbol) / 3.0)
-            if spike < thr or p.current_price <= p.entry_price:
-                continue
             frac = float(CFG.get("spike_harvest_frac", 0.25))
             skim_usd = round(p.market_value * frac, 2)
             if skim_usd < CFG["min_order_usd"] * 2:

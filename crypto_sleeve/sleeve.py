@@ -447,6 +447,67 @@ def momentum_strength(closes: list[float]) -> float | None:
     return max(0.0, trend + recent)
 
 
+def momentum_flipped(closes: list[float]) -> bool:
+    """Decisive DOWN-flip for the exit path only. Entries keep momentum_ok();
+    exits demand a real margin below the slow EMA so a hairline cross on the
+    still-forming 1h candle can't market-sell the book (2026-08-25: 15-19
+    flip trades/day churned −$71 realized across a RISING market). The
+    close-vs-24h-ago leg is deliberately absent here — price hovering around
+    yesterday's level is noise, and trails/stops already guard real declines."""
+    if len(closes) < CFG["ema_slow"] + 2:
+        return False   # a data gap must never force a live sell
+    margin = float(CFG.get("flip_margin", 0.0015))
+    return ema(closes, CFG["ema_fast"]) < ema(closes, CFG["ema_slow"]) * (1 - margin)
+
+
+def flip_confirmed(broker, p, st) -> bool:
+    """momentum_flip may fire only when (1) the position is older than
+    flip_min_hold_h, (2) the down-flip clears the momentum_flipped margin,
+    and (3) it persists flip_confirm_ticks consecutive ticks. Trails, hard
+    stops, spike harvest and the freeze rail stay instant — this slows only
+    the discretionary momentum exit."""
+    meta = (st.get("positions") or {}).get(p.symbol) or {}
+    try:
+        opened = datetime.fromisoformat(meta.get("opened"))
+        age_h = (datetime.now(timezone.utc) - opened).total_seconds() / 3600
+    except Exception:
+        age_h = 1e9   # unknown age must not immortalize a position
+    pend = st.setdefault("flip_pending", {})
+    if age_h < float(CFG.get("flip_min_hold_h", 4.0)):
+        pend.pop(p.symbol, None)
+        return False
+    if not momentum_flipped(broker.closes(p.symbol)):
+        pend.pop(p.symbol, None)
+        return False
+    n = int(pend.get(p.symbol, 0)) + 1
+    pend[p.symbol] = n
+    return n >= int(CFG.get("flip_confirm_ticks", 2))
+
+
+def set_entry_cooldown(st: dict, symbol: str) -> None:
+    """Trend-break closes (stop / momentum_flip) park the symbol for
+    reentry_cooldown_min before the fresh-name loop may rebuy it. The
+    dip-rebuy path is exempt by design — it requires a vol-scaled discount,
+    which is a real edge rather than a momentum flicker."""
+    st.setdefault("entry_cooldown", {})[symbol] = \
+        datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def in_entry_cooldown(st: dict, symbol: str) -> bool:
+    cd = (st.get("entry_cooldown") or {}).get(symbol)
+    if not cd:
+        return False
+    try:
+        age_min = (datetime.now(timezone.utc)
+                   - datetime.fromisoformat(cd)).total_seconds() / 60
+    except Exception:
+        age_min = 1e9
+    if age_min >= float(CFG.get("reentry_cooldown_min", 90.0)):
+        st["entry_cooldown"].pop(symbol, None)
+        return False
+    return True
+
+
 def tilt_size(strength: float, strongest: float) -> float:
     """Base per_trade scaled 0.5x (weakest passing) → 2.5x-ish (the
     strongest leader), clamped to [min_order, tilt_max_usd]."""
@@ -1087,6 +1148,7 @@ def main() -> None:
             armed = peak >= p.entry_price * (1 + float(CFG.get("trail_arm_pct", 0.02)))
             if chg <= CFG["stop_pct"]:
                 close_position(broker, p, st, "stop")
+                set_entry_cooldown(st, p.symbol)
                 peaks.pop(p.symbol, None)
             elif armed and cur <= peak * (1 - trail):
                 close_position(broker, p, st,
@@ -1104,8 +1166,10 @@ def main() -> None:
                     "exit_px": cur, "usd": round(p.market_value, 2),
                     "ts": datetime.now(timezone.utc).isoformat(timespec="seconds")}
                 peaks.pop(p.symbol, None)
-            elif momentum_ok(broker.closes(p.symbol)) is False:
+            elif flip_confirmed(broker, p, st):
                 close_position(broker, p, st, "momentum_flip")
+                set_entry_cooldown(st, p.symbol)
+                st.get("flip_pending", {}).pop(p.symbol, None)
                 peaks.pop(p.symbol, None)
             else:
                 still_open.append(p)
@@ -1128,7 +1192,7 @@ def main() -> None:
     # peak surviving a close causes an instant false stop on re-entry
     # (ultra-audit 2026-08-21: 9 orphaned peaks found live)
     _open_syms = {p.symbol for p in still_open}
-    for _d in ("trails", "trail_peaks", "px_hist", "spike_ts"):
+    for _d in ("trails", "trail_peaks", "px_hist", "spike_ts", "flip_pending"):
         if isinstance(st.get(_d), dict):
             for _s in list(st[_d]):
                 if _s not in _open_syms:
@@ -1541,6 +1605,20 @@ def main() -> None:
     # a trailing stop frees capital. Falls through to the (liquidity-screened)
     # open-new loop only when a slot is free AND the adds deployed nothing —
     # so freed cash can't strand once the survivors hit their tilt caps.
+    # D43 (costs are binding, 2026-08-25): daily ENTRY turnover budget.
+    # Exits, protective closes and dip-rebuys are never blocked; fresh opens
+    # and concentrated adds stop once today's purchases exceed
+    # daily_turnover_frac x cap_total_usd. Backstop against churn loops —
+    # the 8/23-25 flip cycle turned $8-12k/day on a <$2k book.
+    _tod = datetime.now(timezone.utc).date().isoformat()
+    _tv = st.setdefault("turnover", {})
+    if _tv.get("date") != _tod:
+        _tv["date"], _tv["bought"] = _tod, 0.0
+    _tv_cap = float(CFG.get("daily_turnover_frac", 1.0)) * float(CFG["cap_total_usd"])
+    if allowed and float(_tv.get("bought") or 0.0) >= _tv_cap:
+        allowed = False
+        log(f"turnover budget: bought ${_tv['bought']:.0f} >= ${_tv_cap:.0f} today — no new entries")
+
     if (allowed and CFG.get("concentrated_add") and st.get("positions")
             and cash_avail - 0.5 >= CFG["min_order_usd"]):
         pos_cap = CFG.get("tilt_max_usd", CFG["per_trade_usd"] * 2)
@@ -1580,6 +1658,7 @@ def main() -> None:
             room -= size
             cash_avail -= size
             bought += size
+            _tv["bought"] = round(float(_tv.get("bought") or 0.0) + size, 2)
             log(f"ADD {sym} ${size:.2f} @ ~{price} -> ${new_n:.2f} [concentrated]")
             notify("routine", "Crypto sleeve — grew a winner",
                    f"Added ${size:.2f} to {sym} (freed cash redeployed into a "
@@ -1624,6 +1703,9 @@ def main() -> None:
             if len(st.get("positions") or {}) >= _max_pos:
                 log(f"position cap reached mid-tick ({_max_pos}) — done opening")
                 break
+            if in_entry_cooldown(st, sym):
+                log(f"BUY {sym} skipped: entry cooldown after trend-break exit")
+                continue
             size = round(min(want, room, cash_avail - 0.5), 2)
             if size < CFG["min_order_usd"]:
                 # room/cash exhausted, or this leader's slot is too small —
@@ -1670,6 +1752,7 @@ def main() -> None:
             room -= size     # later failure must not orphan this filled buy
             cash_avail -= size
             bought += size
+            _tv["bought"] = round(float(_tv.get("bought") or 0.0) + size, 2)
             log(f"BUY {sym} ${size:.2f} @ ~{price} [{mode}]")
             notify("routine", "Crypto sleeve entry",
                    f"Bought ${size:.2f} of {sym} at about {price} ({mode}). "

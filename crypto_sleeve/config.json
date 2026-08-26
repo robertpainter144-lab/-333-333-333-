@@ -76,7 +76,7 @@
  "max_meme_positions": 999,
  "megaspike_pct": 0.05,
  "megaspike_trail_pct": 0.012,
- "megaspike_note": "2026-08-25 (Robert: 'a true big spike should sell all of the holding as close to the top of the spike as possible'): >=5% in ~15min while in profit = mega — no 25% slice; trail clamps to 1.2% off the running peak (below trail_min, expiry spike_tighten_h) and the WHOLE position exits on the break, proceeds to dip-rebuy reserve. Ordinary 2-5% spikes keep the slice+tighten behavior. Delete these keys to revert.",
+ "megaspike_note": "2026-08-25 (Robert: 'a true big spike should sell all of the holding as close to the top of the spike as possible'; verify-fleet hardened): >=5% in ~15min AND gain >= trail_arm_pct = mega. Whole position trails 1.2% off the SPIKE's own running peak (never the lifetime peak) and sells in full on the break; megaspike_top counts toward cascade detection; close sets the 90-min fresh-name cooldown (chase-block) while the dip-rebuy reserve stays open. Ordinary 2-5% spikes keep the 25% slice+tighten. Delete these keys to revert.",
  "flip_min_hold_h": 4.0,
  "flip_margin": 0.0015,
  "flip_confirm_ticks": 2,

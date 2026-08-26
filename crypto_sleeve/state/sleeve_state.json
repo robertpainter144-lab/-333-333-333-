@@ -1,10 +1,12 @@
 {
   "positions": {
     "HYPE/USD": {
-      "entry_price": 80.16,
-      "notional": 113.0,
+      "entry_price": 80.51878257,
+      "notional": 800.0,
       "opened": "2026-08-26T00:15:34+00:00",
-      "signal_mode": "whale-confirmed (risk_on=0.89)"
+      "signal_mode": "whale-confirmed (risk_on=0.89)",
+      "mv": 797.35,
+      "cur": 80.6
     }
   },
   "frozen": false,
@@ -15,35 +17,51 @@
   },
   "seen_active": true,
   "targets": {
-    "VVV/USD": 300.0,
-    "HYPE/USD": 114.32
+    "HYPE/USD": 713.0,
+    "VVV/USD": 300.0
   },
-  "targets_ts": "2026-08-26T00:15:28+00:00",
+  "targets_ts": "2026-08-26T00:30:13+00:00",
   "targets_gate": "whale-confirmed (risk_on=0.89)",
   "trail_peaks": {
-    "HYPE/USD": 80.16
+    "HYPE/USD": 80.68
   },
-  "trails": {},
+  "trails": {
+    "HYPE/USD": {
+      "width_pct": 7.95,
+      "peak": 80.68,
+      "stop_px": 74.26844154,
+      "armed": false
+    }
+  },
   "reentry": {},
-  "px_hist": {},
+  "px_hist": {
+    "HYPE/USD": [
+      [
+        "2026-08-26T00:20:29+00:00",
+        80.45
+      ],
+      [
+        "2026-08-26T00:25:24+00:00",
+        80.68
+      ],
+      [
+        "2026-08-26T00:30:08+00:00",
+        80.61
+      ]
+    ]
+  },
   "pl_alert_anchor": 95.10953858868606,
-  "ex_stops": {},
+  "ex_stops": {
+    "HYPE/USD": {
+      "txid": "OOEFXS-F5BBR-7XVZDY",
+      "stop_px": 74.06817296,
+      "vol": 8.80776551
+    }
+  },
   "ex_stops_announced": true,
   "pl_hwm": 451.0,
   "effective_floor": -49.0,
   "btc_hist": [
-    [
-      "2026-08-25T22:20:13+00:00",
-      78903.6
-    ],
-    [
-      "2026-08-25T22:25:18+00:00",
-      78861.3
-    ],
-    [
-      "2026-08-25T22:30:21+00:00",
-      78597.2
-    ],
     [
       "2026-08-25T22:35:25+00:00",
       78806.0
@@ -127,6 +145,18 @@
     [
       "2026-08-26T00:15:23+00:00",
       78376.0
+    ],
+    [
+      "2026-08-26T00:20:29+00:00",
+      78524.3
+    ],
+    [
+      "2026-08-26T00:25:24+00:00",
+      78555.0
+    ],
+    [
+      "2026-08-26T00:30:08+00:00",
+      78584.4
     ]
   ],
   "milestone_base": 450.9,

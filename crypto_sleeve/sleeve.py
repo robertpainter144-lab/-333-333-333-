@@ -1147,8 +1147,11 @@ def main() -> None:
             trail = trail_width(broker, p.symbol, st)
             armed = peak >= p.entry_price * (1 + float(CFG.get("trail_arm_pct", 0.02)))
             if chg <= CFG["stop_pct"]:
-                close_position(broker, p, st, "stop")
+                # cooldown BEFORE the close: close_position's own save_state
+                # persists both atomically — a crash between them must never
+                # leave a closed coin instantly re-buyable (verify-fleet 8/25)
                 set_entry_cooldown(st, p.symbol)
+                close_position(broker, p, st, "stop")
                 peaks.pop(p.symbol, None)
             elif armed and cur <= peak * (1 - trail):
                 close_position(broker, p, st,
@@ -1167,9 +1170,9 @@ def main() -> None:
                     "ts": datetime.now(timezone.utc).isoformat(timespec="seconds")}
                 peaks.pop(p.symbol, None)
             elif flip_confirmed(broker, p, st):
+                set_entry_cooldown(st, p.symbol)   # before the close (crash-window
+                st.get("flip_pending", {}).pop(p.symbol, None)  # atomicity, 8/25)
                 close_position(broker, p, st, "momentum_flip")
-                set_entry_cooldown(st, p.symbol)
-                st.get("flip_pending", {}).pop(p.symbol, None)
                 peaks.pop(p.symbol, None)
             else:
                 still_open.append(p)
@@ -1654,11 +1657,11 @@ def main() -> None:
                 log(f"ADD {sym} ${size:.2f} FAIL {e!r}")
                 continue
             new_n = add_to_position(st, sym, size, price)
+            _tv["bought"] = round(float(_tv.get("bought") or 0.0) + size, 2)
             save_state(st)
             room -= size
             cash_avail -= size
             bought += size
-            _tv["bought"] = round(float(_tv.get("bought") or 0.0) + size, 2)
             log(f"ADD {sym} ${size:.2f} @ ~{price} -> ${new_n:.2f} [concentrated]")
             notify("routine", "Crypto sleeve — grew a winner",
                    f"Added ${size:.2f} to {sym} (freed cash redeployed into a "
@@ -1748,11 +1751,11 @@ def main() -> None:
             # of this symbol would arm instantly and stop the new position
             # out on tick one (ultra-audit 2026-08-21: 9 orphaned peaks live).
             st.setdefault("trail_peaks", {})[sym] = price
+            _tv["bought"] = round(float(_tv.get("bought") or 0.0) + size, 2)
             save_state(st)   # persist before touching the next symbol — a
             room -= size     # later failure must not orphan this filled buy
             cash_avail -= size
             bought += size
-            _tv["bought"] = round(float(_tv.get("bought") or 0.0) + size, 2)
             log(f"BUY {sym} ${size:.2f} @ ~{price} [{mode}]")
             notify("routine", "Crypto sleeve entry",
                    f"Bought ${size:.2f} of {sym} at about {price} ({mode}). "

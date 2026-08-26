@@ -1128,6 +1128,12 @@ def main() -> None:
         st["frozen"] = True
         st["trail_peaks"] = {}
         st["trails"] = {}
+        # clean slate for the un-freeze review (night audit 2026-08-26): a
+        # pre-freeze dip reservation or cooldown must never fire an
+        # un-reviewed trade the tick after Robert clears the flag
+        for _fz in ("reentry", "entry_cooldown", "mega_ts",
+                    "flip_pending", "spike_ts", "px_hist"):
+            st[_fz] = {}
         save_state(st)
         if failed:
             notify("critical", "Crypto sleeve froze — SOME POSITIONS DID NOT SELL",
@@ -1606,8 +1612,20 @@ def main() -> None:
         float((m or {}).get("mv") or (m or {}).get("notional") or 0.0)
         for m in (st.get("positions") or {}).values())
     def _cap_room(sym):
-        _cur_n = float(((st.get("positions") or {}).get(sym) or {}).get("notional") or 0.0)
-        return max(0.0, float(CFG.get("max_position_frac", 0.35)) * _eq_est - _cur_n)
+        # measured at MARKET VALUE, matching _eq_est's basis — cost-basis
+        # notional understated an appreciated winner's true concentration
+        # and let adds continue past 35% (night audit 2026-08-26, blocker)
+        _row = (st.get("positions") or {}).get(sym) or {}
+        _cur_v = max(float(_row.get("mv") or 0.0), float(_row.get("notional") or 0.0))
+        return max(0.0, float(CFG.get("max_position_frac", 0.35)) * _eq_est - _cur_v)
+
+    # Turnover ledger INIT moved above the dip loop (night audit 2026-08-26)
+    # so dip-rebuys are RECORDED in the daily budget; the budget GATE stays
+    # below the dip loop — dips are counted but never blocked (D43/D64).
+    _tod = datetime.now(timezone.utc).date().isoformat()
+    _tv = st.setdefault("turnover", {})
+    if _tv.get("date") != _tod:
+        _tv["date"], _tv["bought"] = _tod, 0.0
 
     # CONSECUTIVE-LOSS THROTTLE (Robert 2026-08-26): after loss_streak_n
     # straight losing market closes, entry sizes halve until a winner lands.
@@ -1686,6 +1704,7 @@ def main() -> None:
             room -= _want
             cash_avail -= _want
             dip_bought += _want
+            _tv["bought"] = round(float(_tv.get("bought") or 0.0) + _want, 2)
             held.add(_sym)
             # Cap room is cost-basis, proceeds include profit — a near-cap
             # book can only partially refill. Say so instead of silently
@@ -1720,10 +1739,6 @@ def main() -> None:
     # and concentrated adds stop once today's purchases exceed
     # daily_turnover_frac x cap_total_usd. Backstop against churn loops —
     # the 8/23-25 flip cycle turned $8-12k/day on a <$2k book.
-    _tod = datetime.now(timezone.utc).date().isoformat()
-    _tv = st.setdefault("turnover", {})
-    if _tv.get("date") != _tod:
-        _tv["date"], _tv["bought"] = _tod, 0.0
     _tv_cap = float(CFG.get("daily_turnover_frac", 1.0)) * float(CFG["cap_total_usd"])
     if allowed and float(_tv.get("bought") or 0.0) >= _tv_cap:
         allowed = False

@@ -746,6 +746,15 @@ def close_position(broker, pos: Position, st: dict, reason: str) -> None:
                    "pl_pct": f"{pos.unrealized_pl / pos.notional:.4f}" if pos.notional else "0",
                    "reason": reason, "signal_mode": meta.get("signal_mode", "?")})
     note_stop_close(st, reason)
+    # Consecutive-loss throttle counter (Robert 2026-08-26, Grok-review
+    # adoption): market closes only — reconciliation/bank bookkeeping rows
+    # must never move the streak. The entries section halves sizes at
+    # loss_streak_n; any winner resets.
+    if not (reason.startswith("reconciled") or reason.startswith("milestone")):
+        if pos.unrealized_pl < 0:
+            st["loss_streak"] = int(st.get("loss_streak") or 0) + 1
+        elif pos.unrealized_pl > 0:
+            st["loss_streak"] = 0
     save_state(st)   # persist immediately: a later failure this tick must not
     log(f"CLOSED {pos.symbol} reason={reason} pl={pos.unrealized_pl:+.2f}")  # roll back a close that already executed on the exchange
     # Exits page in plain English (Robert 2026-08-21 "let me know if anything
@@ -1188,7 +1197,8 @@ def main() -> None:
                         st.setdefault("mega_ts", {})[p.symbol] = {
                             "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
                             "peak": _mg_peak}
-                        _mg_fresh = True
+                        save_state(st)   # a crash this tick must not lose the
+                        _mg_fresh = True  # spike's peak reference (re-verify)
                 except Exception:
                     pass
             if _mg_fresh and cur > _mg_peak and isinstance(st.get("mega_ts", {}).get(p.symbol), dict):
@@ -1587,6 +1597,25 @@ def main() -> None:
     dip_bought = 0.0   # dip-rebuys tracked separately: a rebuy must not veto
     _max_pos = int(CFG.get("max_positions", 999))  # the fresh-name loop (verify-fleet 2026-08-21)
 
+    # SINGLE-NAME CONCENTRATION CAP (Robert 2026-08-26, Grok-review adoption:
+    # HYPE had drifted to ~50% of the book). ENTRY-TIME only — an existing
+    # position appreciating past the cap is a winner, never force-trimmed;
+    # it just gets no new adds until it's back under. Applies to every buy
+    # path (dip-rebuy, concentrated add, fresh name).
+    _eq_est = cash_avail + sum(
+        float((m or {}).get("mv") or (m or {}).get("notional") or 0.0)
+        for m in (st.get("positions") or {}).values())
+    def _cap_room(sym):
+        _cur_n = float(((st.get("positions") or {}).get(sym) or {}).get("notional") or 0.0)
+        return max(0.0, float(CFG.get("max_position_frac", 0.35)) * _eq_est - _cur_n)
+
+    # CONSECUTIVE-LOSS THROTTLE (Robert 2026-08-26): after loss_streak_n
+    # straight losing market closes, entry sizes halve until a winner lands.
+    _size_mult = 1.0
+    if int(st.get("loss_streak") or 0) >= int(CFG.get("loss_streak_n", 3)):
+        _size_mult = float(CFG.get("loss_streak_factor", 0.5))
+        log(f"loss-streak throttle: {st.get('loss_streak')} straight losses — entry sizes x{_size_mult}")
+
     # DIP-BUY RE-ENTRIES (Robert 2026-08-21: "targeting dips for buys").
     # A trail/take exit sold near a peak; its proceeds are RESERVED for up
     # to reentry_ttl_h, waiting for that same coin to dip a vol-scaled
@@ -1621,7 +1650,8 @@ def main() -> None:
             reserved += float(r.get("usd") or 0)
             continue
         _is_skim = bool(r.get("skim")) and _sym in st.get("positions", {})
-        _want = round(min(float(r.get("usd") or 0), room, cash_avail - 0.5), 2)
+        _want = round(min(float(r.get("usd") or 0) * _size_mult, room,
+                          cash_avail - 0.5, _cap_room(_sym)), 2)
         _meme_ok = True
         if is_meme(_sym):
             _mr, _ms = meme_room(st)
@@ -1721,8 +1751,8 @@ def main() -> None:
             headroom = pos_cap - cur_n
             if headroom < CFG["min_order_usd"]:
                 continue
-            size = round(min(tilt_size(s, strongest), headroom,
-                             room, cash_avail - 0.5), 2)
+            size = round(min(tilt_size(s, strongest) * _size_mult, headroom,
+                             room, cash_avail - 0.5, _cap_room(sym)), 2)
             if is_meme(sym):
                 _mroom2, _ = meme_room(st)
                 size = round(min(size, _mroom2), 2)
@@ -1786,7 +1816,8 @@ def main() -> None:
             if in_entry_cooldown(st, sym):
                 log(f"BUY {sym} skipped: entry cooldown after trend-break exit")
                 continue
-            size = round(min(want, room, cash_avail - 0.5), 2)
+            size = round(min(want * _size_mult, room, cash_avail - 0.5,
+                             _cap_room(sym)), 2)
             if size < CFG["min_order_usd"]:
                 # room/cash exhausted, or this leader's slot is too small —
                 # in ranked mode the strong ones came first, so break

@@ -24,9 +24,7 @@ from __future__ import annotations
 
 import fcntl
 import json
-import statistics
 import subprocess
-import sys
 import time
 import urllib.parse
 import urllib.request

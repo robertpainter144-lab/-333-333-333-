@@ -2,9 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import Layout from "./components/Layout";
 import Book from "./pages/Book";
-import Lab from "./pages/Lab";
-import Governor from "./pages/Governor";
-import Markets from "./pages/Markets";
+// Lab/Governor/Markets removed from nav+routes — Alpaca-era research
+// surfaces retired with the equities book (D61; Robert 2026-08-27)
 import HealthPage from "./pages/HealthPage";
 import Settings from "./pages/Settings";
 import { registerAuthErrorHandler } from "./lib/api";
@@ -78,9 +77,6 @@ export default function App() {
       <Routes>
         <Route element={<Layout />}>
           <Route index element={<Book />} />
-          <Route path="lab" element={<Lab />} />
-          <Route path="governor" element={<Governor />} />
-          <Route path="markets" element={<Markets />} />
           <Route path="health" element={<HealthPage />} />
           <Route path="settings" element={<Settings />} />
           <Route path="*" element={<Book />} />

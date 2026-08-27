@@ -102,9 +102,13 @@ async function get<T>(path: string): Promise<T> {
   }
   if (res.status === 401 || res.status === 403) {
     // Role-gated endpoints 403 routinely for guest keys (owner-only data) —
-    // that's a normal response, not a bad key. Only a rejected probe
-    // (whoami/health, which every role may call) means the key itself is bad.
-    if (path.startsWith("/api/whoami") || path.startsWith("/api/health")) {
+    // that's a normal response, not a bad key. Only a rejected /api/whoami
+    // means the key itself is bad. /api/health deliberately does NOT wipe
+    // auth: it's a liveness probe, and a transient keyless/proxied probe
+    // 403ing on the public funnel must not log the app out (2026-08-21
+    // power-outage postmortem: this exact path blanked the app while the
+    // backend was healthy).
+    if (path.startsWith("/api/whoami")) {
       onAuthError?.();
     }
     throw new AuthError(res.status);
@@ -119,6 +123,8 @@ async function get<T>(path: string): Promise<T> {
 
 export const api = {
   health: () => get<Health>("/api/health"),
+  /** Owner-only crypto book summary (guests 403 — D31). */
+  cryptoSummary: () => get<any>("/api/crypto/summary"),
   /** Key role probe: owner sees everything; guest gets the Lab-only surface
    *  (Book hidden client-side AND live endpoints 403'd server-side). */
   whoami: () => get<{ role: "owner" | "guest" | "none" }>("/api/whoami"),

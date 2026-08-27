@@ -84,6 +84,9 @@ declare global {
     /** Set by owner_zoom.js while a FAST pinch is hopping range presets —
      *  the chart's fluid zoom stands down until it expires. */
     __qtDetentUntil?: number;
+    /** Set by the owner overlay while the server flags chart_stale — hides
+     *  the client window-P/L header stat on overlay charts (see prop). */
+    __qtWindowPLHidden?: boolean;
   }
 }
 const MIN_SPAN_MS = 10 * 60e3; // can't zoom tighter than 10 minutes
@@ -91,7 +94,7 @@ const WKND_W = 0.15;                       // weekend renders at 15% width
 const COMPRESS_MIN_SPAN = 48 * 3600e3;     // linear clock under 2 days
 const POS_C = "#3fb950";
 const NEG_C = "#f85149";
-const LS_NET = "qt.equityNet";
+const LS_NET = "qt.equityNet2";
 
 type Pt = { t: number; equity: number; adj: number };
 type Xfer = { t: number; amount: number; type: string };
@@ -115,24 +118,41 @@ export default function EquityChart(props: {
   overlayChannel?: string;
   /** Range tab selected on mount (default "ALL"). */
   defaultRange?: string;
+  /** Suppress the client-computed window-P/L header stat. Book sets it from
+   *  server chart_stale (frozen engine): the collapsed line misses
+   *  post-freeze cash moves, so its first-vs-last P/L contradicts the
+   *  server's canonical pl_total (+$479 vs −$203 on 8/27). */
+  hideWindowPL?: boolean;
 }) {
   const [range, setRange] = useState(props.defaultRange ?? "ALL");
   const overlayChannel = props.overlayChannel;
   // Bumped by the "qt-overlay-series" event so registry changes redraw.
   const [overlayRev, setOverlayRev] = useState(0);
+  const overlayReady = !!(
+    overlayChannel &&
+    typeof window !== "undefined" &&
+    Array.isArray(window.__qtOverlaySeries) &&
+    window.__qtOverlaySeries.some(
+      (q) => q && q.channel === overlayChannel && Array.isArray(q.points) && q.points.length >= 2,
+    )
+  );
   useEffect(() => {
     if (!overlayChannel) return;
     const bump = () => setOverlayRev((r) => r + 1);
     window.addEventListener("qt-overlay-series", bump);
     return () => window.removeEventListener("qt-overlay-series", bump);
   }, [overlayChannel]);
-  // DEFAULT COLLAPSED: P/L is made by trading, not by moving money in or out,
-  // so the line ships with transfer steps removed. "raw" opts into the
-  // account-value view (axis rescales across deposits) and is remembered.
-  // Default to the REAL account-value axis ("$"): Robert reads the yellow
-  // numbers as the actual balance ($499.xx), and the net view's $49.xx axis
-  // looks "one digit too short". P/L shape stays one tap away and sticks.
-  const [net, setNet] = useState(() => localStorage.getItem(LS_NET) === "1");
+  // DEFAULT = P/L (Robert 2026-08-25 after the $1,408.69 withdrawal: "green
+  // line is still showing the withdrawal not the overall p/l"): the line
+  // ships with transfer steps collapsed so deposits/withdrawals never read
+  // as trading. "$" (true account-value history, cliffs and all) stays one
+  // tap away and the choice sticks. Key bumped to qt.equityNet2 so this
+  // default lands once on every device regardless of the old key's value;
+  // any explicit tap thereafter is remembered forever.
+  const [net, setNet] = useState(() => {
+    const stored = localStorage.getItem(LS_NET);
+    return stored === null ? true : stored === "1";
+  });
   const color = props.color ?? "#ffd60a";
 
   const rawRows = useMemo(
@@ -238,7 +258,15 @@ export default function EquityChart(props: {
 
   // Overlay-only mode is SCOPED to charts with an overlay channel — the
   // page-wide flag must not blank unrelated EquityChart instances.
-  const baseHidden = !!(typeof window !== "undefined" && window.__qtBaseHidden && overlayChannel);
+  // Only hide the base line once the Kraken overlay is actually registered.
+  // After the 8/27 Alpaca purge the Book chart is itself crypto — if we hide
+  // the base while the overlay missed the mount, the canvas is blank.
+  const baseHidden = !!(
+    typeof window !== "undefined" &&
+    window.__qtBaseHidden &&
+    overlayChannel &&
+    overlayReady
+  );
   // Rows backing the header P/L + tap readout: the VISIBLE series. Overlay
   // points are pre-transfer-adjusted by their injector, so adj === equity.
   const activeOverlayRef = useRef<OverlaySeries | null>(null);
@@ -607,7 +635,7 @@ export default function EquityChart(props: {
     const gridC = css.getPropertyValue("--bd").trim() || "#30363d";
     const mutedC = css.getPropertyValue("--muted").trim() || "#8b949e";
 
-    const bHid = !!(window.__qtBaseHidden && overlayChannel);
+    const bHid = !!(window.__qtBaseHidden && overlayChannel && overlayReady);
     ctx.strokeStyle = gridC; ctx.fillStyle = mutedC;
     ctx.font = "9px ui-monospace, Menlo, monospace";
     ctx.setLineDash([3, 3]); ctx.lineWidth = 1;
@@ -763,6 +791,16 @@ export default function EquityChart(props: {
       if (oseg.length < 2) continue;
       let omn = Infinity, omx = -Infinity;
       for (const p of oseg) { if (p.v < omn) omn = p.v; if (p.v > omx) omx = p.v; }
+      // Axis-span floor: a slow or hand-fed series (Funded ~$994 moving
+      // cents) must not stretch sub-dollar noise across the full lane —
+      // cents rendered as mountains (Robert 2026-08-25). Floor the span at
+      // max($4, 0.5% of level) so real moves still fill the lane.
+      const omid = (omx + omn) / 2;
+      const ominSpan = Math.max(4, Math.abs(omid) * 0.005);
+      if (omx - omn < ominSpan) {
+        const g = (ominSpan - (omx - omn)) / 2;
+        omn -= g; omx += g;
+      }
       const opad = Math.max((omx - omn) * 0.12, 0.02);
       const olo = omn - opad, ohi = omx + opad;
       const oH = laneFrac > 0 ? laneH : plotH;
@@ -977,7 +1015,7 @@ export default function EquityChart(props: {
       ctx.beginPath(); ctx.arc(x, y, 3.5, 0, Math.PI * 2);
       ctx.fillStyle = useO ? oDrawn[0].o.color : color; ctx.fill();
     }
-  }, [data, d0, d1, color, readout, xfers, net, overlayChannel, overlayRev, markSel]);
+  }, [data, d0, d1, color, readout, xfers, net, overlayChannel, overlayRev, overlayReady, markSel]);
 
   const zoomed = domain !== null;
   // Visible-window date(s) — shown above the range chips at EVERY span
@@ -994,7 +1032,9 @@ export default function EquityChart(props: {
       <div className="mb-2 flex flex-wrap items-center justify-between gap-y-1 px-2 md:px-0">
         <span className="text-[10px] uppercase tracking-wider text-muted">
           Equity
-          {windowPL && (
+          {windowPL &&
+            !props.hideWindowPL &&
+            !(overlayChannel && typeof window !== "undefined" && window.__qtWindowPLHidden) && (
             <span className={`num ml-2 normal-case tracking-normal font-semibold ${signClass(windowPL.pl)}`}>
               {arrow(windowPL.pl)} {moneySigned(windowPL.pl)}{" "}
               <span className="opacity-80">({pct(windowPL.pct)})</span>
@@ -1054,7 +1094,7 @@ export default function EquityChart(props: {
         <>
           <div
             ref={wrapRef}
-            className="relative h-32 w-full select-none sm:h-44"
+            className="relative h-[42vh] min-h-[220px] w-full select-none sm:h-[46vh]"
             style={{ touchAction: "none" }}
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}

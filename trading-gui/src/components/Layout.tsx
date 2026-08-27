@@ -7,10 +7,9 @@ import { relTime, absTime } from "../lib/format";
 // Same five tabs for everyone — guests' Book renders the qcmirror paper view
 // (see Book.tsx); live-only data is 403'd server-side regardless.
 const NAV = [
+  // Crypto-only nav (Robert 2026-08-27: "focus on the 333 app as it sits
+  // today") — Lab/Governor/Markets were Alpaca-era research surfaces (D61).
   { to: "/", label: "Book", icon: "📒" },
-  { to: "/lab", label: "Lab", icon: "🧪" },
-  { to: "/governor", label: "Governor", icon: "🎛" },
-  { to: "/markets", label: "Markets", icon: "📈" },
   { to: "/health", label: "Health", icon: "🫀" },
 ] as const;
 

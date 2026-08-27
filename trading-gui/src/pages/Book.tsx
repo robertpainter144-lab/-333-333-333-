@@ -1,171 +1,38 @@
-import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import EquityChart from "../components/EquityChart";
-import { Badge, Card, EmptyState, Skeleton, StaleBanner } from "../components/ui";
-import { AllocationBars, PositionsTable } from "../components/BookKit";
+import { Card, EmptyState, Skeleton } from "../components/ui";
 import { api } from "../lib/api";
-import { useActivity, useEquity, useGovernor, usePortfolio, useQc, useTransfers, useWhoami } from "../lib/hooks";
-import { absTime, arrow, money, moneySigned, pct, relTime, signClass, toEpochMs } from "../lib/format";
-import type { Activity, ActivityDetail, TransferPoint } from "../lib/types";
+import { useWhoami } from "../lib/hooks";
+import { signClass } from "../lib/format";
 
-/** Honest baselines per API.md semantics — dates/values are contract, not data. */
-const TEST_BASELINE = { value: 48.06, date: "2026-07-27" };
-const INCEPTION = { value: 50.04, date: "2026-07-13" };
-// D6 (revised 2026-08-04): the review trigger scales with contributed capital
-// (Σ deposits − withdrawals = the backend's starting_capital) so a deposit
-// can't turn ordinary daily noise into forced reviews. Floors preserve the
-// original $5/$2.50 behavior on a small book and on the guest sim.
-const DD_TRIGGER_PCT = 0.03;
-const DD_AMBER_PCT = 0.02;
-const DD_FLOOR_TRIGGER = 5.0;
-const DD_FLOOR_AMBER = 2.5;
+// Crypto-only Book (Robert 2026-08-27). Equities/Alpaca retired (D61).
+// OWNER-ONLY: guests 403 on /api/crypto/summary (D31).
+// Core law: the client NEVER computes a money number — every figure is a
+// server string rendered verbatim.
 
-const LIVE_COLOR = "#ffd60a";
+type CryptoSummary = {
+  equity: { ts: string; equity: number }[];
+  transfers: { ts: number; usd: number }[];
+  value_usd?: number | null;
+  value_str?: string | null;
+  pl_total?: number | null;
+  pl_total_str?: string | null;
+  per_day_usd?: number | null;
+  per_day_str?: string | null;
+  chart_stale?: boolean;
+  chart_notice_str?: string;
+};
 
-/** Net deposits−withdrawals dated after `date` (ET midnight). Transfers on or
- *  before the baseline date are already inside the baseline value. */
-function netTransfersSince(xfers: TransferPoint[], date: string): number {
-  const t0 = new Date(`${date}T00:00:00-04:00`).getTime();
-  let net = 0;
-  for (const x of xfers) {
-    const t = toEpochMs(x.ts);
-    if (!Number.isNaN(t) && t > t0) net += x.amount;
-  }
-  return Math.round(net * 100) / 100;
-}
-
-function Delta(props: { label: string; base: number; date: string; equity: number; xfers?: TransferPoint[] }) {
-  // Robinhood semantics: a deposit after the baseline is not a gain and a
-  // withdrawal is not a loss — P/L is measured net of transfers.
-  const netX = netTransfersSince(props.xfers ?? [], props.date);
-  const d = props.equity - props.base - netX;
-  const p = (d / (props.base + Math.max(0, netX))) * 100;
-  return (
-    <div>
-      <div className="text-[10px] uppercase tracking-wider text-muted">
-        {props.label} <span className="text-faint">({props.date}, {money(props.base)})</span>
-      </div>
-      <div className={`num text-sm font-semibold ${signClass(d)}`}>
-        {arrow(d)} {moneySigned(d)} <span className="opacity-80">({pct(p)})</span>
-      </div>
-      {netX !== 0 && (
-        <div className="text-[9px] text-faint" title="Deposits/withdrawals since this baseline are excluded from P/L">
-          net of {moneySigned(netX)} transfers
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ActivityRow(props: {
-  a: Activity;
-  source: string;
-  open: boolean;
-  detail: ActivityDetail | null | undefined;
-  onToggle: () => void;
-}) {
-  const { a, open, detail } = props;
-  return (
-    <li className="flex flex-col gap-0.5 py-1.5">
-      <button
-        type="button"
-        onClick={props.onToggle}
-        className="flex w-full items-center justify-between gap-2 text-left"
-        title="Tap for the full decision analysis"
-      >
-        <div className="flex min-w-0 items-center gap-2">
-          <span className={`text-[9px] transition-transform ${open ? "rotate-90" : ""}`}>▶</span>
-          <Badge tone={String(a.side).toUpperCase() === "BUY" ? "green" : "red"}>
-            {String(a.side).toUpperCase()}
-          </Badge>
-          <span className="text-xs font-semibold">{a.symbol}</span>
-          <span className="num text-[10px] text-muted">
-            {money(a.notional)} @ {money(a.price)}
-          </span>
-        </div>
-        <span className="num shrink-0 text-[10px] text-faint" title={absTime(a.ts)}>
-          {relTime(a.ts)}
-        </span>
-      </button>
-      {!open && a.reason && (
-        <p className="pl-5 text-[10px] leading-4 text-muted">{a.reason}</p>
-      )}
-      {open && (
-        <div className="ml-5 mt-1 flex flex-col gap-2 rounded border border-bd/60 bg-panel2 px-2.5 py-2">
-          {detail === null || detail === undefined ? (
-            <p className="text-[10px] text-faint">Assembling the decision trail…</p>
-          ) : (
-            <>
-              <div>
-                <div className="text-[9px] uppercase tracking-wider text-faint">Why this order fired</div>
-                {detail.how.map((s, i) => (
-                  <p key={i} className="mt-0.5 text-[11px] leading-4 text-fg">{s}</p>
-                ))}
-              </div>
-              {detail.picked_by.length > 0 && (
-                <div>
-                  <div className="text-[9px] uppercase tracking-wider text-faint">Who picked {a.symbol}</div>
-                  {detail.picked_by.map((s, i) => (
-                    <p key={i} className="mt-0.5 text-[11px] leading-4 text-muted">{s}</p>
-                  ))}
-                </div>
-              )}
-              {detail.regime.length > 0 && (
-                <div>
-                  <div className="text-[9px] uppercase tracking-wider text-faint">The regime right now</div>
-                  {detail.regime.map((s, i) => (
-                    <p key={i} className="mt-0.5 text-[11px] leading-4 text-muted">{s}</p>
-                  ))}
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      )}
-    </li>
-  );
-}
-
-function DrawdownGauge(props: { peak: number; equity: number; contributed: number }) {
-  const trigger = Math.max(DD_FLOOR_TRIGGER, props.contributed * DD_TRIGGER_PCT);
-  const amber = Math.max(DD_FLOOR_AMBER, props.contributed * DD_AMBER_PCT);
-  const dd = Math.max(0, props.peak - props.equity);
-  const frac = Math.min(1, dd / trigger);
-  const state = dd >= trigger ? "red" : dd >= amber ? "amber" : "ok";
-  const barColor = state === "red" ? "#f85149" : state === "amber" ? "#d29922" : "#3fb950";
-  return (
-    <div>
-      <div className="mb-1 flex items-baseline justify-between gap-2">
-        <span
-          className="min-w-0 truncate text-[10px] uppercase tracking-wider text-muted"
-          title={`D6: 3% of contributed capital (${money(props.contributed)}), $5 floor`}
-        >
-          Drawdown vs {money(trigger)} review trigger
-        </span>
-        <span className={`num shrink-0 whitespace-nowrap text-sm font-bold ${state === "ok" ? "text-fg" : state === "amber" ? "text-amber" : "text-neg"}`}>
-          {money(dd)} of {money(trigger)}
-        </span>
-      </div>
-      <div className="h-2 w-full overflow-hidden rounded bg-panel2">
-        <div className="h-full rounded" style={{ width: `${frac * 100}%`, background: barColor }} />
-      </div>
-      <div className="num mt-0.5 flex justify-between text-[9px] text-faint">
-        <span>$0</span>
-        <span className="text-amber">{money(amber)} amber</span>
-        <span className="text-neg">{money(trigger)} review</span>
-      </div>
-      {state === "red" && (
-        <div role="alert" className="mt-2 rounded border border-neg/50 bg-neg/10 px-2 py-1.5 text-xs font-bold text-neg">
-          ⛔ Drawdown ≥ {money(trigger)} — review / assess / repair now. Holding is not an option.
-        </div>
-      )}
-    </div>
-  );
+function useCryptoSummary() {
+  return useQuery<CryptoSummary>({
+    queryKey: ["crypto-summary"],
+    queryFn: () => api.cryptoSummary(),
+    refetchInterval: 30_000,
+    retry: false,
+  });
 }
 
 export default function Book() {
-  // Guests see the same Book UI fed by `qcmirror` — a server-side paper view
-  // of the strategy book (account ids stripped, live-only endpoints stay 403).
-  // Wait for the role probe so we never fire the wrong source's queries.
   const w = useWhoami();
   if (w.isPending) {
     return (
@@ -175,257 +42,95 @@ export default function Book() {
     );
   }
   const sim = w.data?.role !== "owner";
-  return <BookView source={sim ? "qcmirror" : "alpaca_live"} sim={sim} />;
+  return <BookView sim={sim} />;
 }
 
-function BookView({ source, sim }: { source: string; sim: boolean }) {
-  const live = usePortfolio(source);
-  const equity = useEquity(source);
-  // Owner only: guests (sim) must not hit the owner-gated transfers endpoint.
-  const transfers = useTransfers(source, !sim);
-  const activity = useActivity(source, 30);
-  const qc = useQc();
-  const gov = useGovernor();
-
-  // Tap an activity row → expand into the full decision blurb (how the
-  // rebalancer arithmetic fired, which sources picked the name, the regime).
-  const [openAct, setOpenAct] = useState<string | null>(null);
-  const [actDetails, setActDetails] = useState<Record<string, ActivityDetail | null>>({});
-  const toggleAct = (a: Activity, key: string) => {
-    if (openAct === key) {
-      setOpenAct(null);
-      return;
-    }
-    setOpenAct(key);
-    if (actDetails[key] === undefined) {
-      setActDetails((p) => ({ ...p, [key]: null })); // null = loading
-      api.activityDetail(source, a.symbol, a.side, a.reason ?? "").then(
-        (d) => setActDetails((p) => ({ ...p, [key]: d })),
-        () => setActDetails((p) => ({
-          ...p,
-          [key]: { symbol: a.symbol, side: a.side, how: ["Decision detail is unavailable for this entry."], picked_by: [], regime: [] },
-        })),
-      );
-    }
-  };
-
-  const p = live.data;
-  const stale = p?.stale === true;
-
+function BookView({ sim }: { sim: boolean }) {
   return (
-    <div className="grid min-w-0 gap-3 lg:grid-cols-3">
-      {/* Intro copy removed 2026-08-09 per Robert — the page explains itself. */}
-      {/* min-w-0: grid items default to min-width:auto, so any wide inner row
-          (stat chips) blows the card past narrow viewports (Flip cover). */}
-      <div className="flex min-w-0 flex-col gap-3 lg:col-span-2">
-        {/* Hero (+ owner-injected crypto twin to its right — the wrapper is a
-            single-column grid for guests; owner injection flips it to two
-            columns only when it fills the slot, so the chart stays above the
-            fold on phones) */}
-        <div data-qt-row="book-heroes" className="grid min-w-0 gap-3">
-        <Card
-          bleed
-          title={
-            <span className="flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full" style={{ background: sim ? "#bc8cff" : LIVE_COLOR }} />
-              {sim ? "Strategy Book — paper mirror (simulated $50)" : "Alpaca Live — real money"}
-            </span>
-          }
-          right={p && <span className="num text-[10px] text-faint" title={absTime(p.ts)}>{relTime(p.ts)}</span>}
-        >
-          {live.isPending ? (
-            <Skeleton lines={3} />
-          ) : live.isError ? (
-            <EmptyState title="Could not load live portfolio">{String(live.error)}</EmptyState>
-          ) : p ? (
-            <>
-              {sim && (
-                <div className="mb-3 rounded border border-bd bg-panel2 px-2 py-1.5 text-[10px] text-muted">
-                  🧪 Paper mirror — tracks the governor-blended strategy composition tick-for-tick.
-                  Simulated view; not a balance you can trade against.
-                </div>
-              )}
-              {stale && <div className="mb-3"><StaleBanner source={source} ts={p.ts} /></div>}
-              {stale ? (
-                <div className="num text-4xl font-bold text-faint">—</div>
-              ) : (
-                <div className="flex flex-wrap items-end gap-x-6 gap-y-2">
-                  <div>
-                    <div className="num text-4xl font-bold tracking-tight">{money(p.equity)}</div>
-                    <div className="num mt-0.5 text-xs text-muted">
-                      unrealized {""}
-                      <span className={signClass(p.unrealized_pl)}>
-                        {arrow(p.unrealized_pl)} {moneySigned(p.unrealized_pl)}
-                      </span>
-                    </div>
-                  </div>
-                  <Delta label="vs test baseline" base={TEST_BASELINE.value} date={TEST_BASELINE.date} equity={p.equity} xfers={transfers.data} />
-                  <Delta label="vs inception" base={INCEPTION.value} date={INCEPTION.date} equity={p.equity} xfers={transfers.data} />
-                </div>
-              )}
-              {!stale && (
-                <div className="mt-2">
-                  <DrawdownGauge peak={p.peak_equity} equity={p.equity} contributed={p.starting_capital} />
-                </div>
-              )}
-            </>
-          ) : null}
-        </Card>
+    <div className="grid min-w-0 gap-2 lg:grid-cols-3" data-qt-sim={sim}>
+      <div className="flex min-w-0 flex-col gap-2 lg:col-span-2">
+        {!sim && <CryptoBook />}
 
-        {/* Generic owner-side mount point: a crypto-sleeve account card twin
-            of the hero beside it. Filled imperatively by owner-mode injection;
-            renders nothing for everyone else (guests never see real crypto). */}
-        <div data-qt-slot="book-crypto-account" className="min-w-0" />
+        {/* Hidden: first-class CryptoBook is the hero+chart. Injection still
+            fills lists/alloc below; a second "Crypto — Kraken" card here
+            duplicated the headline. */}
+        <div data-qt-slot="book-crypto-account" className="hidden" />
+        <div className="flex flex-col gap-2">
+          <div data-qt-slot="book-crypto-lists" />
+          <div data-qt-slot="book-alloc-top" />
         </div>
-
-        {/* Equity chart — full-bleed on mobile so the axes reach the screen edges */}
-        <Card bleed title={sim ? "Equity — strategy book (sim)" : "Equity — alpaca_live"}>
-          {equity.isPending ? (
-            <Skeleton lines={5} />
-          ) : equity.isError ? (
-            <EmptyState title="Equity series unavailable" />
-          ) : (
-            <>
-              {!sim && transfers.isError && (
-                <div className="mx-3 mb-2 rounded border border-amber/50 bg-amber/10 px-2 py-1 text-[10px] text-amber md:mx-0">
-                  ⚠ Transfer history unavailable — the line and P/L may temporarily include deposits/withdrawals.
-                </div>
-              )}
-              <EquityChart points={equity.data ?? []} transfers={transfers.data ?? []} color={LIVE_COLOR} overlayChannel="book" />
-            </>
-          )}
-        </Card>
-
-        {/* Allocation + positions */}
-        <Card bleed title="Positions & allocation drift">
-          {live.isPending ? (
-            <Skeleton lines={6} />
-          ) : stale ? (
-            <StaleBanner source={source} ts={p?.ts} />
-          ) : p ? (
-            <>
-              {/* Generic owner-side mount point: sits directly above the
-                  current-allocation bar. Filled imperatively by owner-mode
-                  injection; renders nothing for everyone else. */}
-              <div data-qt-slot="book-alloc-top" />
-              <AllocationBars
-                positions={p.positions}
-                equity={p.equity}
-                targets={qc.data?.mirror_targets}
-                targetLabel="target (governor blend)"
-                targetTs={qc.data?.mirror_targets_ts}
-              />
-              {gov.data?.weights && (
-                <p className="num mt-1.5 text-[10px] text-muted">
-                  blend:{" "}
-                  {Object.entries(gov.data.weights)
-                    .sort((a, b) => b[1] - a[1])
-                    .filter(([, w]) => w >= 0.005)
-                    .map(([s2, w]) => `${s2} ${(w * 100).toFixed(0)}%`)
-                    .join(" · ")}{" "}
-                  <span className="text-faint">— whose picks the target holds (Governor tab)</span>
-                </p>
-              )}
-              <div className="mt-3">
-                <PositionsTable positions={p.positions} />
-              </div>
-            </>
-          ) : null}
-        </Card>
       </div>
 
       <div className="flex flex-col gap-3">
-        {/* Cash panel */}
-        <Card bleed title="Cash & settlement">
-          {live.isPending ? (
-            <Skeleton lines={2} />
-          ) : p && !stale ? (
-            <div className="flex flex-col gap-2">
-              <div className="flex items-baseline justify-between">
-                <span className="text-xs text-muted">Cash</span>
-                <span className="num text-sm font-semibold">{money(p.cash)}</span>
-              </div>
-              <div className="flex items-baseline justify-between">
-                <span className="text-xs text-muted">Settled BP</span>
-                <span className="num text-sm font-semibold">
-                  {p.settled_bp !== undefined ? money(p.settled_bp) : "—"}
-                </span>
-              </div>
-              {p.settled_bp !== undefined && p.cash > 0.5 && p.settled_bp < p.cash * 0.5 && (
-                <div className="flex items-start gap-1.5">
-                  <Badge tone="amber">T+1 settling</Badge>
-                  <span className="text-[10px] leading-4 text-faint">
-                    Settled buying power ≪ cash: pending target buys are deferred, not failed (cash-account T+1).
-                  </span>
-                </div>
-              )}
-            </div>
-          ) : stale ? (
-            <p className="text-xs text-neg">Broker data unavailable — cash figures withheld.</p>
-          ) : null}
-        </Card>
-
-        {/* How this book decides — plain-language decision loop */}
-        <Card bleed title="Decisions — how this book trades">
-          <div className="flex flex-col gap-2 text-[11px] leading-5 text-muted">
-            <p>
-              <b className="text-fg">Target:</b> a governor-weighted <i>blend</i> of every proven
-              source's picks — not any single strategy. Each Lab source (qc, patent, congress, …)
-              proposes a composition; the governor multiplies each by its earned weight (live
-              weights on the Governor tab and under the drift bars above) and the sum is the
-              target. Challengers sit at <span className="num">0%</span> until they pass the
-              promotion gate
-              (<span className="num">n≥30</span> closed trades, expectancy
-              <span className="num"> ≥0.05%</span>, Sharpe <span className="num">≥1</span>).
-            </p>
-            <p>
-              <b className="text-fg">Order guards:</b> buys are sized against <i>settled</i> buying
-              power only (cash-account T+1); orders queue over weekends instead of firing into a
-              closed market; per-symbol caps stop any one name from swallowing the book.
-            </p>
-            <p>
-              <b className="text-fg">Risk protocol:</b> the drawdown gauge above is a hard
-              review trigger at 3% of contributed capital ($5 floor) — that far off peak the
-              rule is review / assess / repair, never hold. A single name is capped at 35% of
-              the book (overflow spills to the composition's other names, not cash).
-              Baselines are honest anchors: inception (first funded day) and the test baseline
-              (last strategy change), so every delta answers "since when?".
-            </p>
-            <p className="text-[10px] text-faint">
-              Full per-strategy reasoning lives in each Lab card's data center.
-            </p>
-          </div>
-        </Card>
-
-        {/* IBKR card removed 2026-07-28 — bot dark since 07-20, source retired. */}
-
-        {/* Activity feed */}
-        <Card bleed title={sim ? "Recent actions — strategy book (sim)" : "Recent actions — alpaca_live"}>
-          {activity.isPending ? (
-            <Skeleton lines={4} />
-          ) : !activity.data || activity.data.length === 0 ? (
-            <EmptyState title="No recent activity">
-              No fills recorded yet — the mirror trades sparingly by design.
-            </EmptyState>
-          ) : (
-            <ul className="flex flex-col divide-y divide-bd/60">
-              {activity.data.slice(0, 20).map((a, i) => {
-                const key = a.order_id ?? `${a.ts}-${i}`;
-                return (
-                  <ActivityRow
-                    key={key}
-                    a={a}
-                    source={source}
-                    open={openAct === key}
-                    detail={actDetails[key]}
-                    onToggle={() => toggleAct(a, key)}
-                  />
-                );
-              })}
-            </ul>
-          )}
-        </Card>
+        <div data-qt-slot="book-drift-bottom" className="text-[9px] leading-tight text-faint" />
       </div>
     </div>
+  );
+}
+
+function CryptoBook() {
+  const q = useCryptoSummary();
+  if (q.isPending) {
+    return (
+      <Card bleed title="Crypto — Kraken">
+        <Skeleton lines={4} />
+      </Card>
+    );
+  }
+  if (q.isError || !q.data) {
+    return (
+      <Card bleed title="Crypto — Kraken">
+        <EmptyState title="Could not load crypto book">
+          {q.error instanceof Error ? q.error.message : "summary unavailable"}
+        </EmptyState>
+      </Card>
+    );
+  }
+  const s = q.data;
+
+  const chartPoints = (s.equity ?? []).map((r) => ({ ts: r.ts, equity: Number(r.equity) }));
+  const chartTransfers = (s.transfers ?? []).map((x) => ({
+    ts: new Date(Number(x.ts) * 1000).toISOString(),
+    amount: Number(x.usd),
+    type: (Number(x.usd) >= 0 ? "deposit" : "withdrawal") as "deposit" | "withdrawal",
+  }));
+
+  return (
+    <Card bleed>
+      <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-3 gap-y-1 px-1 pb-1">
+        <span className="text-xs font-bold uppercase tracking-wider text-muted">
+          Crypto — Kraken
+        </span>
+        {s.per_day_str && (
+          <span className={`num text-xs font-semibold ${signClass(Number(s.per_day_usd))}`}>
+            {s.per_day_str}
+            <span className="text-faint"> /day since 8/20</span>
+          </span>
+        )}
+      </div>
+      <div className="flex min-w-0 flex-wrap items-baseline gap-x-4 gap-y-1 px-1 pb-2">
+        <span className="num text-3xl font-bold tracking-tight">{s.value_str ?? "—"}</span>
+        {s.pl_total_str && (
+          <span className={`num text-sm font-semibold ${signClass(Number(s.pl_total))}`}>
+            {s.pl_total_str} <span className="text-faint">total P/L</span>
+          </span>
+        )}
+      </div>
+      {s.chart_stale && s.chart_notice_str && (
+        <div className="mx-1 mb-2 rounded border border-amber/50 bg-amber/10 px-2 py-1 text-[10px] text-amber">
+          {s.chart_notice_str}
+        </div>
+      )}
+      {/* overlayChannel="book": owner_crypto.js paints the transfer-collapsed
+          green line here. Base still draws if that overlay hasn't landed. */}
+      <EquityChart
+        points={chartPoints}
+        transfers={chartTransfers}
+        color="#3fb950"
+        defaultRange="1W"
+        overlayChannel="book"
+        hideWindowPL={!!s.chart_stale}
+      />
+    </Card>
   );
 }

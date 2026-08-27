@@ -53,13 +53,16 @@ function BookView({ sim }: { sim: boolean }) {
       <div className="flex min-w-0 flex-col gap-2 lg:col-span-2">
         {!sim && <CryptoBook />}
 
+        {/* Alloc bar directly under the chart (Robert 2026-08-27: "just put
+            it directly under the chart please") — above the holdings list. */}
+        <div data-qt-slot="book-alloc-top" />
+
         {/* Hidden: first-class CryptoBook is the hero+chart. Injection still
             fills lists/alloc below; a second "Crypto — Kraken" card here
             duplicated the headline. */}
         <div data-qt-slot="book-crypto-account" className="hidden" />
         <div className="flex flex-col gap-2">
           <div data-qt-slot="book-crypto-lists" />
-          <div data-qt-slot="book-alloc-top" />
         </div>
       </div>
 
@@ -103,6 +106,15 @@ function CryptoBook() {
         <span className="text-xs font-bold uppercase tracking-wider text-muted">
           Crypto — Kraken
         </span>
+        {/* Top row, not the value row: on narrow phones the value row wraps
+            and the wrapped span landed under owner_crypto's floating tab
+            button (Robert 2026-08-27 screenshot hid "+$46.12"). */}
+        {s.unrealized_str && (
+          <span className={`num text-xs font-semibold ${signClass(Number(s.unrealized_usd))}`}>
+            {s.unrealized_str}
+            <span className="text-faint"> unrealized</span>
+          </span>
+        )}
         {s.per_day_str && (
           <span className={`num text-xs font-semibold ${signClass(Number(s.per_day_usd))}`}>
             {s.per_day_str}
@@ -115,14 +127,6 @@ function CryptoBook() {
         {s.pl_total_str && (
           <span className={`num text-sm font-semibold ${signClass(Number(s.pl_total))}`}>
             {s.pl_total_str} <span className="text-faint">total P/L</span>
-          </span>
-        )}
-        {/* Kraken's app headline shows unrealized return (holdings vs
-            fee-free cost basis); Robert 2026-08-27 wants the app to show
-            the number that matches Kraken next to lifetime total P/L. */}
-        {s.unrealized_str && (
-          <span className={`num text-sm font-semibold ${signClass(Number(s.unrealized_usd))}`}>
-            {s.unrealized_str} <span className="text-faint">unrealized</span>
           </span>
         )}
       </div>

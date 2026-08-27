@@ -17,6 +17,8 @@ type CryptoSummary = {
   value_str?: string | null;
   pl_total?: number | null;
   pl_total_str?: string | null;
+  unrealized_usd?: number | null;
+  unrealized_str?: string | null;
   per_day_usd?: number | null;
   per_day_str?: string | null;
   chart_stale?: boolean;
@@ -115,6 +117,14 @@ function CryptoBook() {
             {s.pl_total_str} <span className="text-faint">total P/L</span>
           </span>
         )}
+        {/* Kraken's app headline shows unrealized return (holdings vs
+            fee-free cost basis); Robert 2026-08-27 wants the app to show
+            the number that matches Kraken next to lifetime total P/L. */}
+        {s.unrealized_str && (
+          <span className={`num text-sm font-semibold ${signClass(Number(s.unrealized_usd))}`}>
+            {s.unrealized_str} <span className="text-faint">unrealized</span>
+          </span>
+        )}
       </div>
       {s.chart_stale && s.chart_notice_str && (
         <div className="mx-1 mb-2 rounded border border-amber/50 bg-amber/10 px-2 py-1 text-[10px] text-amber">
@@ -130,6 +140,7 @@ function CryptoBook() {
         defaultRange="1W"
         overlayChannel="book"
         hideWindowPL={!!s.chart_stale}
+        plOnly
       />
     </Card>
   );

@@ -1738,44 +1738,6 @@ def mount(fastapi_app, main_module) -> None:
                         pass
         except Exception:
             pass
-        # The 5-min logger halts whenever the sleeve freezes (8/26 15:35: the
-        # Book chart flat-lined at the freeze while the account kept moving).
-        # The 10-second fine logger keeps ticking through freezes, so splice
-        # it on past the last coarse row — thinned to a bounded point budget,
-        # newest tick always kept. Fine rows only carry (ts, equity); carry
-        # cash/realized forward from the last coarse row and preserve the
-        # equity = cash + positions_mv identity for consumers that read the
-        # last row's fields (owner_crypto.js stat tiles).
-        try:
-            last = out["equity"][-1] if out["equity"] else None
-            last_ts = last["ts"] if last else ""
-            cash = last["cash"] if last else 0.0
-            realized = last["realized"] if last else 0.0
-            fresh = []
-            for ln in (_CRYPTO_DIR / "state" / "equity_fine.csv").read_text() \
-                    .strip().splitlines():
-                c = ln.split(",")
-                if len(c) >= 2 and c[0] > last_ts:
-                    try:
-                        eqv = float(c[1])
-                    except ValueError:
-                        continue
-                    # A zero/near-zero NAV tick is a failed poll, not an
-                    # account value — charting it paints a bogus cliff to $0
-                    # (the owner_pip toPts filter applies the same rule).
-                    if eqv > 1.0:
-                        fresh.append((c[0], eqv))
-            budget = 1500
-            stride = max(1, -(-len(fresh) // budget))  # ceil div
-            picked = fresh[::stride]
-            if fresh and (not picked or picked[-1][0] != fresh[-1][0]):
-                picked.append(fresh[-1])
-            for ts_, eq_ in picked:
-                out["equity"].append({
-                    "ts": ts_, "equity": eq_, "cash": cash,
-                    "positions_mv": round(eq_ - cash, 4), "realized": realized})
-        except Exception:
-            pass
         for fname, key in (("sleeve_state.json", "state"),
                            ("whale_signals.json", "whale")):
             try:
@@ -1817,6 +1779,59 @@ def mount(fastapi_app, main_module) -> None:
         except Exception:
             pass
         out["transfers"] = transfers
+        # Splice the 10-second fine NAV tail (state/equity_fine.csv) past
+        # the last coarse equity.csv row: the 5-min logger halts whenever
+        # the sleeve freezes (8/26 15:35) while the fine logger keeps
+        # ticking. While FROZEN the recorder's cash snapshot is stale — the
+        # 8/27 −$536.25 withdrawal never hit it, leaving the recorder ~$536
+        # above the real Kraken spot balance (verified against the Kraken
+        # app 8/28: recorder $1,623.57 vs spot $1,083.38) — so ledger
+        # transfers landing after the freeze are applied onto the tail.
+        # Holdings marks can still drift while frozen (manual restructures
+        # are invisible to a frozen engine); only UNFREEZE or live-broker
+        # NAV fully re-grounds the series, so the notice below says so.
+        tail_adj_last = 0.0
+        try:
+            last = out["equity"][-1] if out["equity"] else None
+            last_ts = last["ts"] if last else ""
+            base_cash = last["cash"] if last else 0.0
+            realized = last["realized"] if last else 0.0
+            frozen_ep = _crypto_epoch(last_ts) if last else None
+            frozen = bool((out.get("state") or {}).get("frozen"))
+            fresh = []
+            for ln in (_CRYPTO_DIR / "state" / "equity_fine.csv").read_text() \
+                    .strip().splitlines():
+                c = ln.split(",")
+                if len(c) >= 2 and c[0] > last_ts:
+                    try:
+                        eqv = float(c[1])
+                    except ValueError:
+                        continue
+                    # Zero/near-zero NAV ticks are failed polls, not account
+                    # values — charting one paints a bogus cliff to $0 (the
+                    # owner_pip toPts filter applies the same rule).
+                    if eqv > 1.0:
+                        fresh.append((c[0], eqv))
+            budget = 1500
+            stride = max(1, -(-len(fresh) // budget))  # ceil div
+            picked = fresh[::stride]
+            if fresh and (not picked or picked[-1][0] != fresh[-1][0]):
+                picked.append(fresh[-1])
+            for ts_, eq_ in picked:
+                adj = 0.0
+                if frozen and frozen_ep is not None:
+                    row_ep = _crypto_epoch(ts_)
+                    if row_ep is not None:
+                        adj = sum(t["usd"] for t in transfers
+                                  if frozen_ep < t["ts"] <= row_ep)
+                out["equity"].append({
+                    "ts": ts_, "equity": round(eq_ + adj, 4),
+                    "cash": round(base_cash + adj, 4),
+                    "positions_mv": round(eq_ - base_cash, 4),
+                    "realized": realized})
+                tail_adj_last = adj
+        except Exception:
+            pass
         # Hero figures (value / total P/L / unrealized / per-day) + chart
         # staleness. All server-side; the Book renders the *_str verbatim.
         if out["equity"]:
@@ -1895,6 +1910,9 @@ def mount(fastapi_app, main_module) -> None:
                     note = f"chart stale — last equity tick {ago} ago"
                     if (out.get("state") or {}).get("frozen"):
                         note += " · sleeve FROZEN (flat until reviewed)"
+                        if abs(tail_adj_last) > 0.005:
+                            note += (" · post-freeze cash moves applied ("
+                                     + _crypto_usd_signed(tail_adj_last) + ")")
                     out["chart_notice_str"] = note
         return out
 

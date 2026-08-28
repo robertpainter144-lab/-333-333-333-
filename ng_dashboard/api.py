@@ -1757,9 +1757,14 @@ def mount(fastapi_app, main_module) -> None:
                 c = ln.split(",")
                 if len(c) >= 2 and c[0] > last_ts:
                     try:
-                        fresh.append((c[0], float(c[1])))
+                        eqv = float(c[1])
                     except ValueError:
-                        pass
+                        continue
+                    # A zero/near-zero NAV tick is a failed poll, not an
+                    # account value — charting it paints a bogus cliff to $0
+                    # (the owner_pip toPts filter applies the same rule).
+                    if eqv > 1.0:
+                        fresh.append((c[0], eqv))
             budget = 1500
             stride = max(1, -(-len(fresh) // budget))  # ceil div
             picked = fresh[::stride]

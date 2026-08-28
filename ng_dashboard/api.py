@@ -1698,6 +1698,30 @@ def mount(fastapi_app, main_module) -> None:
         except Exception:
             return {"available": False}
 
+    # ── Crypto Book money contract ────────────────────────────────────────
+    # The 2026-08-27 crypto-only Book renders SERVER strings verbatim — the
+    # client never computes a money number. Core law for every figure below:
+    # deposits/withdrawals are capital moves, NOT P/L, so all P/L values are
+    # net of the Kraken ledger transfers in state/transfers.json.
+    # The per-day stat's anchor is a contract with the Book label
+    # ("/day since 8/20" in trading-gui Book.tsx) — change them together.
+    _CRYPTO_PL_ANCHOR = "2026-08-20T00:00:00+00:00"
+
+    def _crypto_usd(v: float) -> str:
+        """$1234.56 / -$12.34 — glyph-identical to the SPA's money()."""
+        return ("-" if v < 0 else "") + "$" + f"{abs(v):.2f}"
+
+    def _crypto_usd_signed(v: float) -> str:
+        """+$1.23 / −$1.23 / ±$0.00 — glyph-identical to moneySigned()."""
+        sign = "+" if v > 0 else ("\u2212" if v < 0 else "\u00b1")
+        return f"{sign}${abs(v):.2f}"
+
+    def _crypto_epoch(iso: str) -> float | None:
+        try:
+            return datetime.fromisoformat(iso).timestamp()
+        except ValueError:
+            return None
+
     @fastapi_app.get("/api/crypto/summary", include_in_schema=False)
     def _crypto_summary():
         out = {"ts": int(time.time()), "equity": []}
@@ -1712,6 +1736,39 @@ def mount(fastapi_app, main_module) -> None:
                             "positions_mv": float(c[3]), "realized": float(c[4])})
                     except ValueError:
                         pass
+        except Exception:
+            pass
+        # The 5-min logger halts whenever the sleeve freezes (8/26 15:35: the
+        # Book chart flat-lined at the freeze while the account kept moving).
+        # The 10-second fine logger keeps ticking through freezes, so splice
+        # it on past the last coarse row — thinned to a bounded point budget,
+        # newest tick always kept. Fine rows only carry (ts, equity); carry
+        # cash/realized forward from the last coarse row and preserve the
+        # equity = cash + positions_mv identity for consumers that read the
+        # last row's fields (owner_crypto.js stat tiles).
+        try:
+            last = out["equity"][-1] if out["equity"] else None
+            last_ts = last["ts"] if last else ""
+            cash = last["cash"] if last else 0.0
+            realized = last["realized"] if last else 0.0
+            fresh = []
+            for ln in (_CRYPTO_DIR / "state" / "equity_fine.csv").read_text() \
+                    .strip().splitlines():
+                c = ln.split(",")
+                if len(c) >= 2 and c[0] > last_ts:
+                    try:
+                        fresh.append((c[0], float(c[1])))
+                    except ValueError:
+                        pass
+            budget = 1500
+            stride = max(1, -(-len(fresh) // budget))  # ceil div
+            picked = fresh[::stride]
+            if fresh and (not picked or picked[-1][0] != fresh[-1][0]):
+                picked.append(fresh[-1])
+            for ts_, eq_ in picked:
+                out["equity"].append({
+                    "ts": ts_, "equity": eq_, "cash": cash,
+                    "positions_mv": round(eq_ - cash, 4), "realized": realized})
         except Exception:
             pass
         for fname, key in (("sleeve_state.json", "state"),
@@ -1732,6 +1789,108 @@ def mount(fastapi_app, main_module) -> None:
                 .strip().splitlines()[-12:]
         except Exception:
             out["log_tail"] = []
+        # Kraken ledger transfers — the chart marks them, and every P/L
+        # figure below subtracts them so funding never reads as trading.
+        # The cash ledger cannot see ON-CHAIN token adoptions, so known
+        # non-cash capital events ride along as corrections (same doctrine
+        # as the retired account card's hand anchors: dates/values are
+        # contract, not data). 2026-08-09 23:51:45Z: the 7.1M PEPE adoption,
+        # +$20.4289 at its baseline price — capital in, not P/L.
+        _CRYPTO_XFER_CORRECTIONS = [
+            {"ts": 1786319505.0, "usd": 20.4289},
+        ]
+        transfers = []
+        try:
+            tj = json.loads((_CRYPTO_DIR / "state" / "transfers.json").read_text())
+            for t in tj.get("transfers") or []:
+                try:
+                    transfers.append({"ts": float(t["ts"]), "usd": float(t["usd"])})
+                except (KeyError, TypeError, ValueError):
+                    pass
+            transfers.extend(_CRYPTO_XFER_CORRECTIONS)
+            transfers.sort(key=lambda t: t["ts"])
+        except Exception:
+            pass
+        out["transfers"] = transfers
+        # Hero figures (value / total P/L / unrealized / per-day) + chart
+        # staleness. All server-side; the Book renders the *_str verbatim.
+        if out["equity"]:
+            lastrow = out["equity"][-1]
+            value = float(lastrow["equity"])
+            out["value_usd"] = round(value, 2)
+            out["value_str"] = _crypto_usd(value)
+            # Total P/L, inception-anchored (the stack's established "vs
+            # inception, net of transfers since" doctrine — and exactly the
+            # chart's ALL-window math, so hero and chart always agree):
+            # equity now − first logged equity − net transfers since logging
+            # began. Ledger entries at/before the first row (pre-sleeve
+            # account history) are baseline capital, not sleeve P/L.
+            first_ep = _crypto_epoch(out["equity"][0]["ts"]) or 0.0
+            pl_total = (value - float(out["equity"][0]["equity"])
+                        - sum(t["usd"] for t in transfers if t["ts"] > first_ep))
+            out["pl_total"] = round(pl_total, 2)
+            out["pl_total_str"] = _crypto_usd_signed(pl_total)
+            # Unrealized: tracked open positions marked at their freshest
+            # px_hist tick. Omitted (not zeroed) when flat or unpriceable —
+            # the Book hides the chip rather than showing a fake ±$0.00.
+            try:
+                st = out.get("state") or {}
+                poss = st.get("positions") or {}
+                px_hist = st.get("px_hist") or {}
+                unreal, priced = 0.0, bool(poss)
+                for sym, p in poss.items():
+                    entry = float(p.get("entry_price") or 0)
+                    notional = float(p.get("notional") or 0)
+                    hist = px_hist.get(sym) or []
+                    if not entry or not hist:
+                        priced = False
+                        break
+                    unreal += notional / entry * float(hist[-1][1]) - notional
+                if priced:
+                    out["unrealized_usd"] = round(unreal, 2)
+                    out["unrealized_str"] = _crypto_usd_signed(unreal)
+            except Exception:
+                pass
+            # P/L per day since the 8/20 scale-up: transfer-adjusted equity
+            # gain over calendar days elapsed. Anchored to the last equity
+            # tick at/before the anchor (series start if younger than it).
+            try:
+                anchor_ep = _crypto_epoch(_CRYPTO_PL_ANCHOR)
+                eq_anchor = None
+                for r in out["equity"]:
+                    if r["ts"] <= _CRYPTO_PL_ANCHOR:
+                        eq_anchor = float(r["equity"])
+                    else:
+                        break
+                if eq_anchor is None:
+                    eq_anchor = float(out["equity"][0]["equity"])
+                    first_ep = _crypto_epoch(out["equity"][0]["ts"])
+                    if first_ep:
+                        anchor_ep = max(anchor_ep or first_ep, first_ep)
+                days = (time.time() - anchor_ep) / 86400.0 if anchor_ep else 0.0
+                if days > 0:
+                    net_since = sum(t["usd"] for t in transfers
+                                    if t["ts"] >= anchor_ep)
+                    per_day = ((value - eq_anchor) - net_since) / days
+                    out["per_day_usd"] = round(per_day, 2)
+                    out["per_day_str"] = _crypto_usd_signed(per_day)
+            except Exception:
+                pass
+            # Staleness: no equity tick for >30 min means the loggers are
+            # down — flag it so the Book hides the window-P/L stat (a stale
+            # line's first-vs-last P/L would contradict pl_total) and shows
+            # an honest notice instead of a silently frozen line.
+            last_ep = _crypto_epoch(lastrow["ts"])
+            if last_ep:
+                age_s = max(0.0, time.time() - last_ep)
+                out["chart_stale"] = age_s > 1800
+                if out["chart_stale"]:
+                    ago = (f"{age_s / 3600:.1f} h" if age_s < 172800
+                           else f"{age_s / 86400:.1f} d")
+                    note = f"chart stale — last equity tick {ago} ago"
+                    if (out.get("state") or {}).get("frozen"):
+                        note += " · sleeve FROZEN (flat until reviewed)"
+                    out["chart_notice_str"] = note
         return out
 
     # Live Kraken prices for the sleeve's whole universe — feeds the crypto

@@ -89,10 +89,15 @@
 
   /* ---- Book-chart overlay feed (always on, page open or not) ----
    * Same semantics as the yellow line: funding/adoption steps are not P/L,
-   * so any jump too large to be a 5-min market move (>$4 — the sleeve's
-   * holdings can't move that in one tick) is collapsed out of the curve.
-   * Earlier points are shifted up/down so the line ends at the TRUE current
-   * equity and only trading P/L gives it shape (PEPE adoption = deposit). */
+   * so ledger transfers are collapsed out of the curve. Earlier points are
+   * shifted up/down so the line ends at the TRUE current equity and only
+   * trading P/L gives it shape (PEPE adoption = deposit).
+   * Preferred path: the summary now ships the actual Kraken ledger
+   * (data.transfers) — collapse those EXACT amounts at their timestamps,
+   * leaving real market moves intact. The old ">$4 per tick = funding"
+   * heuristic remains only as a fallback for a stale server: at the $50-cap
+   * era it was safe, but on a ~$1.6k book an ordinary 0.3% five-minute move
+   * clears $4, so the heuristic was flattening genuine trading P/L. */
   var STEP_USD = 4.0;
   function pushOverlay() {
     var pts = [];
@@ -103,16 +108,38 @@
         if (!isNaN(t) && r.equity != null) pts.push({ t: t, v: Number(r.equity) });
       }
     }
-    // Collapse funding steps backward: walk from the end; every step > $4
-    // shifts all earlier points by that step, exactly like the main chart's
-    // transfer-adjusted view.
-    var shift = 0;
-    for (var k = pts.length - 1; k > 0; k--) {
-      pts[k].v += shift;
-      var step = pts[k].v - (pts[k - 1].v + shift);
-      if (Math.abs(step) > STEP_USD) shift += step;
+    // Ledger (epoch-ms, signed usd), ascending; absent on old servers.
+    var xs = null;
+    if (data && Object.prototype.toString.call(data.transfers) === "[object Array]") {
+      xs = [];
+      for (var x = 0; x < data.transfers.length; x++) {
+        var tr = data.transfers[x];
+        var xt = Number(tr && tr.ts) * 1000, xa = Number(tr && tr.usd);
+        if (!isNaN(xt) && xa) xs.push({ t: xt, amount: xa });
+      }
+      xs.sort(function (a, b) { return a.t - b.t; });
     }
-    if (pts.length) pts[0].v += shift;
+    var shift = 0;
+    if (xs && pts.length) {
+      // Exact collapse, walking backward: shift every point before a
+      // transfer by its amount. Transfers newer than the last tick aren't
+      // in the curve yet; transfers at/before the first point are baseline.
+      var j2 = xs.length - 1;
+      while (j2 >= 0 && xs[j2].t > pts[pts.length - 1].t) j2--;
+      for (var k = pts.length - 1; k > 0; k--) {
+        pts[k].v += shift;
+        while (j2 >= 0 && xs[j2].t > pts[k - 1].t) { shift += xs[j2].amount; j2--; }
+      }
+      pts[0].v += shift;
+    } else {
+      // Fallback heuristic: every step > $4 between ticks reads as funding.
+      for (var k2 = pts.length - 1; k2 > 0; k2--) {
+        pts[k2].v += shift;
+        var step = pts[k2].v - (pts[k2 - 1].v + shift);
+        if (Math.abs(step) > STEP_USD) shift += step;
+      }
+      if (pts.length) pts[0].v += shift;
+    }
     var reg = (window.__qtOverlaySeries = window.__qtOverlaySeries || []);
     for (var j = reg.length - 1; j >= 0; j--)
       if (reg[j] && reg[j].channel === "book" && reg[j].id === "crypto") reg.splice(j, 1);
@@ -121,7 +148,12 @@
                  // Robert's spec: SOLID line sharing the FULL plot with the
                  // yellow series (own y-scale, green $ on the right, green
                  // clock on top) — no dashed lead-in, no separate lane.
-                 leadIn: true, lane: 0, points: pts });
+                 // Points are already transfer-collapsed (exact ledger when
+                 // the server ships it) — tell the chart so window P/L math
+                 // never double-subtracts, and hand it the ledger for
+                 // marker rendering on raw ($) view.
+                 leadIn: true, lane: 0, points: pts,
+                 transferAdjusted: true, transfers: xs || undefined });
     try { window.dispatchEvent(new Event("qt-overlay-series")); } catch (e) { /* noop */ }
   }
 

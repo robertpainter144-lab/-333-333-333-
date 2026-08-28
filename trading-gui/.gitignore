@@ -1,4 +1,9 @@
 node_modules
-dist
+# dist is intentionally TRACKED here (root .gitignore un-ignores
+# trading-gui/dist/**): the GCP e2-micro is too small to run vite, so the
+# built SPA must ship via the repo and serve after a plain pull. A local
+# `dist` rule here silently overrode that exception — the 8/11 rebuild's
+# renamed asset hashes were never committed and /terminal served a blank
+# shell (index.html referencing missing assets/*.js).
 *.local
 .DS_Store

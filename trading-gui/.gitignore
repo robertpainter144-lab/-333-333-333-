@@ -1,4 +1,8 @@
 node_modules
-dist
+# dist is deliberately TRACKED here (root .gitignore re-includes it): the
+# GCP e2-micro can't run vite, so the built SPA ships via plain git pull.
+# A stray `dist` rule in this file silently overrode the root exception
+# from 2026-08-11 to 2026-08-28 — the repo carried an index.html whose
+# hashed assets were never committed.
 *.local
 .DS_Store

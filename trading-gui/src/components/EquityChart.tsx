@@ -123,6 +123,10 @@ export default function EquityChart(props: {
    *  post-freeze cash moves, so its first-vs-last P/L contradicts the
    *  server's canonical pl_total (+$479 vs −$203 on 8/27). */
   hideWindowPL?: boolean;
+  /** Pin the transfer-collapsed P/L view and drop the P/L-vs-$ toggle.
+   *  Book (Robert 2026-08-27): "it's just a p/l chart not a portfolio
+   *  value chart" — raw account value must not be one tap away there. */
+  plOnly?: boolean;
 }) {
   const [range, setRange] = useState(props.defaultRange ?? "ALL");
   const overlayChannel = props.overlayChannel;
@@ -149,10 +153,13 @@ export default function EquityChart(props: {
   // tap away and the choice sticks. Key bumped to qt.equityNet2 so this
   // default lands once on every device regardless of the old key's value;
   // any explicit tap thereafter is remembered forever.
-  const [net, setNet] = useState(() => {
+  const [netPref, setNetPref] = useState(() => {
     const stored = localStorage.getItem(LS_NET);
     return stored === null ? true : stored === "1";
   });
+  // plOnly pins the collapsed view; the stored preference still governs
+  // charts that keep the toggle.
+  const net = props.plOnly ? true : netPref;
   const color = props.color ?? "#ffd60a";
 
   const rawRows = useMemo(
@@ -1056,7 +1063,7 @@ export default function EquityChart(props: {
           )}
         </span>
         <div className="flex min-w-0 flex-wrap items-center justify-end gap-1">
-          {hasXfers && (
+          {hasXfers && !props.plOnly && (
             <span title="P/L: deposits/withdrawals collapsed out of the line — only trading moves it. $: raw account value.">
               <Tabs
                 small
@@ -1065,7 +1072,7 @@ export default function EquityChart(props: {
                 onChange={(id) => {
                   const v = id === "pl";
                   localStorage.setItem(LS_NET, v ? "1" : "0");
-                  setNet(v);
+                  setNetPref(v);
                 }}
               />
             </span>

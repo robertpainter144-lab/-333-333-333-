@@ -1,5 +1,14 @@
 {
-  "positions": {},
+  "positions": {
+    "SOL/USD": {
+      "entry_price": 105.39,
+      "notional": 61.28,
+      "opened": "2026-08-29T15:00:18+00:00",
+      "signal_mode": "whale-confirmed (risk_on=0.76)",
+      "mv": 61.34,
+      "cur": 105.14
+    }
+  },
   "frozen": false,
   "last_notified": {
     "crypto_inactive": 1786306737.674485,
@@ -8,28 +17,43 @@
   },
   "seen_active": true,
   "targets": {
+    "SOL/USD": 61.28,
     "DASH/USD": 300.0
   },
-  "targets_ts": "2026-08-29T14:55:24+00:00",
+  "targets_ts": "2026-08-29T15:05:10+00:00",
   "targets_gate": "whale-confirmed (risk_on=0.76)",
-  "trail_peaks": {},
-  "trails": {},
+  "trail_peaks": {
+    "SOL/USD": 105.39
+  },
+  "trails": {
+    "SOL/USD": {
+      "width_pct": 4.49,
+      "peak": 105.39,
+      "stop_px": 100.66295758,
+      "armed": false
+    }
+  },
   "reentry": {},
-  "px_hist": {},
+  "px_hist": {
+    "SOL/USD": [
+      [
+        "2026-08-29T15:05:05+00:00",
+        105.14
+      ]
+    ]
+  },
   "pl_alert_anchor": 95.10953858868606,
-  "ex_stops": {},
+  "ex_stops": {
+    "SOL/USD": {
+      "txid": "OV5WWM-IASSE-J6YTTZ",
+      "stop_px": 96.9588,
+      "vol": 0.58308078
+    }
+  },
   "ex_stops_announced": true,
   "pl_hwm": 93.97,
   "effective_floor": -56.03,
   "btc_hist": [
-    [
-      "2026-08-29T13:00:07+00:00",
-      77592.2
-    ],
-    [
-      "2026-08-29T13:05:05+00:00",
-      77580.6
-    ],
     [
       "2026-08-29T13:10:11+00:00",
       77600.9
@@ -117,6 +141,14 @@
     [
       "2026-08-29T14:55:19+00:00",
       77991.9
+    ],
+    [
+      "2026-08-29T15:00:06+00:00",
+      78019.1
+    ],
+    [
+      "2026-08-29T15:05:05+00:00",
+      77882.8
     ]
   ],
   "milestone_base": 91.24,
@@ -127,11 +159,9 @@
   "flip_pending": {},
   "turnover": {
     "date": "2026-08-29",
-    "bought": 0.0
+    "bought": 61.28
   },
   "loss_streak": 2,
-  "entry_cooldown": {
-    "SOL/USD": "2026-08-29T06:10:08+00:00"
-  },
+  "entry_cooldown": {},
   "mega_ts": {}
 }

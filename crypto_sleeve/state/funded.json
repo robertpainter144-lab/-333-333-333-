@@ -1,1 +1,185 @@
-{"program": "Kraken Funded", "phase": "challenge", "start_balance": 1000.0, "balance": 993.82, "pass_target": 1120.0, "kill_floor": 950.0, "started": "2026-08-24", "positions": [{"sym": "BTC/USD", "side": "long", "size_usd": 109.0, "qty": 0.00135, "entry": 80740, "opened": 1787656912, "note": "self-directed, seen via screenshot 8/25 05:19 (approx entry from -2.16 P/L)", "stop": 77500}], "trades": [{"sym": "SOL/USD", "side": "long", "size_usd": 120.0, "entry": 101.46, "exit": 98.6, "pl": -3.4, "opened": 1787708000, "entry_time": 1787708000, "closed": 1787658443, "note": "closed per 8/25 morning read (momentum thesis dead)"}, {"sym": "CRV/USD", "side": "long", "size_usd": 5.0, "entry": 0.338, "exit": 0.327, "pl": -0.17, "opened": 1787656912, "entry_time": 1787656912, "closed": 1787658443, "note": "dust closed"}], "updated": "2026-08-25T23:15:02+00:00", "note": "hand-entered ledger: Robert reports opens/closes in chat, Claude sessions update this file (source of truth = GCP copy)", "equity": [{"ts": 1787529600, "bal": 1000.0}, {"ts": 1787587576, "bal": 1000.0}, {"ts": 1787587681, "bal": 1000.0}, {"ts": 1787621780, "bal": 1000.0}, {"ts": 1787622484, "bal": 999.73}, {"ts": 1787656912, "bal": 994.66}, {"ts": 1787658443, "bal": 994.19}, {"ts": 1787699702, "bal": 993.82}], "last_note": "screenshot report 17:11 MDT; BTC -2.61 open"}
+{
+ "program": "Kraken Funded",
+ "phase": "challenge",
+ "start_balance": 1000.0,
+ "balance": 984.09,
+ "pass_target": 1120.0,
+ "kill_floor": 950.0,
+ "started": "2026-08-24",
+ "positions": [
+  {
+   "sym": "BTC/USD",
+   "side": "long",
+   "size_usd": 105.31,
+   "qty": 0.00135,
+   "entry": 80740,
+   "opened": 1787656912,
+   "note": "self-directed, seen via screenshot 8/25 05:19 (approx entry from -2.16 P/L) | size re-marked 8/29 12:33 MDT screenshot",
+   "stop": 77500
+  },
+  {
+   "sym": "LINK/USD",
+   "side": "long",
+   "size_usd": 19.42,
+   "qty": 1.70242,
+   "entry": 11.407291,
+   "opened": 1788029047,
+   "note": "new position \u2014 qty+mark from 8/29 12:33 MDT screenshot, true entry unknown"
+  },
+  {
+   "sym": "ETH/USD",
+   "side": "long",
+   "size_usd": 39.06,
+   "qty": 0.01597,
+   "entry": 2445.835942,
+   "opened": 1788029047,
+   "note": "new position \u2014 qty+mark from 8/29 12:33 MDT screenshot, true entry unknown"
+  },
+  {
+   "sym": "BNB/USD",
+   "side": "long",
+   "size_usd": 19.52,
+   "qty": 0.02826,
+   "entry": 690.728946,
+   "opened": 1788029047,
+   "note": "new position \u2014 qty+mark from 8/29 12:33 MDT screenshot, true entry unknown"
+  },
+  {
+   "sym": "UNI/USD",
+   "side": "long",
+   "size_usd": 251.61,
+   "qty": 53.99366,
+   "entry": 4.659992,
+   "opened": 1788029047,
+   "note": "new position \u2014 qty+mark from 8/29 12:33 MDT screenshot, true entry unknown"
+  },
+  {
+   "sym": "MOODENG/USD",
+   "side": "long",
+   "size_usd": 73.8,
+   "qty": 1785.727,
+   "entry": 0.041328,
+   "opened": 1788029047,
+   "note": "new position \u2014 qty+mark from 8/29 12:33 MDT screenshot, true entry unknown"
+  },
+  {
+   "sym": "DOT/USD",
+   "side": "long",
+   "size_usd": 9.55,
+   "qty": 11.4155251,
+   "entry": 0.83658,
+   "opened": 1788029047,
+   "note": "new position \u2014 qty+mark from 8/29 12:33 MDT screenshot, true entry unknown"
+  },
+  {
+   "sym": "NEAR/USD",
+   "side": "long",
+   "size_usd": 40.02,
+   "qty": 21.68948,
+   "entry": 1.845134,
+   "opened": 1788029047,
+   "note": "new position \u2014 qty+mark from 8/29 12:33 MDT screenshot, true entry unknown"
+  },
+  {
+   "sym": "LDO/USD",
+   "side": "long",
+   "size_usd": 4.97,
+   "qty": 13.81763,
+   "entry": 0.359685,
+   "opened": 1788029047,
+   "note": "new position \u2014 qty+mark from 8/29 12:33 MDT screenshot, true entry unknown"
+  },
+  {
+   "sym": "APT/USD",
+   "side": "long",
+   "size_usd": 4.74,
+   "qty": 8.7154,
+   "entry": 0.543865,
+   "opened": 1788029047,
+   "note": "new position \u2014 qty+mark from 8/29 12:33 MDT screenshot, true entry unknown"
+  },
+  {
+   "sym": "ONDO/USD",
+   "side": "long",
+   "size_usd": 4.72,
+   "qty": 13.398,
+   "entry": 0.352291,
+   "opened": 1788029047,
+   "note": "new position \u2014 qty+mark from 8/29 12:33 MDT screenshot, true entry unknown"
+  },
+  {
+   "sym": "SOL/USD",
+   "side": "long",
+   "size_usd": 207.13,
+   "qty": 1.97532,
+   "entry": 104.85896,
+   "opened": 1788029047,
+   "note": "new position \u2014 qty+mark from 8/29 12:33 MDT screenshot, true entry unknown"
+  }
+ ],
+ "trades": [
+  {
+   "sym": "SOL/USD",
+   "side": "long",
+   "size_usd": 120.0,
+   "entry": 101.46,
+   "exit": 98.6,
+   "pl": -3.4,
+   "opened": 1787708000,
+   "entry_time": 1787708000,
+   "closed": 1787658443,
+   "note": "closed per 8/25 morning read (momentum thesis dead)"
+  },
+  {
+   "sym": "CRV/USD",
+   "side": "long",
+   "size_usd": 5.0,
+   "entry": 0.338,
+   "exit": 0.327,
+   "pl": -0.17,
+   "opened": 1787656912,
+   "entry_time": 1787656912,
+   "closed": 1787658443,
+   "note": "dust closed"
+  }
+ ],
+ "updated": 1788029047,
+ "note": "hand-entered ledger: Robert reports opens/closes in chat, Claude sessions update this file (source of truth = GCP copy)",
+ "equity": [
+  {
+   "ts": 1787529600,
+   "bal": 1000.0
+  },
+  {
+   "ts": 1787587576,
+   "bal": 1000.0
+  },
+  {
+   "ts": 1787587681,
+   "bal": 1000.0
+  },
+  {
+   "ts": 1787621780,
+   "bal": 1000.0
+  },
+  {
+   "ts": 1787622484,
+   "bal": 999.73
+  },
+  {
+   "ts": 1787656912,
+   "bal": 994.66
+  },
+  {
+   "ts": 1787658443,
+   "bal": 994.19
+  },
+  {
+   "ts": 1787699702,
+   "bal": 993.82
+  }
+ ],
+ "last_note": "8/29 12:33 MDT screenshots: balance 984.09 (-15.91, -1.59%), $34.09 above the $950 fail line; 12 coins + $204.28 cash; heavy rotation since 8/27 (SOL 7.2->1.98, UNI 1.1->54, MOODENG 115->1786, +NEAR/LDO/APT/ONDO)",
+ "cash_usd": 204.28,
+ "untracked_usd": 0.0
+}

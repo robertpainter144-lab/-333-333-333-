@@ -983,6 +983,36 @@ def main() -> None:
     if adopted:
         save_state(st)
 
+    # Manual-add blend (2026-08-29: Robert's $49.50 SOL instant-buy rode on
+    # top of the tracked position — balance qty grew, notional didn't, and
+    # the difference read as +$46 phantom unrealized that ratcheted pl_hwm).
+    # Fold extra qty into the basis at the current price the tick it
+    # appears; a 5-min detection window keeps that within pennies of the
+    # true fill. Guards: >= $5 and >= 2% of the implied position, so fee
+    # crumbs and rounding never churn the basis.
+    if not st.get("frozen"):
+        for p in positions:
+            meta = st["positions"].get(p.symbol)
+            if not meta:
+                continue
+            try:
+                _entry = float(meta.get("entry_price") or 0)
+                _noti = float(meta.get("notional") or 0)
+                if _entry <= 0 or _noti <= 0:
+                    continue
+                _implied = _noti / _entry
+                _extra = p.qty - _implied
+                if _extra * p.current_price >= 5.0 and _extra >= _implied * 0.02:
+                    _add = _extra * p.current_price
+                    meta["notional"] = round(_noti + _add, 4)
+                    meta["entry_price"] = meta["notional"] / p.qty
+                    save_state(st)
+                    log(f"MANUAL ADD BLENDED {p.symbol}: +{_extra:.6g} units "
+                        f"(~${_add:.2f}) folded into basis — entry "
+                        f"{_entry:.6g} -> {meta['entry_price']:.6g}")
+            except Exception as _e:
+                log(f"manual-add blend {p.symbol} FAIL {_e!r}")
+
     # Reverse reconciliation (ultra-audit 2026-08-21): if state tracks a
     # position the exchange no longer shows (a close whose HTTP response was
     # lost after the fill, or a balance drained outside the sleeve), record

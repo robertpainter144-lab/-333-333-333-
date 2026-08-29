@@ -1879,10 +1879,24 @@ def main() -> None:
                     continue
             # Liquidity screen for NEW names only (Robert 2026-08-21: "be
             # more careful with low volume stuff like pepe") — fails closed.
+            # A floor failure parks the symbol for 6h (Robert 2026-08-29
+            # "fix the DASH log spam" — DASH re-logged every tick for a
+            # day): one line per park, no volume fetch while parked, and a
+            # re-check after 6h since liquidity genuinely changes.
+            _ill = st.setdefault("illiquid_until", {})
+            try:
+                if sym in _ill and datetime.fromisoformat(_ill[sym]) \
+                        > datetime.now(timezone.utc):
+                    continue
+            except Exception:
+                _ill.pop(sym, None)
             dvol = dollar_vol_24h(broker, sym)
             if dvol < _min_dvol:
+                _ill[sym] = (datetime.now(timezone.utc)
+                             + timedelta(hours=6)).isoformat(timespec="seconds")
+                save_state(st)
                 log(f"BUY {sym} skipped: 24h $vol ${dvol/1e6:.1f}M < "
-                    f"${_min_dvol/1e6:.0f}M liquidity floor")
+                    f"${_min_dvol/1e6:.0f}M liquidity floor — parked 6h")
                 continue
             try:
                 # momentum already confirmed for ranked mode; re-check in flat

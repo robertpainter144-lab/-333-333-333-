@@ -178,3 +178,4 @@ closed_at,symbol,entry_time,entry_price,exit_price,notional,realized_pl,pl_pct,r
 2026-08-26T00:10:44+00:00,HYPE/USD,2026-08-26T00:05:24+00:00,80.1100,79.5400,109.10,-1.0144,-0.0093,momentum_flip,whale-confirmed (risk_on=0.89)
 2026-08-26T15:35:09+00:00,HYPE/USD,2026-08-26T00:15:34+00:00,80.5188,80.8900,800.00,-0.3178,-0.0004,freeze_liquidation,whale-confirmed (risk_on=0.89)
 2026-08-29T06:10:08+00:00,SOL/USD,2026-08-26T23:56:31+00:00,103.9078,103.6700,990.10,-2.0191,-0.0020,momentum_flip,adopted
+2026-08-30T13:55:31+00:00,SOL/USD,2026-08-29T15:00:18+00:00,105.1260,107.2500,500.00,196.5057,0.3930,milestone_bank(hwm_602),whale-confirmed (risk_on=0.76)
